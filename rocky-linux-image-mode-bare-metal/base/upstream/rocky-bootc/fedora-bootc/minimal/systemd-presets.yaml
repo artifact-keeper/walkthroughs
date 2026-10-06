@@ -1,0 +1,30 @@
+# Postprocessing relating to systemd presets on the system.
+postprocess:
+  - |
+    #!/bin/bash
+    set -xeuo pipefail
+    # Override some of the default presets.
+    cat <<EOF > usr/lib/systemd/system-preset/85-bootc.preset
+    # Disable dnf-makecache.timer on bootc/image mode systems
+    # https://github.com/coreos/fedora-coreos-tracker/issues/1896#issuecomment-2848251507
+    disable dnf-makecache.timer
+    EOF
+  # Enable bootloader-update.service on F43+.
+  # https://github.com/coreos/fedora-coreos-tracker/issues/1468#issuecomment-2996654547
+  # https://fedoraproject.org/wiki/Changes/AutomaticBootloaderUpdatesBootc
+  - |
+    #!/bin/bash
+    set -xeuo pipefail
+    source /usr/lib/os-release
+    if [ $ID == "fedora" ] && [ ${VERSION_ID} -ge 43 ]; then
+      echo "enable bootloader-update.service" >> /usr/lib/systemd/system-preset/85-bootc.preset
+    fi
+  # Undo RPM scripts enabling units; we want the presets to be canonical
+  # https://github.com/projectatomic/rpm-ostree/issues/1803
+  - |
+    #!/bin/bash
+    set -xeuo pipefail
+    rm -rf /etc/systemd/system/*
+    systemctl preset-all
+    rm -rf /etc/systemd/user/*
+    systemctl --user --global preset-all

@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+srcdir=$(cd $(dirname $0) && pwd)
+rootfs=$1
+shift
+cd $rootfs
+for case in ${srcdir}/cases/*; do
+  if test -x "$case"; then
+    echo "Running $case"
+    $case
+    echo "ok $case"
+  fi
+done

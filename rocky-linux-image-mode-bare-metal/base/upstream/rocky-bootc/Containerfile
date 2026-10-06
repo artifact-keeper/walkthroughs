@@ -1,0 +1,38 @@
+# In order to make a base image as part of a Dockerfile, this container build uses
+# nested containerization, so you must build with e.g.
+# podman build -v "$(pwd):/buildcontext" --security-opt=label=disable --cap-add=all --device /dev/fuse <...>
+
+FROM docker.io/rockylinux/rockylinux:10 as builder
+RUN dnf -y install rpm-ostree selinux-policy-targeted
+ARG MANIFEST=standard
+COPY . /src
+WORKDIR /src
+RUN --mount=type=cache,target=/workdir \
+      /src/build.sh
+
+# This pulls in the rootfs generated in the previous step
+FROM oci-archive:./out.ociarchive
+# Need to reference builder here to force ordering. But since we have to run
+# something anyway, we might as well cleanup after ourselves.
+RUN --mount=type=bind,from=builder,src=.,target=/var/tmp rm -v /buildcontext/out.ociarchive
+
+# Fix /tmp if it's a softlink
+RUN if [ -L /tmp ]; then \
+        rm -rf /tmp && mkdir /tmp && chmod 1777 /tmp; \
+    fi
+
+# /usr/local should point to /var/usrlocal
+RUN rm -rf /usr/local && ln -s /var/usrlocal /usr/local
+
+# Note for now we are also keeping the legacy ostree.bootable label too
+# so we can do direct upgrades from old bootc in RHEL 9.4.
+LABEL containers.bootc="1" \
+      ostree.bootable="1" \
+      org.opencontainers.image.version=10 \
+      version=10
+# https://pagure.io/fedora-kiwi-descriptions/pull-request/52
+ENV container=oci
+
+# Make systemd the default
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

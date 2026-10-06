@@ -1,0 +1,25 @@
+# Configuration to enable kernel-install integration
+postprocess:
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    source /usr/lib/os-release
+    echo -e "# kernel-install will not try to run dracut and allow rpm-ostree to\n\
+    # take over. Rpm-ostree will use this to know that it is responsible\n\
+    # to run dracut and ensure that there is only one kernel in the image\n\
+    layout=ostree" | tee /usr/lib/kernel/install.conf > /dev/null
+    # By default dnf keeps multiple versions of the kernel, with this
+    # configuration we tell dnf to treat the kernel as everything else.
+    # https://dnf.readthedocs.io/en/latest/conf_ref.html#main-options
+    # Let's add the config to a distribution configuration file if dnf5
+    # is used, we append to /etc/dnf/dnf.conf if not.
+    # Also set protect_running_kernel=False, dnf/yum pre-dates Containers and
+    # uses uname to protect the running kernel even on Container builds.
+    if [ -d "/usr/share/dnf5/libdnf.conf.d/" ]; then
+      echo -e "[main]\ninstallonlypkgs=''" >> /usr/share/dnf5/libdnf.conf.d/20-ostree-installonlypkgs.conf
+      echo -e "[main]\nprotect_running_kernel=False" >> /usr/share/dnf5/libdnf.conf.d/20-ostree-protect_running_kernel.conf
+    else
+      echo "installonlypkgs=''" >> /etc/dnf/dnf.conf
+      echo "protect_running_kernel=False" >> /etc/dnf/dnf.conf
+    fi
+

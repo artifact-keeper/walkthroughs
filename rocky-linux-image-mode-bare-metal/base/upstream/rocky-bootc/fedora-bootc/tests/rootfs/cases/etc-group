@@ -1,0 +1,6 @@
+#!/bin/bash
+set -xeuo pipefail
+# Verify group members
+getent group tss >/dev/null
+# This one needs to be in /etc
+grep -q tss /etc/group

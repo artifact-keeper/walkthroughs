@@ -1,0 +1,15 @@
+#!/bin/bash
+set -xeuo pipefail
+# This script copies the manifests from the current directory
+# into their installed location.
+manifestdir=${1:-/usr/share/doc/bootc-base-imagectl/manifests}
+# Recurse into the upstream manifest installation
+(cd fedora-bootc && ./install-manifests "$manifestdir")
+# Delete all top-level manifests; the canonical list of valid CentOS manifests is in this repo.
+rm -vf $manifestdir/*.yaml
+# Install our manifests.
+install -D -m 0664 -t $manifestdir minimal.yaml minimal-plus.hidden.yaml standard.yaml
+# And install dependency manifests
+cp -a includes $manifestdir
+# Set the default
+ln -sf standard.yaml $manifestdir/default.yaml

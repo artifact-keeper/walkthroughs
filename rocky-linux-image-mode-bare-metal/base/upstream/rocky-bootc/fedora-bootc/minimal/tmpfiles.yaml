@@ -1,0 +1,8 @@
+postprocess:
+  - |
+    #!/bin/bash
+    set -xeuo pipefail
+    cat >/usr/lib/tmpfiles.d/bootc-base-rpmstate.conf <<'EOF'
+    # Workaround for https://bugzilla.redhat.com/show_bug.cgi?id=771713
+    d /var/lib/rpm-state 0755 - - -
+    EOF

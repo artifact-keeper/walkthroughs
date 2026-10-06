@@ -1,0 +1,6 @@
+# cosign signatures for the edge images live next to them in Artifact Keeper as
+# sha256-<digest>.sig tags ("sigstore attachments"); containers-image (bootc upgrade,
+# podman, skopeo) only looks for them when this is set.
+docker:
+  10.0.2.2:30080/oci-bootc:
+    use-sigstore-attachments: true

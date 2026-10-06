@@ -1,0 +1,47 @@
+# Local overrides on top of the stock upstream docker-compose.yml (v1.10.2).
+# The stock file in this directory is kept byte-for-byte identical to upstream;
+# every change for this PoC lives here. See ../README.md ("Deviations").
+#
+# Short image names in the stock file (postgres:18-alpine, alpine:3.24,
+# caddy:2-alpine) are fully qualified here: rootless podman resolves short
+# names against *local* storage first and will happily match any cached
+# image whose path ends in the same name (we saw postgres:18-alpine resolve
+# to a stale ghcr.io/artifact-keeper/ci-mirror/postgres:18-alpine).
+services:
+  pg-certs:
+    image: docker.io/library/alpine:3.24
+  scan-workspace-init:
+    image: docker.io/library/alpine:3.24
+  dtrack-init:
+    image: docker.io/library/alpine:3.24
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+
+  backend:
+    # Pin to the release instead of :latest.
+    image: ghcr.io/artifact-keeper/artifact-keeper-backend:${ARTIFACT_KEEPER_VERSION:-1.10.2}
+
+  web:
+    # Stock file hardcodes :latest and ignores ARTIFACT_KEEPER_VERSION.
+    # There is no 1.10.2 web image on ghcr.io; 1.10.1 is the newest 1.10.x tag.
+    image: ghcr.io/artifact-keeper/artifact-keeper-web:${ARTIFACT_KEEPER_WEB_VERSION:-1.10.1}
+
+  # Vulnerability / compliance scanners are not needed for the edge demo.
+  # Opt back in with:  COMPOSE_PROFILES=scanners ./up.sh
+  trivy:
+    profiles: ["scanners"]
+    ports: !reset []
+  openscap:
+    image: ghcr.io/artifact-keeper/artifact-keeper-openscap:${ARTIFACT_KEEPER_VERSION:-1.10.2}
+    profiles: ["scanners"]
+    ports: !reset []
+
+  # Do not publish internal services on the host (stock file exposes Postgres
+  # with registry/registry on 0.0.0.0:30432 and OpenSearch on 0.0.0.0:9200).
+  # Only Caddy (30080/30443) is reachable from outside the compose network.
+  postgres:
+    image: docker.io/library/postgres:18-alpine
+    ports: !reset []
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6
+    ports: !reset []

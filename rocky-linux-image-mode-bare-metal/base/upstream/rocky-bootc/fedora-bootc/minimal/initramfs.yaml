@@ -1,0 +1,28 @@
+# Configuration for the initramfs
+postprocess:
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    mkdir -p /usr/lib/dracut/dracut.conf.d
+    cat > /usr/lib/dracut/dracut.conf.d/20-bootc-base.conf << 'EOF'
+    # We want a generic image; hostonly makes no sense as part of a server side build
+    hostonly=no
+    # Dracut will always fail to set security.selinux xattrs at build time
+    # https://github.com/dracut-ng/dracut-ng/issues/1561
+    export DRACUT_NO_XATTR=1
+    add_dracutmodules+=" kernel-modules dracut-systemd systemd-initrd base ostree "
+    EOF
+    cat > /usr/lib/dracut/dracut.conf.d/22-bootc-generic.conf << 'EOF'
+    # Extra modules that we want by default that are known to exist in the kernel
+    add_dracutmodules+=" virtiofs "
+    EOF
+    cat > /usr/lib/dracut/dracut.conf.d/49-bootc-tpm2-tss.conf << 'EOF'
+    # We want this for systemd-cryptsetup tpm2 locking
+    add_dracutmodules+=" tpm2-tss "
+    EOF
+    cat > /usr/lib/dracut/dracut.conf.d/59-altfiles.conf << 'EOF'
+    # https://issues.redhat.com/browse/RHEL-49590
+    # On image mode systems we use nss-altfiles for passwd and group,
+    # this makes sure dracut uses them which also fixes kdump writing to NFS.
+    install_items+=" /usr/lib/passwd /usr/lib/group "
+    EOF

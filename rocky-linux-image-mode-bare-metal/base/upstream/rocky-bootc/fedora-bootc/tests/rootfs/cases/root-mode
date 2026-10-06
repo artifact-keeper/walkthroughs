@@ -1,0 +1,4 @@
+#!/bin/bash
+set -xeuo pipefail
+# Verify we didn't lose the executable bit for others on /
+test $(($(stat -c '0%a' .) % 2)) = 1

@@ -1,0 +1,59 @@
+metadata:
+  summary: Fedora IoT bootc image
+
+variables:
+  distro: "fedora-iot"
+
+packages:
+  - fedora-release-iot
+  - fedora-iot-config
+  - atheros-firmware
+  - brcmfmac-firmware
+  - chrony
+  - clevis
+  - clevis-dracut
+  - clevis-luks
+  - clevis-pin-tpm2
+  - containernetworking-plugins
+  - dnf5-plugins
+  - dracut-config-generic
+  - dracut-network
+  - fdo-client
+  - fdo-owner-cli
+  - firewalld
+  - fwupd-efi
+  - fwupd-plugin-modem-manager
+  - fwupd-plugin-uefi-capsule-data
+  - greenboot
+  - greenboot-default-health-checks
+  - ignition
+  - ignition-edge
+  - ima-evm-utils
+  - iputils
+  - iwd
+  - iwlwifi-mvm-firmware
+  - libsss_sudo
+  - NetworkManager-wifi
+  - NetworkManager-wwan
+  - openssl
+  - pinentry
+  - procps-ng
+  - realtek-firmware
+  - rootfiles
+  - screen
+  - setools-console
+  - slirp4netns
+  - ssh-key-dir
+  - sssd-client
+  - tmux
+  - tpm2-pkcs11
+  - traceroute
+  - usbguard
+  - wpa_supplicant
+  - wireless-regdb
+packages-aarch64:
+  - arm-image-installer
+  - bcm283x-firmware
+  - optee_client
+  - uboot-images-armv8
+

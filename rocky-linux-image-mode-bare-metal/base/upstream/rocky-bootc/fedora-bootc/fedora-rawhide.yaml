@@ -1,0 +1,6 @@
+# NB: This treefile is used by the legacy pungi path only to build tier-1. It
+# will be removed in the future.
+releasever: rawhide
+repos:
+  - fedora-rawhide
+include: fedora-bootc.yaml

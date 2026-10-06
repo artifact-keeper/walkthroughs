@@ -1,0 +1,3 @@
+# Kernel arguments applied by bootc at install/upgrade time.
+# Last console= wins for /dev/console, so systemd output goes to the serial port.
+kargs = ["console=tty0", "console=ttyS0,115200n8"]

@@ -1,0 +1,6 @@
+# NB: This treefile is used by the legacy pungi path only to build tier-1. It
+# will be removed in the future.
+releasever: 43
+repos:
+  - fedora-devel
+include: fedora-bootc.yaml

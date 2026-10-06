@@ -1,0 +1,47 @@
+---
+stages:
+  - build
+
+variables:
+  PRIV_ARGS: "--security-opt=label=disable --cap-add=all --device /dev/fuse"
+
+.build-image:
+  stage: build
+  image: quay.io/buildah/stable:v1.41.5
+  needs: []
+
+basic-checks:
+  stage: build
+  image: quay.io/fedora/fedora:latest
+  needs: []
+  script: |
+    set -xeuo pipefail
+    dnf install -y file jq python3-yaml ShellCheck
+    ./ci/find-whitespace
+    ./ci/shellcheck
+    ./ci/validate
+
+build-minimal:
+  extends: .build-image
+  script: |
+    set -xeuo pipefail
+    buildah build -f Containerfile --no-cache -t localhost/fedora-bootc:minimal ${PRIV_ARGS} --build-arg=manifest=fedora-minimal .
+    cd tests/rootfs && buildah build -t localhost/test --from localhost/fedora-bootc:minimal
+
+build-minimal-plus:
+  extends: .build-image
+  script: |
+    set -xeuo pipefail
+    buildah build -f Containerfile --no-cache -t localhost/fedora-bootc:minimal-plus ${PRIV_ARGS} --build-arg=manifest=fedora-minimal-plus .
+    cd tests/rootfs && buildah build -t localhost/test --from localhost/fedora-bootc:minimal-plus
+
+
+standard-build-and-test:
+  extends: .build-image
+  script: |
+    set -xeuo pipefail
+    buildah build --no-cache -t localhost/fedora-bootc ${PRIV_ARGS} .
+    (cd tests/rootfs && buildah build -t localhost/test --from localhost/fedora-bootc)
+    cd tests
+    buildah build -f Containerfile.test-derive --no-cache -t localhost/fedora-bootc-derived ${PRIV_ARGS} .
+    buildah build -f Containerfile.test-sysusers --no-cache -t localhost/fedora-bootc-derived ${PRIV_ARGS} .

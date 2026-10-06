@@ -1,0 +1,601 @@
+# =============================================================================
+# Artifact Keeper - Getting Started Compose File
+# =============================================================================
+#
+# This file is a STARTING POINT for running Artifact Keeper locally or
+# evaluating it in a non-production setting. It is NOT a production-ready
+# deployment. Credentials are hardcoded, volumes use the local driver, and
+# no resource limits or redundancy are configured.
+#
+# For production deployments, use this as a reference and adapt it to your
+# environment: swap in managed databases, external object storage, real TLS
+# certificates, secrets management, and appropriate resource constraints.
+# See: https://artifactkeeper.com/docs/deployment/
+#
+# Container images are available from two registries:
+#   ghcr.io (default):  ghcr.io/artifact-keeper/artifact-keeper-{backend,web,openscap}
+#   Docker Hub:         artifactkeeper/{backend,web,openscap}
+#
+# To use Docker Hub instead, replace image references below. For example:
+#   ghcr.io/artifact-keeper/artifact-keeper-backend:${ARTIFACT_KEEPER_VERSION:-latest}
+#     -> artifactkeeper/backend:${ARTIFACT_KEEPER_VERSION:-latest}
+#
+# Pin a specific release by setting ARTIFACT_KEEPER_VERSION in a .env file
+# alongside this compose file (e.g. ARTIFACT_KEEPER_VERSION=1.1.0). Omit the
+# "v" prefix. If unset, "latest" is used.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL TLS certificates (init container)
+  # ---------------------------------------------------------------------------
+  # Generates self-signed certs so the backend connects to Postgres over TLS.
+  # In production, replace this with certs issued by your internal CA or use a
+  # managed database service that handles TLS for you.
+  pg-certs:
+    image: alpine:3.24
+    container_name: artifact-keeper-pg-certs
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -f /certs/server.crt ]; then
+          echo "pg-certs: certificates already exist, skipping"
+          exit 0
+        fi
+        apk add --no-cache openssl >/dev/null 2>&1
+        echo "pg-certs: generating self-signed certificates..."
+        openssl genrsa -out /certs/ca.key 4096
+        openssl req -x509 -new -nodes -key /certs/ca.key -sha256 -days 365 \
+          -out /certs/ca.crt -subj "/CN=Artifact Keeper CA/O=Artifact Keeper/C=US"
+        openssl genrsa -out /certs/server.key 2048
+        openssl req -new -key /certs/server.key \
+          -out /certs/server.csr -subj "/CN=postgres/O=Artifact Keeper/C=US"
+        cat > /certs/server.ext <<EOF
+        authorityKeyIdentifier=keyid,issuer
+        basicConstraints=CA:FALSE
+        keyUsage=digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment
+        subjectAltName=DNS:localhost,DNS:postgres,IP:127.0.0.1
+        EOF
+        openssl x509 -req -in /certs/server.csr -CA /certs/ca.crt -CAkey /certs/ca.key \
+          -CAcreateserial -out /certs/server.crt -days 365 -sha256 -extfile /certs/server.ext
+        rm -f /certs/server.csr /certs/server.ext /certs/ca.srl
+        chown 70:70 /certs/server.key /certs/server.crt /certs/ca.crt
+        chmod 600 /certs/server.key
+        chmod 644 /certs/server.crt /certs/ca.crt
+        echo "pg-certs: done"
+    volumes:
+      - pg_certs:/certs
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  # Stores all metadata (artifacts, repositories, users, tokens, etc.).
+  # In production, consider a managed Postgres service (RDS, Cloud SQL, etc.)
+  # with proper backups, replication, and connection pooling.
+  # Default credentials below are for local evaluation only.
+  postgres:
+    image: postgres:18-alpine
+    container_name: artifact-keeper-db
+    depends_on:
+      pg-certs:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: registry
+      POSTGRES_PASSWORD: registry
+      POSTGRES_DB: artifact_registry
+    volumes:
+      # PostgreSQL 18+ places PGDATA in a subdirectory and expects the mount at
+      # /var/lib/postgresql, not /var/lib/postgresql/data. Mounting the old path
+      # makes the image refuse to start ('unused mount/volume'). See
+      # https://github.com/docker-library/postgres/issues/37
+      - postgres_data:/var/lib/postgresql
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro,z
+      - ./docker/init-pg-ssl.sh:/docker-entrypoint-initdb.d/init-pg-ssl.sh:ro,z
+      - pg_certs:/var/lib/postgresql/certs:ro
+    ports:
+      - "30432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U registry -d artifact_registry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Dependency-Track bootstrap (init container)
+  # ---------------------------------------------------------------------------
+  # Changes the default Dependency-Track password and extracts an API key so
+  # the backend can submit SBOMs automatically. Writes the key to a shared
+  # volume that the backend reads at startup.
+  # Gated behind the `dtrack` profile so the default stack does not pull in
+  # Dependency-Track (issue #1432: DT consumes ~4 GiB RAM and pegs the
+  # bundled Postgres while idle).
+  #
+  # This runs on a small shell-bearing image (alpine) rather than the backend
+  # image: the hardened runtime image (issue #2059) has no /bin/sh — nor the
+  # `jq` that init-dtrack.sh needs — so it can no longer host this bootstrap
+  # script (issue #2084). alpine keeps the hardening intact (the app image stays
+  # shell-free) while providing sh + curl + jq. Mirrors the pg-certs init
+  # container's `apk add` pattern above.
+  dtrack-init:
+    image: alpine:3.24
+    container_name: artifact-keeper-dtrack-init
+    profiles:
+      - dtrack  # Only starts with: docker compose --profile dtrack up
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dependency-track-apiserver:
+        condition: service_healthy
+    volumes:
+      - ./docker/init-dtrack.sh:/init-dtrack.sh:ro,z
+      - shared_config:/shared
+    environment:
+      DTRACK_INIT_FORCE_ROTATE: ${DTRACK_INIT_FORCE_ROTATE:-false}
+      # Owner (uid:gid) for /shared/dtrack-api-key (#2865). Must match the UID
+      # the backend runs as so it can read the key; the hardened backend image
+      # runs as artifact = 1001:0 (docker/Dockerfile.backend). Override only if
+      # you run a custom backend image with a different UID.
+      DTRACK_INIT_KEY_OWNER: ${DTRACK_INIT_KEY_OWNER:-1001:0}
+      # Opt-in OSV mirror (#1972). NVD-only matches by CPE and misses purl-based
+      # language dependencies; set to true to also mirror OSV (purl matching).
+      DTRACK_INIT_OSV_ENABLED: ${DTRACK_INIT_OSV_ENABLED:-false}
+      DTRACK_INIT_OSV_ECOSYSTEMS: ${DTRACK_INIT_OSV_ECOSYSTEMS:-Maven,PyPI,npm,Go,NuGet,RubyGems,crates.io,Packagist}
+      DEPENDENCY_TRACK_ADMIN_PASSWORD: ${DEPENDENCY_TRACK_ADMIN_PASSWORD:-ArtifactKeeper2026!}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl jq >/dev/null 2>&1
+        exec /bin/sh /init-dtrack.sh
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  # ---------------------------------------------------------------------------
+  # Scan workspace ownership (init container)
+  # ---------------------------------------------------------------------------
+  # The backend (read-write) and the Trivy/OpenSCAP sidecars (read-only) share
+  # a single `scan_workspace` named volume. The backend runs as the non-root
+  # UID 1001, but some container runtimes — notably Podman + SELinux on Fedora
+  # — do NOT propagate the image mountpoint's ownership to a freshly-created
+  # named volume, leaving the volume root owned by root:root mode 0755. The
+  # backend then cannot create per-scan subdirectories and OpenSCAP scans die
+  # with "Failed to create scan workspace: Permission denied (os error 13)"
+  # (issue #1563). This one-shot root init container chowns the volume to
+  # 1001:0 before the backend starts. Mirrors the pg-certs init pattern above.
+  scan-workspace-init:
+    image: alpine:3.24
+    container_name: artifact-keeper-scan-ws-init
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /scan-workspace
+        chown -R 1001:0 /scan-workspace
+        chmod 0775 /scan-workspace
+        echo "scan-workspace-init: volume owned by 1001:0"
+    volumes:
+      - scan_workspace:/scan-workspace
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  # ---------------------------------------------------------------------------
+  # Backend API server
+  # ---------------------------------------------------------------------------
+  # The core Artifact Keeper service. Handles all API requests, package format
+  # protocols, storage, and integrations with scanners.
+  # Docker Hub alternative: artifactkeeper/backend:${ARTIFACT_KEEPER_VERSION:-latest}
+  #
+  # Key environment variables to review for your deployment:
+  #   JWT_SECRET        - MUST be changed for production (use a random 32+ char string)
+  #   ADMIN_PASSWORD    - if unset, a random password is generated on first boot
+  #   STORAGE_PATH      - where artifacts are stored on disk (or configure S3 below)
+  #   CORS_ORIGINS      - set to your actual domain(s) in production
+  #
+  # For S3-compatible object storage, set S3_BUCKET, S3_REGION, S3_ACCESS_KEY,
+  # S3_SECRET_KEY, and STORAGE_BACKEND=s3. See .env.example for all options.
+  backend:
+    image: ghcr.io/artifact-keeper/artifact-keeper-backend:${ARTIFACT_KEEPER_VERSION:-latest}
+    container_name: artifact-keeper-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      scan-workspace-init:
+        condition: service_completed_successfully
+      dtrack-init:
+        condition: service_completed_successfully
+        required: false
+    # No entrypoint override: the hardened runtime image (issue #2059) has no
+    # /bin/sh, so the previous `["/bin/sh","-c", <wait-for-DT-key>]` wrapper
+    # broke `docker compose up` with `exec: "/bin/sh": no such file or
+    # directory` (issue #2084). We run the image CMD (`["artifact-keeper"]`)
+    # directly instead. The Dependency-Track API key is read from the shared
+    # volume via DEPENDENCY_TRACK_API_KEY_FILE below; the dtrack-init
+    # dependency above (service_completed_successfully) already guarantees the
+    # key file exists before the backend starts, so no in-shell wait is needed.
+    environment:
+      DATABASE_URL: postgresql://registry:registry@postgres:5432/artifact_registry?sslmode=require
+      STORAGE_PATH: /data/storage
+      BACKUP_PATH: /data/backups
+      PLUGINS_DIR: /data/plugins
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please}
+      # ADMIN_PASSWORD: set this to skip first-boot setup lock.
+      # If unset, a random password is generated and written to
+      # /data/storage/admin.password on each boot until it is changed.
+      # Read it with: docker exec artifact-keeper-backend cat /data/storage/admin.password
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # INITIAL_ADMIN_PASSWORD / INITIAL_ADMIN_PASSWORD_FILE: preset the
+      # first-boot admin password instead of reading a generated one out of
+      # the container. Applied only while the admin account is being created
+      # (ignored once an admin exists, so a restart never resets a changed
+      # password) and the account is still flagged must_change_password.
+      # Prefer the _FILE form with a mounted secret: a value set here is
+      # visible in `docker inspect`. Weak values abort startup.
+      INITIAL_ADMIN_PASSWORD_FILE: ${INITIAL_ADMIN_PASSWORD_FILE:-}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug}
+      LOG_FORMAT: ${LOG_FORMAT:-pretty}
+      AUDIT_STREAM: ${AUDIT_STREAM:-off}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,https://localhost}
+      # Trusted reverse-proxy CIDRs (#2298 / #2023). Caddy terminates all
+      # external traffic and forwards the real client IP in `X-Forwarded-For`
+      # (Caddy overwrites any client-supplied XFF with the real TCP peer, so
+      # the value cannot be spoofed). The backend believes that header ONLY
+      # when the immediate TCP peer falls inside one of these ranges; the
+      # default is empty (secure) and would make the backend key every request
+      # on Caddy's container IP. That collapse is dangerous for the login
+      # limiter: every source of a given account would share ONE bucket, so a
+      # single flooding client could lock a specific victim — including owner
+      # break-glass — out of login. Setting this to the compose network subnet
+      # (pinned to 172.30.0.0/24 under `networks:` below) restores per-client
+      # keying on the real client IP. Override for bare-metal / custom bridge
+      # subnets; keep it in sync with the actual proxy network.
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${RATE_LIMIT_TRUSTED_PROXY_CIDRS:-172.30.0.0/24}
+      TRIVY_URL: http://trivy:8090
+      # Trivy scanner-adapter URL (container-image scanning, #2471 / #2305).
+      # TRIVY_URL above only wires the legacy trivy *server* used for
+      # filesystem / incus (rootfs) scanning. To get first-class Trivy
+      # container-*image* reports, point the backend at the in-repo
+      # scanner-adapter (Harbor Pluggable Scanner API); this registers the
+      # dedicated `ImageScanner`. WITHOUT it, images are still covered by grype
+      # (registry mode), but no Trivy image report is produced and operators
+      # cannot tell why. When set it also drives fs/incus scans over HTTP
+      # (adapter >= 1.2.0), taking precedence over TRIVY_URL there. Uncomment
+      # this line and the `scanner-adapter` service block below to enable it.
+      # TRIVY_ADAPTER_URL: http://scanner-adapter:8080
+      # Set false to omit the Incus/LXC scanner while keeping other Trivy
+      # scanners enabled. Defaults to true for backward compatibility.
+      # INCUS_SCANNER_ENABLED: "false"
+      #
+      # Registry endpoint the adapter pulls images from (#3169). When unset,
+      # the backend advertises its own compose-network address automatically,
+      # which is correct for this file's topology. Set it explicitly when the
+      # adapter must reach the registry through a different endpoint (e.g. a
+      # TLS edge or a non-default network):
+      # TRIVY_ADAPTER_REGISTRY_URL: http://backend:8080
+      OPENSCAP_URL: http://openscap:8091
+      SCAN_WORKSPACE_PATH: /scan-workspace
+      OPENSEARCH_URL: http://opensearch:9200
+      # Dependency-Track integration (API key auto-provisioned by dtrack-init)
+      DEPENDENCY_TRACK_URL: http://dependency-track-apiserver:8080
+      # The dtrack-init container writes the provisioned API key to this shared
+      # path; the backend reads it via the *_FILE convention (no shell needed).
+      # Only consumed when DEPENDENCY_TRACK_ENABLED=true (dtrack profile).
+      DEPENDENCY_TRACK_API_KEY_FILE: /shared/dtrack-api-key
+      # Default off: Dependency-Track is an optional integration that runs a
+      # heavyweight Java service plus its own NVD mirror. Operators opt in by
+      # setting DEPENDENCY_TRACK_ENABLED=true *and* starting the dtrack
+      # profile: `docker compose --profile dtrack up`. See issue #1432.
+      DEPENDENCY_TRACK_ENABLED: ${DEPENDENCY_TRACK_ENABLED:-false}
+      ALLOW_HTTP_INTEGRATIONS: "1"
+      # Webhooks v2 signing-secret encryption key. 32 bytes, base64 encoded.
+      # Generate with: openssl rand -base64 32, then set the variable in
+      # your shell or a .env file before docker compose up. The placeholder
+      # below is intentionally invalid base64 so the backend fails fast at
+      # boot (ensure_configured) with a clear error rather than running
+      # with a known-weak key. Without a key set, webhook create and
+      # rotate-secret endpoints return HTTP 500.
+      AK_WEBHOOK_SECRET_KEY: ${AK_WEBHOOK_SECRET_KEY:-REPLACE_ME_WITH_OUTPUT_OF_openssl_rand_base64_32}
+      # Toggle the webhooks v2 EventBus producer. Default off. Flip to true
+      # once you have rotated migrated webhook secrets via /rotate-secret
+      # and verified delivery against your receivers.
+      WEBHOOKS_V2_PRODUCER_ENABLED: ${WEBHOOKS_V2_PRODUCER_ENABLED:-false}
+      # Forward host proxy settings so the backend can reach external services
+      # (OIDC providers, remote registries, webhook endpoints) through a
+      # corporate proxy. reqwest honours these natively.
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      ALL_PROXY: ${ALL_PROXY:-}
+      # Prevent host proxy settings (HTTP_PROXY/HTTPS_PROXY) from intercepting
+      # container-to-container traffic. Docker and Podman propagate proxy vars
+      # from the host, which causes health checks and API calls to route through
+      # corporate proxies instead of the compose network. We append internal
+      # service names so they always resolve directly.
+      # ref: https://github.com/artifact-keeper/artifact-keeper/issues/395
+      no_proxy: "${NO_PROXY:-},localhost,127.0.0.1,db,postgres,opensearch,trivy,openscap,dependency-track-apiserver"
+      HOST: 0.0.0.0
+      PORT: 8080
+    volumes:
+      - artifact_storage:/data/storage
+      - backup_storage:/data/backups
+      - plugins_storage:/data/plugins
+      - scan_workspace:/scan-workspace
+      - shared_config:/shared:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/livez"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # OpenSearch (full-text search engine)
+  # ---------------------------------------------------------------------------
+  # Powers artifact and package search in the UI and API.
+  opensearch:
+    image: opensearchproject/opensearch:2.19.6
+    container_name: artifact-keeper-opensearch
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Trivy (vulnerability scanner)
+  # ---------------------------------------------------------------------------
+  # Scans uploaded artifacts for known vulnerabilities. Runs as a server that
+  # the backend calls on demand. Optional: remove this service and unset
+  # TRIVY_URL on the backend if you do not need vulnerability scanning.
+  trivy:
+    image: ghcr.io/aquasecurity/trivy:0.74.0
+    container_name: artifact-keeper-trivy
+    command: ["server", "--listen", "0.0.0.0:8090"]
+    ports:
+      - "8090:8090"
+    volumes:
+      - trivy_cache:/root/.cache/trivy
+      - scan_workspace:/scan-workspace:ro
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Trivy scanner-adapter (container-image scanning) — optional
+  # ---------------------------------------------------------------------------
+  # Fronts trivy with the Harbor Pluggable Scanner API so the backend can run
+  # first-class container-*image* scans (the `ImageScanner`) and, from adapter
+  # 1.2.0, filesystem/incus scans over HTTP with no trivy binary in the backend
+  # image. Uncomment this service AND set `TRIVY_ADAPTER_URL` on the backend
+  # (see the commented line in the backend `environment:` above) to enable it.
+  # Without it, container images are still scanned by grype (registry mode) but
+  # no Trivy image report is produced. See docker/scanner-adapter/README.md.
+  # scanner-adapter:
+  #   image: ghcr.io/artifact-keeper/artifact-keeper-scanner-adapter:1  # or artifactkeeper/scanner-adapter:1
+  #   container_name: artifact-keeper-scanner-adapter
+  #   environment:
+  #     SCANNER_ADAPTER_ADDR: ":8080"
+  #     # Pull image manifests/blobs from the AK registry over the compose
+  #     # network's plain HTTP. Leave true on the internal network.
+  #     SCANNER_TRIVY_INSECURE: "true"
+  #   volumes:
+  #     # Dedicated cache volume — do NOT reuse `trivy_cache`: that volume is
+  #     # owned by root (the trivy *server* above runs as root and mounts it at
+  #     # /root/.cache/trivy), while the adapter runs as UID 1001, so sharing it
+  #     # fails with `permission denied` on fanal/fanal.db (#3169). Uncomment
+  #     # the matching `scanner_adapter_cache:` entry under `volumes:` below.
+  #     - scanner_adapter_cache:/home/scanner/.cache/trivy
+  #     - scan_workspace:/scan-workspace:ro
+  #   restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # OpenSCAP (compliance scanner)
+  # ---------------------------------------------------------------------------
+  # Runs SCAP compliance checks against container images. Optional: remove
+  # this service and unset OPENSCAP_URL on the backend if not needed.
+  openscap:
+    image: ghcr.io/artifact-keeper/artifact-keeper-openscap:latest  # or artifactkeeper/openscap:latest
+    container_name: artifact-keeper-openscap
+    ports:
+      - "8091:8091"
+    volumes:
+      - scan_workspace:/scan-workspace:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Dependency-Track API server (SBOM analysis)
+  # ---------------------------------------------------------------------------
+  # OWASP Dependency-Track provides SBOM ingestion, license analysis, and
+  # vulnerability tracking. Gated behind the `dtrack` profile because the
+  # Java apiserver consumes ~4 GiB RAM and continuously drives the bundled
+  # Postgres even with no inbound load (issue #1432). Opt in with:
+  #   docker compose --profile dtrack up
+  # and set DEPENDENCY_TRACK_ENABLED=true on the backend so the integration
+  # actually fires. To also run the upstream DT UI alongside, combine the
+  # profiles:
+  #   docker compose --profile dtrack --profile dtrack-ui up
+  # https://dependencytrack.org/
+  dependency-track-apiserver:
+    image: dependencytrack/apiserver:4.14.3
+    container_name: artifact-keeper-dtrack-api
+    profiles:
+      - dtrack  # Only starts with: docker compose --profile dtrack up
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database configuration (uses same Postgres, different database)
+      ALPINE_DATABASE_MODE: external
+      ALPINE_DATABASE_URL: jdbc:postgresql://postgres:5432/dependency_track
+      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
+      ALPINE_DATABASE_USERNAME: registry
+      ALPINE_DATABASE_PASSWORD: registry
+      # API configuration
+      ALPINE_DATA_DIRECTORY: /data
+      # Enable API key authentication
+      ALPINE_ENFORCE_AUTHENTICATION: "true"
+      # Optional: Enable CORS for frontend
+      ALPINE_CORS_ENABLED: "true"
+      ALPINE_CORS_ALLOW_ORIGIN: "*"
+      # Proxy configuration (required for NVD mirroring behind corporate proxies)
+      ALPINE_HTTP_PROXY_ADDRESS: ${DTRACK_HTTP_PROXY_ADDRESS:-}
+      ALPINE_HTTP_PROXY_PORT: ${DTRACK_HTTP_PROXY_PORT:-}
+      ALPINE_HTTP_PROXY_USERNAME: ${DTRACK_HTTP_PROXY_USERNAME:-}
+      ALPINE_HTTP_PROXY_PASSWORD: ${DTRACK_HTTP_PROXY_PASSWORD:-}
+      ALPINE_NO_PROXY: ${DTRACK_NO_PROXY:-localhost,127.0.0.1}
+    volumes:
+      - dtrack_data:/data
+    ports:
+      - "8092:8080"
+    restart: unless-stopped
+
+  # Dependency-Track native frontend (optional, for debugging/admin).
+  # Artifact Keeper integrates DT data into its own UI, so this is only
+  # useful for direct Dependency-Track access. Gated behind the `dtrack-ui`
+  # profile, which implies `dtrack` (the upstream UI is useless without the
+  # apiserver). Run with:
+  #   docker compose --profile dtrack --profile dtrack-ui up
+  dependency-track-frontend:
+    image: dependencytrack/frontend:4.14.3
+    container_name: artifact-keeper-dtrack-frontend
+    profiles:
+      - dtrack-ui  # Requires the `dtrack` profile too; see comment above.
+    depends_on:
+      dependency-track-apiserver:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://localhost:8092
+    ports:
+      - "8093:8080"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Web UI (Next.js)
+  # ---------------------------------------------------------------------------
+  # The Artifact Keeper web frontend. Communicates with the backend over the
+  # internal Docker network. No ports are exposed directly; Caddy handles
+  # external access and routes requests to the appropriate service.
+  web:
+    image: ghcr.io/artifact-keeper/artifact-keeper-web:latest  # or artifactkeeper/web:latest
+    container_name: artifact-keeper-web
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      BACKEND_URL: http://backend:8080
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Caddy (reverse proxy / TLS termination)
+  # ---------------------------------------------------------------------------
+  # Routes external traffic to the backend API and web UI. Automatically
+  # provisions TLS certificates via ACME when SITE_ADDRESS is set to a public
+  # domain. For local evaluation it defaults to localhost with a self-signed
+  # cert. In production, you may replace Caddy with your own reverse proxy
+  # (nginx, Traefik, a cloud load balancer, etc.).
+  caddy:
+    image: caddy:2-alpine
+    container_name: artifact-keeper-caddy
+    depends_on:
+      backend:
+        condition: service_started
+      web:
+        condition: service_started
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      # Clear any proxy env vars inherited from the Docker daemon config.
+      # When the daemon is configured with an HTTP proxy (common in
+      # enterprise networks), those vars are injected into all containers.
+      # Caddy (a Go app) honours them and would try to route reverse-proxy
+      # traffic to sibling containers through the external proxy, which
+      # breaks inter-container communication.
+      # See: https://docs.docker.com/engine/daemon/proxy/
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      NO_PROXY: "localhost,127.0.0.1"
+      no_proxy: "localhost,127.0.0.1"
+    ports:
+      - "${HTTP_PORT:-30080}:80"
+      - "${HTTPS_PORT:-30443}:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+# =============================================================================
+# Volumes
+# =============================================================================
+# All volumes use the local driver for simplicity. In production, consider
+# backing critical data (postgres_data, artifact_storage) with durable storage
+# or external services (managed databases, S3, etc.).
+volumes:
+  postgres_data:
+    driver: local
+  artifact_storage:
+    driver: local
+  backup_storage:
+    driver: local
+  plugins_storage:
+    driver: local
+  trivy_cache:
+    driver: local
+  # Uncomment together with the `scanner-adapter` service (its trivy cache;
+  # kept separate from the root-owned `trivy_cache`, see #3169):
+  # scanner_adapter_cache:
+  #   driver: local
+  opensearch_data:
+    driver: local
+  scan_workspace:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  dtrack_data:
+    driver: local
+  shared_config:
+    driver: local
+  pg_certs:
+    driver: local
+
+# =============================================================================
+# Network
+# =============================================================================
+# A single bridge network for all services. All inter-container communication
+# stays on this network; only Caddy (and optionally Postgres/OpenSearch for
+# debugging) expose ports to the host.
+#
+# The subnet is PINNED so it is deterministic: the backend's
+# RATE_LIMIT_TRUSTED_PROXY_CIDRS (see the backend service) must match the
+# network Caddy lives on for per-client login rate-limit keying to work.
+# Without a pinned subnet Docker would pick one from its default pool at
+# random, and the trusted-proxy CIDR could drift out of range. Change both in
+# lockstep if this subnet collides with an existing network on your host.
+networks:
+  default:
+    name: artifact-keeper-network
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

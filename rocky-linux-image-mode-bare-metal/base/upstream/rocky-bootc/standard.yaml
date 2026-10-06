@@ -1,0 +1,7 @@
+include:
+  - includes/rocky.yaml
+  - standard/manifest.yaml
+
+packages:
+ # https://issues.redhat.com/browse/RHEL-35291
+  - dnf-yum

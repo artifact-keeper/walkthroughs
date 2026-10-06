@@ -1,0 +1,6 @@
+check-passwd:
+  type: "file"
+  filename: "passwd-nobody"
+check-groups:
+  type: "file"
+  filename: "group-nobody"

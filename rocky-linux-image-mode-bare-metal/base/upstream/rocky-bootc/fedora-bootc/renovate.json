@@ -1,0 +1,126 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>platform-engineering-org/.github"
+  ],
+  "dependencyDashboard": true,
+  "automergeType": "branch",
+  "tekton": {
+    "additionalBranchPrefix": "",
+    "includePaths": [
+      ".tekton/**"
+    ],
+    "managerFilePatterns": [
+      "/\\.ya?ml$/"
+    ],
+    "packageRules": [
+      {
+        "matchPackageNames": [
+          "/^quay.io/bootc-devel/tekton-catalog//"
+        ],
+        "enabled": true,
+        "groupName": "Konflux references",
+        "branchPrefix": "renovate/konflux/references/",
+        "group": {
+          "branchTopic": "{{{baseBranch}}}",
+          "commitMessageTopic": "{{{groupName}}}"
+        },
+        "commitMessageTopic": "Konflux references",
+        "prBodyColumns": [
+          "Package",
+          "Change",
+          "Notes"
+        ],
+        "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+        "recreateWhen": "always",
+        "rebaseWhen": "behind-base-branch"
+      }
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": [
+        "Update 'REPOS_IMAGE' and 'BUILDER_IMAGE' in tekton files"
+      ],
+      "managerFilePatterns": [
+        "/.tekton/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "REPOS_IMAGE=(?<depName>.*):(?<currentValue>.*)@(?<currentDigest>.*)\\n",
+        "BUILDER_IMAGE=(?<depName>.*):(?<currentValue>.*)@(?<currentDigest>.*)\\n"
+      ],
+      "versioningTemplate": "regex:(?<compatibility>.*)-(?<patch>\\d{8})(\\.n)?\\.(?<build>\\d)",
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "baseBranchPatterns": [
+    "main",
+    "f40",
+    "f41"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "/quay.io/bootc-devel/fedora-bootc-rawhide-compose/"
+      ],
+      "groupName": "Fedora rawhide compose dependencies",
+      "groupSlug": "fedora-rawhide-compose-dependencies",
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "/quay.io/bootc-devel/fedora-bootc-42-compose/"
+      ],
+      "groupName": "Fedora 42 compose dependencies",
+      "groupSlug": "fedora-42-compose-dependencies",
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "/quay.io/bootc-devel/fedora-bootc-41-compose/"
+      ],
+      "groupName": "Fedora 41 compose dependencies",
+      "groupSlug": "fedora-41-compose-dependencies",
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "/quay.io/bootc-devel/fedora-bootc-40-compose/"
+      ],
+      "groupName": "Fedora 40 compose dependencies",
+      "groupSlug": "fedora-40-compose-dependencies",
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "quay.io/fedora/fedora"
+      ],
+      "allowedVersions": "=40",
+      "matchBaseBranches": [
+        "f40"
+      ]
+    },
+    {
+      "matchPackageNames": [
+        "quay.io/fedora/fedora"
+      ],
+      "allowedVersions": "=41",
+      "matchBaseBranches": [
+        "f41"
+      ]
+    }
+  ]
+}

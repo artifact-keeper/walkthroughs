@@ -1,0 +1,65 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://gitlab.com/fedora/bootc/base-images/-/tree/{{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      (
+        (event == "push" && target_branch == "main")
+      ) && (
+        ".tekton/fedora-bootc-42-minimal-push.yaml".pathChanged() ||
+        "Containerfile".pathChanged() ||
+        "bootc-base-imagectl".pathChanged() ||
+        "install-manifests".pathChanged() ||
+        "fedora-includes/generic.yaml".pathChanged() ||
+        "minimal.yaml".pathChanged() ||
+        "minimal/***".pathChanged()
+      )
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: fedora-bootc-42
+    appstudio.openshift.io/component: fedora-bootc-42-minimal
+    pipelines.appstudio.openshift.io/type: build
+  name: fedora-bootc-42-minimal-on-push
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: build-platforms
+    value:
+    - linux/amd64
+    - linux/arm64
+    - linux/ppc64le
+    - linux/s390x
+  - name: dockerfile
+    value: Containerfile
+  - name: path-context
+    value: .
+  - name: privileged-nested
+    value: true
+  - name: build-args
+    value:
+    - REPOS_IMAGE=quay.io/bootc-devel/fedora-bootc-42-compose:Fedora-42-updates-testing-20251013.0@sha256:9e96510d9422add37eac8baf3ada02023d87d6fc53fb9af99e947841e968d78a
+    - MANIFEST=fedora-minimal
+  - name: output-image
+    value: quay.io/konflux-fedora/bootc-tenant/fedora-bootc-42-minimal:{{revision}}
+  - name: labels
+    value:
+      - org.opencontainers.image.version=42
+  pipelineRef:
+    params:
+    - name: bundle
+      value: quay.io/bootc-devel/tekton-catalog/pipeline-buildah-build-bootc-multi-platform-oci-ta@sha256:5bcbc7d13dbd3f2420df1014ad60468c376f574ff29912131b610702daec79fb
+    - name: name
+      value: buildah-build-bootc-multi-platform-oci-ta
+    - name: kind
+      value: pipeline
+    resolver: bundles
+  timeouts:
+    pipeline: 6h

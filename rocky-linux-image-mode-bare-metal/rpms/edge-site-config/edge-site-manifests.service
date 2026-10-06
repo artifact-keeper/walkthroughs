@@ -1,0 +1,17 @@
+[Unit]
+Description=Seed RKE2 auto-deploy manifests from edge-site-config
+Documentation=file:///usr/share/edge-site/manifests
+Before=rke2-server.service
+ConditionDirectoryNotEmpty=/usr/share/edge-site/manifests
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# /var is not part of the bootc image, so the manifests ship in /usr and are
+# copied on every boot (picks up new content after a `bootc upgrade`).
+ExecStart=/usr/bin/mkdir -p /var/lib/rancher/rke2/server/manifests
+ExecStart=/usr/bin/sh -c 'cp -f /usr/share/edge-site/manifests/*.yaml /var/lib/rancher/rke2/server/manifests/'
+ExecStartPost=-/usr/sbin/restorecon -R /var/lib/rancher/rke2/server/manifests
+
+[Install]
+WantedBy=multi-user.target

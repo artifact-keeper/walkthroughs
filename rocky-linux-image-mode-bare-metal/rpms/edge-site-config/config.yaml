@@ -1,0 +1,9 @@
+# /etc/rancher/rke2/config.yaml -- shipped by edge-site-config.
+# Single-node RKE2 server for the edge PoC. Everything else is RKE2 defaults
+# (canal CNI, ingress-nginx, metrics-server, coredns).
+write-kubeconfig-mode: "0644"
+# rke2-selinux is installed and the host runs SELinux enforcing.
+selinux: true
+tls-san:
+  - localhost
+  - 127.0.0.1

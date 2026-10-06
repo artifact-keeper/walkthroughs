@@ -1,0 +1,7 @@
+#!/bin/bash
+set -xeuo pipefail
+# Verify the bootupd EFI has more than one component installed
+versions=$(cat /usr/lib/bootupd/updates/EFI.json | jq -r .version | tr ',' ' ')
+array=($versions)
+length=${#array[*]}
+[ $length -gt 1 ]

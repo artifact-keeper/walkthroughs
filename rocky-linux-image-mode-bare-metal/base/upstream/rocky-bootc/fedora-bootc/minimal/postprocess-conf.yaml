@@ -1,0 +1,37 @@
+# This file configures things relevant to `rpm-ostree compose postprocess`.
+
+# We want content lifecycled with the image
+opt-usrlocal: "root"
+
+# https://github.com/CentOS/centos-bootc/issues/167
+machineid-compat: true
+
+rpmdb: target
+# We never want rpmdb.sqlite-shm as it's unreproducible
+rpmdb-normalize: true
+
+ignore-removed-users:
+  - root
+ignore-removed-groups:
+  - root
+# By default users and groups are injected to nss-altfiles
+# which is immutable. This list moves a selected set
+# to /etc/group instead, which is mutable per system
+# and allows local users to become part of these groups.
+etc-group-members:
+  - wheel
+  - systemd-journal
+  - tss # https://issues.redhat.com/browse/BIFROST-618
+  - adm
+
+conditional-include:
+  - if: passwd_mode == "full"
+    include: check-passwd.yaml
+  - if: passwd_mode == "nobody"
+    include: check-passwd-nobody.yaml
+  - if: passwd_mode == "none"
+    include:
+      check-passwd:
+        type: "none"
+      check-groups:
+        type: "none"

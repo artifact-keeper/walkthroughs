@@ -1,0 +1,5 @@
+# Vendored copy (no .git, submodule flattened) of the RESF SIG/Containers recipe.
+# base/upstream/rocky-bootc is byte-identical to these commits; all local changes
+# live in base/Containerfile and base/build.sh.
+rocky-bootc   https://git.resf.org/sig_containers/rocky-bootc  branch r10  3ce80559d966cc276151b66c754974a5e0c2b9fc  (2026-01-16)
+fedora-bootc  https://gitlab.com/fedora/bootc/base-images      submodule   a4d59995f5677d72d5f7f675598d75603ccf5b6b  (2025-10-13)

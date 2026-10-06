@@ -1,0 +1,4 @@
+#!/bin/bash
+set -xeuo pipefail
+# Verify directories we expect to exist
+test -d var/tmp

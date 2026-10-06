@@ -1,0 +1,122 @@
+# Kickstart template for an image-mode (bootc) Rocky Linux 10 edge node.
+# Rendered by deploy/render-ks.sh into deploy/state/www/ks.cfg:
+#   @REGISTRY@     registry host:port as seen from the VM   (default 10.0.2.2:30080)
+#   @IMAGE@        image path inside the registry            (default oci-bootc/rocky-edge:10)
+#   @IMAGE_REPO@   the same without the tag                  (oci-bootc/rocky-edge)
+#   @SIGNED_REPO@  repository identity recorded in the cosign signatures
+#                  (the signer pushes as localhost:30080/oci-bootc/rocky-edge)
+#   @KEY_URL@      cosign public key in Artifact Keeper's raw-edge-keys repo
+#   @SSH_KEY@      contents of the operator's public key     (read at render time, never committed)
+#   @HOSTNAME@     node hostname                             (default edge-node-01)
+#
+# Install method: `ostreecontainer`, NOT the newer `bootc` kickstart command.
+# On Rocky 10.2 the `bootc` command leaves /root/.ssh and /etc/resolv.conf with
+# the wrong SELinux labels (sshd and NetworkManager hit AVC denials on first boot).
+#
+# Signatures: what enforces them is /etc/containers/policy.json, which ostree-ext's
+# image pull (containers-image via skopeo) consults in BOTH modes. Measured on Rocky
+# 10.2 (docs/findings-signing.md): with our %pre policy an unsigned image is refused
+# even WITH --no-signature-verification; with the installer's stock policy (default
+# insecureAcceptAnything) an unsigned image installs fine even WITHOUT it, and the
+# installed origin is "ostree-unverified-registry:" either way. The flag is removed
+# (iteration-2 rule: no signature bypass anywhere), but the policy below is the gate:
+# default "reject", and a cosign signature by the edge key required for
+# @REGISTRY@/@IMAGE_REPO@. The image ships the same policy for `bootc upgrade`.
+text
+lang en_US.UTF-8
+keyboard us
+timezone UTC --utc
+network --bootproto=dhcp --device=link --activate --hostname=@HOSTNAME@
+
+zerombr
+clearpart --all --initlabel --disklabel=gpt
+reqpart --add-boot
+part / --grow --fstype=xfs
+
+%pre --erroronfail --log=/tmp/ks-pre.log
+set -eu
+# 1. The registry is plain HTTP (PoC; signatures protect content, TLS would protect
+#    the transport). Anaconda's image pull honours registries.conf.
+mkdir -p /etc/containers/registries.conf.d /etc/containers/registries.d /etc/pki/containers
+cat > /etc/containers/registries.conf.d/50-poc-insecure.conf <<'EOR'
+[[registry]]
+location = "@REGISTRY@"
+insecure = true
+EOR
+# 2. Verification key, fetched from Artifact Keeper (raw-edge-keys, anonymous).
+curl -fsS --retry 5 --retry-delay 3 -o /etc/pki/containers/edge-cosign.pub "@KEY_URL@"
+grep -q 'BEGIN PUBLIC KEY' /etc/pki/containers/edge-cosign.pub
+# 3. Look for cosign's sha256-<digest>.sig attachments next to the image.
+cat > /etc/containers/registries.d/ak-oci-bootc.yaml <<'EOR'
+docker:
+  @REGISTRY@/oci-bootc:
+    use-sigstore-attachments: true
+EOR
+# 4. Policy: reject by default, require our cosign signature for the edge image.
+#    exactRepository: cosign records a tag-less identity, which the default
+#    matchRepoDigestOrExact never accepts, and it is the signer's view of the
+#    registry (localhost:30080), not the node's (10.0.2.2:30080).
+cat > /etc/containers/policy.json <<'EOR'
+{
+    "default": [{"type": "reject"}],
+    "transports": {
+        "docker": {
+            "@REGISTRY@/@IMAGE_REPO@": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/etc/pki/containers/edge-cosign.pub",
+                    "signedIdentity": {"type": "exactRepository", "dockerRepository": "@SIGNED_REPO@"}
+                }
+            ]
+        },
+        "containers-storage": {"": [{"type": "insecureAcceptAnything"}]},
+        "oci": {"": [{"type": "insecureAcceptAnything"}]},
+        "dir": {"": [{"type": "insecureAcceptAnything"}]}
+    }
+}
+EOR
+cp /etc/containers/policy.json /tmp/ks-policy.json
+cp /etc/containers/registries.d/ak-oci-bootc.yaml /tmp/ks-ak-oci-bootc.yaml
+cp /etc/pki/containers/edge-cosign.pub /tmp/ks-edge-cosign.pub
+%end
+
+ostreecontainer --url=@REGISTRY@/@IMAGE@ --transport=registry
+
+rootpw --lock
+sshkey --username=root "@SSH_KEY@"
+
+# Belt and braces for the installed system. The edge image already ships the
+# insecure-registry drop-in, the policy, the registries.d entry and the key; %post
+# only writes a file when the image lacks it. Writing an identical copy would be
+# harmless, but writing a DIFFERENT one would turn it into a locally modified /etc
+# file that later images (e.g. a key rotation) could no longer update.
+%post --nochroot --log=/tmp/ks-post-nochroot.log
+mkdir -p /mnt/sysimage/tmp/ks
+cp /tmp/ks-policy.json /tmp/ks-ak-oci-bootc.yaml /tmp/ks-edge-cosign.pub /mnt/sysimage/tmp/ks/
+%end
+
+%post --log=/root/ks-post.log
+mkdir -p /etc/containers/registries.conf.d
+cat > /etc/containers/registries.conf.d/50-poc-insecure.conf <<'EOR'
+[[registry]]
+location = "@REGISTRY@"
+insecure = true
+EOR
+place() { # place SRC DEST
+  if [ -s "$2" ]; then echo "kept image-provided $2"; else
+    mkdir -p "$(dirname "$2")"; install -m 0644 "$1" "$2"; echo "wrote $2 from %pre"; fi
+}
+place /tmp/ks/ks-edge-cosign.pub   /etc/pki/containers/edge-cosign.pub
+place /tmp/ks/ks-ak-oci-bootc.yaml /etc/containers/registries.d/ak-oci-bootc.yaml
+# policy.json always exists (containers-common); only replace a permissive one.
+if grep -q '"type": *"reject"' /etc/containers/policy.json 2>/dev/null &&
+   grep -q edge-cosign.pub /etc/containers/policy.json; then
+  echo "kept image-provided /etc/containers/policy.json"
+else
+  install -m 0644 /tmp/ks/ks-policy.json /etc/containers/policy.json; echo "wrote /etc/containers/policy.json from %pre"
+fi
+rm -rf /tmp/ks
+restorecon -R /etc/containers /etc/pki/containers || true
+%end
+
+reboot

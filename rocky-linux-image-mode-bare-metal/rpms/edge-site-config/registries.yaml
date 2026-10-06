@@ -1,0 +1,14 @@
+# /etc/rancher/rke2/registries.yaml -- shipped by edge-site-config.
+# Pull docker.io images through the Artifact Keeper Docker Hub proxy.
+# 10.0.2.2 is the host as seen from a QEMU user-net VM; Artifact Keeper serves
+# plain HTTP on :30080. Artifact Keeper addresses proxied images as
+# <host>/oci-dockerhub-proxy/<upstream path>, so the repository path is rewritten:
+#   docker.io/library/nginx:alpine
+#     -> http://10.0.2.2:30080/v2/oci-dockerhub-proxy/library/nginx/manifests/alpine
+# If the mirror fails, containerd falls back to the default docker.io endpoint.
+mirrors:
+  docker.io:
+    endpoint:
+      - "http://10.0.2.2:30080"
+    rewrite:
+      "^(.*)$": "oci-dockerhub-proxy/$1"

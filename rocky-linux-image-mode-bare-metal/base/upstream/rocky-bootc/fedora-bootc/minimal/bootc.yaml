@@ -1,0 +1,13 @@
+# The bootc components.
+packages:
+ - systemd
+ - bootc
+ # Required by bootc install, sgdisk has been replaced by Rust crate
+ # in bootc https://github.com/containers/bootc/pull/775
+ - xfsprogs e2fsprogs dosfstools
+
+exclude-packages:
+  # Exclude kernel-debug-core to make sure that it doesn't somehow get
+  # chosen as the package to satisfy the `kernel-core` dependency from
+  # the kernel package.
+  - kernel-debug-core

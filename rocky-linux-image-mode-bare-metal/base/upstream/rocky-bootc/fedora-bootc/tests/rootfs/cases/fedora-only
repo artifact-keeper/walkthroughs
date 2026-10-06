@@ -1,0 +1,13 @@
+#!/bin/bash
+set -xeuo pipefail
+. /usr/lib/os-release
+case "${ID}" in
+    fedora)
+        # https://gitlab.com/fedora/bootc/base-images/-/merge_requests/172
+        if rpm -q python3 &>/dev/null; then
+            rpm -q python3-libdnf5
+        fi
+    ;;
+    *)
+    ;;
+esac

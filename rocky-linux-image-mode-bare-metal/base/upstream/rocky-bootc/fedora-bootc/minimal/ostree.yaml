@@ -1,0 +1,15 @@
+packages:
+ - ostree nss-altfiles
+
+postprocess:
+  # Set up default root config
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    mkdir -p /usr/lib/ostree
+    cat > /usr/lib/ostree/prepare-root.conf << EOF
+    [composefs]
+    enabled = yes
+    [sysroot]
+    readonly = true
+    EOF

@@ -1,0 +1,9 @@
+# Configuration for the initramfs
+postprocess:
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    mkdir -p /usr/lib/dracut/dracut.conf.d
+    cat > /usr/lib/dracut/dracut.conf.d/30-bootc-standard.conf << 'EOF'
+    add_dracutmodules+=" lvm crypt fips "
+    EOF

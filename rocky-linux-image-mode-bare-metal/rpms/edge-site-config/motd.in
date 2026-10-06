@@ -1,0 +1,6 @@
+
+  Rocky Linux edge node (image mode, RKE2)
+  edge-site-config @VERSION@-@RELEASE@: @NOTE@
+  Source of truth: Artifact Keeper at 10.0.2.2:30080
+  kubectl: export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin
+

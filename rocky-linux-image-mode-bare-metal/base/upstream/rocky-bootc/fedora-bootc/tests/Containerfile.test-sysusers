@@ -1,0 +1,39 @@
+# This test case exercises --sysusers.
+FROM quay.io/fedora/fedora-bootc:rawhide as repos
+
+# This is intentionally a locally built image
+FROM localhost/fedora-bootc as builder
+RUN --mount=type=bind,from=repos,src=/,dst=/repos,rw <<EORUN
+mkdir -p overlay/usr/lib/sysusers.d
+cat > overlay/usr/lib/sysusers.d/00-chrony.conf <<EOF
+g chrony 888
+u chrony 888:888 - - -
+EOF
+/usr/libexec/bootc-base-imagectl build-rootfs --manifest=standard/manifest /repos /target-rootfs --sysusers --add-dir overlay
+EORUN
+
+# This pulls in the rootfs generated in the previous step
+FROM scratch
+COPY --from=builder /target-rootfs/ /
+RUN <<EORUN
+set -xeuo pipefail
+. /usr/lib/os-release
+test "$ID" = fedora
+
+# Sanity-check sysusers application
+getent group chrony | grep :888:
+getent passwd chrony | grep :888:888:
+
+# Verify nobody is the modern default
+getent passwd nobody | grep :65534:65534:
+
+# Cleanup and lint
+rm -rf /var/log /var/cache/* /var/lib/dnf
+bootc container lint
+EORUN
+LABEL containers.bootc 1
+ENV container=oci
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
+
+

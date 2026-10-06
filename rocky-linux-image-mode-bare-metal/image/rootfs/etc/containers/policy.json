@@ -1,0 +1,85 @@
+{
+    "default": [
+        {
+            "type": "reject"
+        }
+    ],
+    "transports": {
+        "docker": {
+            "10.0.2.2:30080/oci-bootc/rocky-edge": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/etc/pki/containers/edge-cosign.pub",
+                    "signedIdentity": {
+                        "type": "exactRepository",
+                        "dockerRepository": "localhost:30080/oci-bootc/rocky-edge"
+                    }
+                }
+            ],
+            "10.0.2.2:30080/oci-bootc/rocky-bootc-base": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/etc/pki/containers/edge-cosign.pub",
+                    "signedIdentity": {
+                        "type": "exactRepository",
+                        "dockerRepository": "localhost:30080/oci-bootc/rocky-bootc-base"
+                    }
+                }
+            ],
+            "10.0.2.2:30080/oci-bootc": [
+                {
+                    "type": "reject"
+                }
+            ],
+            "registry.access.redhat.com": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/etc/pki/sigstore/SIGSTORE-redhat-release3",
+                    "rekorPublicKeyPath": "/etc/pki/sigstore/REKOR-signing-key"
+                }
+            ],
+            "registry.redhat.io": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/etc/pki/sigstore/SIGSTORE-redhat-release3",
+                    "rekorPublicKeyPath": "/etc/pki/sigstore/REKOR-signing-key"
+                }
+            ]
+        },
+        "containers-storage": {
+            "": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        },
+        "oci": {
+            "": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        },
+        "oci-archive": {
+            "": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        },
+        "dir": {
+            "": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        },
+        "docker-archive": {
+            "": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        }
+    }
+}

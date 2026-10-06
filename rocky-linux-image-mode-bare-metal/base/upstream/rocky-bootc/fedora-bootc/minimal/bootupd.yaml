@@ -1,0 +1,41 @@
+# Integration with https://github.com/coreos/bootupd and bootloader logic
+# xref https://github.com/coreos/fedora-coreos-tracker/issues/510
+packages:
+  - bootupd
+
+# bootloader
+packages-aarch64:
+  - grub2-efi-aa64 efibootmgr shim
+packages-ppc64le:
+  - grub2 ostree-grub2
+packages-riscv64:
+  - grub2-efi-riscv64 efibootmgr
+  # Don't specify just `shim` for now because riscv isn't built in
+  # main koji instance yet and thus isn't signed. Here we specify
+  # the path to the provided file so when we do switch to the signed
+  # `shim` package it will transparently happen and we can clean up
+  # this packagelist entry later.
+  - /boot/efi/EFI/fedora/shimriscv64.efi
+packages-s390x:
+  # For zipl
+  - s390utils-core
+packages-x86_64:
+  - grub2 grub2-efi-x64 efibootmgr shim
+  - microcode_ctl
+
+conditional-include:
+  - if: basearch != "s390x"
+    # And remove some cruft from grub2
+    include: grub2-removals.yaml
+
+postprocess:
+  - |
+    #!/bin/bash
+    set -xeuo pipefail
+    # Transforms /usr/lib/ostree-boot into a bootupd-compatible update payload
+    /usr/bin/bootupctl backend generate-update-metadata
+  - |
+    #!/bin/bash
+    # Workaround for https://issues.redhat.com/browse/RHEL-78104
+    set -xeuo pipefail
+    rm -vrf /usr/lib/ostree-boot/loader

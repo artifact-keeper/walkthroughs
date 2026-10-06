@@ -1,0 +1,8 @@
+# Enable automatic updates by default
+postprocess:
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    target=/usr/lib/systemd/system/default.target.wants
+    mkdir -p $target
+    ln -s ../bootc-fetch-apply-updates.timer $target

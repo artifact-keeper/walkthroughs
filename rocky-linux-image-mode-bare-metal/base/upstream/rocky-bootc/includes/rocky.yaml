@@ -1,0 +1,26 @@
+packages:
+  # https://issues.redhat.com/browse/RHEL-35291
+  - dnf-yum
+  # dnf-bootc depends on libraries DNF needs for bootc integration
+  - dnf-bootc
+
+# Configuration for bootc
+postprocess:
+  # XFS is our default filesystem
+  - |
+    #!/usr/bin/env bash
+    mkdir -p /usr/lib/bootc/install/
+    cat > /usr/lib/bootc/install/20-rocky.toml << EOF
+    [install]
+    root-fs-type = "xfs"
+    EOF
+  - |
+    #!/usr/bin/bash
+    set -xeuo pipefail
+  - |
+    #!/usr/bin/bash
+    set -xeuo pipefail
+    # The base fedora tier-1 manifest also does this, but those
+    # postprocess scripts run before ours so we need to do it again to
+    # pick up our presets
+    systemctl preset-all

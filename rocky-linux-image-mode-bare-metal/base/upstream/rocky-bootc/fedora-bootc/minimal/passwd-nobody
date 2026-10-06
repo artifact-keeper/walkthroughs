@@ -1,0 +1,4 @@
+# this is used with the --nobody-99 option for backwards compatibility with
+# systems that had nobody set to 99
+nobody:x:99:99:Kernel Overflow User:/:/usr/sbin/nologin
+nfsnobody:x:65534:65534:Anonymous NFS User:/var/lib/nfs:/usr/sbin/nologin

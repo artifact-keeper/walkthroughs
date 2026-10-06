@@ -1,0 +1,48 @@
+metadata:
+  summary: Effectively just bootc, systemd, kernel, and dnf as a starting point.
+
+edition: "2024"
+
+variables:
+  passwd_mode: full
+
+# Be minimal
+recommends: false
+
+# Default to `bash` in our container, the same as other containers we ship.
+container-cmd:
+  - /sbin/init
+
+remove-from-packages:
+  # Generally we expect other tools to do this (e.g. Ignition or cloud-init)
+  - [systemd, /usr/lib/systemd/system/sysinit.target.wants/systemd-firstboot.service]
+  # We don't want auto-generated mount units. See also
+  # https://github.com/systemd/systemd/issues/13099
+  - [systemd-udev, /usr/lib/systemd/system-generators/systemd-gpt-auto-generator]
+
+include:
+  - kernel.yaml
+  - postprocess-conf.yaml
+  - tmpfiles.yaml
+  - bootc.yaml
+  - bootupd.yaml
+  - ostree.yaml
+  - initramfs.yaml
+  - basic-fixes.yaml
+  - kernel-install.yaml
+  - systemd-presets.yaml
+
+packages:
+  # this is implied by dependencies but let's make it explicit
+  - coreutils
+  # We need dnf for building derived container images. In Fedora, this pulls
+  # in dnf5. In CentOS/RHEL, this pulls in dnf(4). We can simplify this back to
+  # just `dnf` once the `dnf` package is retired from Fedora.
+  - /usr/bin/dnf
+  # Even in minimal, we have this.  If you don't want SELinux today, you'll need
+  # to build a custom image.
+  - selinux-policy-targeted
+  # And we want container-selinux because trying to layer it on later currently causes issues.
+  - container-selinux
+  # Needed for tpm2 bound luks
+  - tpm2-tools

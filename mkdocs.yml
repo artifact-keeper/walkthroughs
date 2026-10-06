@@ -1,0 +1,107 @@
+site_name: Artifact Keeper Walkthroughs
+site_description: >-
+  Step-by-step walkthroughs for real deployments built on Artifact Keeper, the open-source
+  universal artifact registry.
+site_author: Brandon Geraci
+site_url: https://artifact-keeper.github.io/walkthroughs/
+repo_url: https://github.com/artifact-keeper/walkthroughs
+repo_name: artifact-keeper/walkthroughs
+edit_uri: edit/main/docs/
+docs_dir: docs
+watch:
+  - includes
+copyright: MIT licensed.
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Rocky Linux image mode on bare metal:
+      - rocky-linux-image-mode-bare-metal/index.md
+      - 1. Stand up Artifact Keeper: rocky-linux-image-mode-bare-metal/1-stand-up-artifact-keeper.md
+      - 2. Build a Rocky Linux image mode base: rocky-linux-image-mode-bare-metal/2-build-the-base-image.md
+      - 3. Add Kubernetes and site configuration: rocky-linux-image-mode-bare-metal/3-add-kubernetes-and-site-config.md
+      - 4. Install on bare metal with a kickstart: rocky-linux-image-mode-bare-metal/4-install-with-a-kickstart.md
+      - 5. Upgrade and roll back by moving a tag: rocky-linux-image-mode-bare-metal/5-upgrade-and-roll-back.md
+      - 6. Sign everything and verify everywhere: rocky-linux-image-mode-bare-metal/6-sign-and-verify.md
+      - Results: rocky-linux-image-mode-bare-metal/results.md
+      - Next steps: rocky-linux-image-mode-bare-metal/next-steps.md
+      - Reference:
+          - Environment setup: rocky-linux-image-mode-bare-metal/environment.md
+          - Make targets: rocky-linux-image-mode-bare-metal/reference/make-targets.md
+          - Architecture: rocky-linux-image-mode-bare-metal/architecture.md
+          - What Artifact Keeper does here: rocky-linux-image-mode-bare-metal/artifact-keeper.md
+          - Artifact Keeper notes: rocky-linux-image-mode-bare-metal/artifact-keeper-notes.md
+          - Troubleshooting: rocky-linux-image-mode-bare-metal/troubleshooting.md
+          - Adapting this to your environment: rocky-linux-image-mode-bare-metal/adapting.md
+          - Glossary: rocky-linux-image-mode-bare-metal/glossary.md
+          - Timings: rocky-linux-image-mode-bare-metal/timings.md
+      - Lab notes:
+          - Findings overview: rocky-linux-image-mode-bare-metal/findings.md
+          - Image build log: rocky-linux-image-mode-bare-metal/findings-image.md
+          - Deploy log: rocky-linux-image-mode-bare-metal/findings-deploy.md
+          - Signing log: rocky-linux-image-mode-bare-metal/findings-signing.md
+          - Design:
+              - Original plan: rocky-linux-image-mode-bare-metal/plan.md
+
+validation:
+  links:
+    anchors: warn

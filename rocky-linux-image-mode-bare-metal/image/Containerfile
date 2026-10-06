@@ -1,0 +1,88 @@
+# Rocky Linux 10 edge image: bootc base + RKE2 + site config.
+# Every byte comes from Artifact Keeper: the base image from oci-bootc, every RPM
+# from the rpm-* proxies / hosted repo. Built by image/build.sh, which renders:
+#   build.repo  -> repos at host.containers.internal:30080 (the host, seen from podman build)
+#   edge.repo   -> repos at 10.0.2.2:30080 (the host, seen from the QEMU VM); shipped in the image
+# Both have gpgcheck=1 everywhere and repo_gpgcheck=1 where the metadata is signed;
+# dnf -y imports the keys from gpgkey= (Rocky's from the base image, the rest from AK).
+ARG BASE_IMAGE=localhost:30080/oci-bootc/rocky-bootc-base:10
+FROM ${BASE_IMAGE}
+
+ARG OSVER=10
+
+COPY build.repo /tmp/build-repos/build.repo
+COPY edge.repo /tmp/edge.repo
+
+# Layer 1: OS additions + RKE2. Does not depend on SITE_RELEASE, so it is reused
+# from cache across site-config releases and a day-2 upgrade only fetches layer 2.
+# 1. Drop the base's stock Rocky repos (mirrorlist URLs); only Artifact Keeper remains.
+# 2. Install with the build-time view of the registry (reposdir=/tmp/build-repos).
+# 3. kernel-modules-extra must match the kernel already in the base image.
+# 4. bubblewrap: libostree runs semodule under /usr/bin/bwrap when finalizing a staged
+#    deployment whose SELinux policy changed (rke2-selinux adds modules). ostree does not
+#    Require it and the RESF minimal base lacks it, so without it `bootc upgrade` stages,
+#    then ostree-finalize-staged fails at shutdown and the node reboots into the old image.
+# 5. rke2-common ships /var/run/k3s (= /run/k3s); /run must be empty in a bootc image.
+RUN set -eux; \
+    rm -f /etc/yum.repos.d/*.repo; \
+    install -m 0644 /tmp/edge.repo /etc/yum.repos.d/edge.repo; \
+    kver="$(rpm -q --qf '%{VERSION}-%{RELEASE}' kernel)"; \
+    dnf -y --setopt=reposdir=/tmp/build-repos --setopt=install_weak_deps=False install \
+        NetworkManager openssh-server bubblewrap \
+        "kernel-modules-extra-${kver}" \
+        rke2-server rke2-selinux; \
+    systemctl enable NetworkManager.service sshd.service rke2-server.service; \
+    rm -rf /run/k3s; \
+    dnf clean all; \
+    rm -rf /tmp/edge.repo /var/cache/dnf /var/cache/ldconfig/* \
+           /var/lib/dnf /var/log/dnf*.log /var/log/hawkey.log /var/log/rhsm
+
+# Layer 2: the site configuration RPM (the only thing that changes on day 2).
+ARG SITE_RELEASE=1
+ARG SITE_VERSION=1.0
+RUN set -eux; \
+    dnf -y --setopt=reposdir=/tmp/build-repos --setopt=install_weak_deps=False install \
+        "edge-site-config-${SITE_VERSION}-${SITE_RELEASE}.el10"; \
+    systemctl enable edge-site-manifests.service; \
+    dnf clean all; \
+    rm -rf /tmp/build-repos /var/cache/dnf /var/cache/ldconfig/* \
+           /var/lib/dnf /var/log/dnf*.log /var/log/hawkey.log /var/log/rhsm
+
+# /opt -> var/opt. The base is composed with rpm-ostree `opt-usrlocal: "root"`
+# (fedora-bootc minimal/postprocess-conf.yaml: "content lifecycled with the image"),
+# so /opt is a real, read-only directory on the composefs root. RESF's Containerfile
+# re-links /usr/local -> /var/usrlocal but leaves /opt alone. RKE2's canal install-cni
+# writes host binaries to /opt/cni/bin and fails with
+# "mkdir /opt/cni: read-only file system", so restore the classic ostree symlink.
+# (/opt is empty in this image; only the filesystem RPM owns it. /var/opt itself is
+# already created by rpm-ostree-0-integration-opt-usrlocal.conf.)
+RUN set -eux; \
+    test -z "$(ls -A /opt)"; \
+    rm -rf /opt; ln -s var/opt /opt
+
+# kargs.d: serial console for headless edge hardware (and the QEMU harness).
+# tmpfiles.d: declare package-owned /var directories.
+# etc/containers/policy.json: REPLACES the one from containers-common (default
+#   insecureAcceptAnything) with default "reject" and a sigstoreSigned requirement for
+#   10.0.2.2:30080/oci-bootc/rocky-edge, so `bootc upgrade` refuses unsigned images.
+# etc/containers/registries.d/ak-oci-bootc.yaml: look for cosign .sig attachments there.
+# etc/pki/containers/edge-cosign.pub: the verification key (copied in by build.sh).
+COPY rootfs/ /
+
+# Fail the build if any dnf repo URL does not point at Artifact Keeper (:30080),
+# counting gpgkey= URLs (local file:///etc/pki/rpm-gpg/ keys are allowed), or if any
+# repo disables gpgcheck.
+RUN set -eu; \
+    bad="$(grep -rhE '^[[:space:]]*(baseurl|mirrorlist|metalink|gpgkey)[[:space:]]*=' /etc/yum.repos.d/ \
+           | sed 's/^[^=]*=//' | tr ' ,' '\n\n' | grep -E '^[a-z]+://' \
+           | grep -v -e ':30080/' -e '^file:///etc/pki/rpm-gpg/' || true)"; \
+    if grep -rqE '^gpgcheck[[:space:]]*=[[:space:]]*0' /etc/yum.repos.d/; then echo "gpgcheck=0 found" >&2; exit 1; fi; \
+    if [ -n "$bad" ]; then echo "non-Artifact-Keeper repo URL(s): $bad" >&2; exit 1; fi; \
+    echo "repo check OK: $(grep -rhE '^baseurl=' /etc/yum.repos.d/ | wc -l) baseurls, all on :30080"
+
+LABEL org.opencontainers.image.title="rocky-edge" \
+      org.opencontainers.image.description="Rocky Linux 10 bootc edge image with RKE2 and edge-site-config" \
+      org.opencontainers.image.version="${OSVER}-${SITE_RELEASE}" \
+      edge-site-config.release="${SITE_RELEASE}"
+
+RUN bootc container lint --fatal-warnings

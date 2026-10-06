@@ -1,0 +1,49 @@
+metadata:
+  summary: |
+    This content set is intended to be the shared base used by all image-based
+    Fedora variants (IoT, Atomic Desktops, and CoreOS).
+
+include:
+  - ../minimal/manifest.yaml
+
+packages:
+  # Used by admins interactively
+  - attr
+  - bash-completion
+  - hostname
+  - iproute
+  - jq
+  - less
+  - vim-minimal
+  # deps of bootc, but let's be explicit. e.g. even if bootc drops the skopeo
+  # dep, we still want it
+  - podman skopeo
+  # crun recommends but doesn't require criu and criu-libs. We want them for
+  # checkpoint/restore. https://github.com/coreos/fedora-coreos-tracker/issues/1370
+  - crun criu criu-libs
+  # storage
+  - cryptsetup
+  - lvm2
+  - tar
+  # zram-generator (but not zram-generator-defaults) for F33 change
+  # https://github.com/coreos/fedora-coreos-tracker/issues/509
+  - zram-generator
+  # networking
+  - iptables-nft
+  - NetworkManager
+  - openssh-clients
+  - openssh-server
+  # linux-firmware now a recommends so let's explicitly include it
+  # https://gitlab.com/cki-project/kernel-ark/-/commit/32271d0cd9bd52d386eb35497c4876a8f041f70b
+  # https://src.fedoraproject.org/rpms/kernel/c/f55c3e9ed8605ff28cb9a922efbab1055947e213?branch=rawhide
+  - linux-firmware
+  # security
+  - polkit
+  - sudo
+  # Allow for configuring different timezones
+  - tzdata
+  # rpm-ostree
+  - rpm-ostree nss-altfiles
+  # firmware updates
+  # If you're using linux-firmware, you probably also want fwupd
+  - fwupd

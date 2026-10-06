@@ -1,0 +1,55 @@
+# Rocky Linux 10 bootc base image, built from the RESF SIG/Containers recipe
+# (base/upstream/rocky-bootc, see base/UPSTREAM_COMMIT) with three local changes:
+#
+#   1. The builder stage comes from the Artifact Keeper quay.io proxy instead of
+#      docker.io/rockylinux/rockylinux:10.
+#   2. The builder's dnf configuration is replaced by ak-rocky.repo (Artifact Keeper
+#      rpm-rocky10-* proxies only) BEFORE anything is installed. rpm-ostree's
+#      `compose rootfs --source-root=/` reuses the builder's /etc/yum.repos.d, so
+#      every RPM in the base image is fetched through Artifact Keeper.
+#   3. MANIFEST defaults to "minimal" (upstream default: "standard"); see base/README.md.
+#
+# Everything else (build.sh, manifests, rechunk, post-steps, labels) is upstream.
+# Must be built with the nested-container flags, see base/build.sh:
+#   podman build --security-opt=label=disable --cap-add=all --device /dev/fuse \
+#                -v <ctx>:/buildcontext ...
+ARG BUILDER_IMAGE=localhost:30080/oci-quay-proxy/rockylinux/rockylinux:10
+
+FROM ${BUILDER_IMAGE} as builder
+COPY ak-rocky.repo /tmp/ak-rocky.repo
+RUN rm -f /etc/yum.repos.d/*.repo \
+ && install -m 0644 /tmp/ak-rocky.repo /etc/yum.repos.d/ak-rocky.repo \
+ && dnf -y install rpm-ostree selinux-policy-targeted \
+ && dnf clean all
+ARG MANIFEST=minimal
+COPY . /src
+WORKDIR /src
+RUN --mount=type=cache,target=/workdir \
+      /src/build.sh
+
+# This pulls in the rootfs generated in the previous step
+FROM oci-archive:./out.ociarchive
+# Need to reference builder here to force ordering. But since we have to run
+# something anyway, we might as well cleanup after ourselves.
+RUN --mount=type=bind,from=builder,src=.,target=/var/tmp rm -v /buildcontext/out.ociarchive
+
+# Fix /tmp if it's a softlink
+RUN if [ -L /tmp ]; then \
+        rm -rf /tmp && mkdir /tmp && chmod 1777 /tmp; \
+    fi
+
+# /usr/local should point to /var/usrlocal
+RUN rm -rf /usr/local && ln -s /var/usrlocal /usr/local
+
+# Note for now we are also keeping the legacy ostree.bootable label too
+# so we can do direct upgrades from old bootc in RHEL 9.4.
+LABEL containers.bootc="1" \
+      ostree.bootable="1" \
+      org.opencontainers.image.version=10 \
+      version=10
+# https://pagure.io/fedora-kiwi-descriptions/pull-request/52
+ENV container=oci
+
+# Make systemd the default
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
