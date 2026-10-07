@@ -21,7 +21,7 @@ for a in "${arts[@]}"; do
   id=${a%% *}
   for _ in $(seq 60); do
     s=$(akcurl -fsS "${A[@]}" "$U/api/v1/security/artifacts/$id/scans" | jq -c '[(.items // .)[] | {scan_type,status,findings_count,critical_count,high_count,error_message}]')
-    jq -e 'any(.[]; .status=="completed" or .status=="failed")' <<<"$s" >/dev/null 2>&1 && break
+    jq -e 'length > 0 and all(.[]; .status != "running" and .status != "pending" and .status != "queued")' <<<"$s" >/dev/null 2>&1 && break
     sleep 5
   done
   echo "scan: ${a#* }: $s"

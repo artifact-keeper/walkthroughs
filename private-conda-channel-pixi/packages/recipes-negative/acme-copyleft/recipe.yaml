@@ -1,0 +1,16 @@
+# Negative test: a package under a license the release gate denies.
+package:
+  name: acme-copyleft
+  version: "0.1.0"
+source:
+  path: src
+build:
+  number: 0
+  noarch: generic
+  script:
+    - mkdir -p ${PREFIX}/share/acme-copyleft && cp NOTICE ${PREFIX}/share/acme-copyleft/
+about:
+  license: GPL-3.0-only
+  license_family: GPL
+  license_file: COPYING
+  summary: Negative test package (GPL-3.0-only)

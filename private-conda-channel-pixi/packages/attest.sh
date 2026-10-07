@@ -30,14 +30,16 @@ files=("$@")
 if ((${#files[@]} == 0)); then mapfile -t files < <(cd "$HERE/out" && ls -1 */*.conda); fi
 rc=0
 for rel in "${files[@]}"; do
-  rel="${rel#"$HERE/out/"}"; subdir="${rel%%/*}"; f="${rel##*/}"
+  # accepts subdir/file.conda (under packages/out) or a path to any package file
+  if [[ -f "$rel" ]]; then pkg="$(cd "$(dirname "$rel")" && pwd)/$(basename "$rel")"; else pkg="$HERE/out/$rel"; fi
+  f="${pkg##*/}"; subdir="$(basename "$(dirname "$pkg")")"
   stmt="$ATT/$f.statement.json"; bundle="$ATT/$f.sigstore.json"
-  jq -n --arg n "$f" --arg d "$(sha256sum "$HERE/out/$rel" | cut -d' ' -f1)" --arg t "$PRED_TYPE" --arg c "$TARGET_CHANNEL" \
+  jq -n --arg n "$f" --arg d "$(sha256sum "$pkg" | cut -d' ' -f1)" --arg t "$PRED_TYPE" --arg c "$TARGET_CHANNEL" \
     '{_type:"https://in-toto.io/Statement/v1",subject:[{name:$n,digest:{sha256:$d}}],predicateType:$t,predicate:{targetChannel:$c}}' > "$stmt"
   COSIGN_PASSWORD="$(<"$KEY_DIR/cosign.password")" cosign attest-blob --key "$KEY_DIR/cosign.key" \
     --statement "$stmt" --use-signing-config=false --tlog-upload=false --bundle "$bundle" --yes >/dev/null 2>&1
   # local self-check before upload
-  cosign verify-blob --key "$KEY_DIR/cosign.pub" --bundle "$bundle" --insecure-ignore-tlog "$HERE/out/$rel" >/dev/null 2>&1 \
+  cosign verify-blob --key "$KEY_DIR/cosign.pub" --bundle "$bundle" --insecure-ignore-tlog "$pkg" >/dev/null 2>&1 \
     || { echo "attest: $f: local verification FAILED" >&2; rc=1; continue; }
   if [[ "${UPLOAD:-1}" == 0 ]]; then echo "attest: $f signed (not uploaded)"; continue; fi
   resp=$(akcurl -sS -X PUT -H "Authorization: Bearer $(<"$TOKENS/ci.token")" -H 'Content-Type: application/json' \

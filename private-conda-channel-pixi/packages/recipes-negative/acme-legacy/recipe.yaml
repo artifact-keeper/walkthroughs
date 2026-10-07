@@ -1,0 +1,19 @@
+# Negative test: a package that vendors a known-vulnerable component.
+package:
+  name: acme-legacy
+  version: "0.1.0"
+source:
+  path: src
+build:
+  number: 0
+  noarch: generic
+  script:
+    - mkdir -p ${PREFIX}/share/acme-legacy/vendor/urllib3-1.24.1.dist-info
+    - cp METADATA ${PREFIX}/share/acme-legacy/vendor/urllib3-1.24.1.dist-info/METADATA
+    - echo "urllib3" > ${PREFIX}/share/acme-legacy/vendor/urllib3-1.24.1.dist-info/top_level.txt
+    - cp WHEEL ${PREFIX}/share/acme-legacy/vendor/urllib3-1.24.1.dist-info/WHEEL
+    - echo "urllib3-1.24.1.dist-info/METADATA,," > ${PREFIX}/share/acme-legacy/vendor/urllib3-1.24.1.dist-info/RECORD
+about:
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Negative test package (vendored vulnerable urllib3 1.24.1)
