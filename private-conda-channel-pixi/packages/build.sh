@@ -26,6 +26,7 @@ podman run --rm --network "${NETWORK:-$NET}" \
   -v "$TOKENS/consumer-auth.json:/run/secrets/rattler-auth.json:ro,z" \
   -e RATTLER_AUTH_FILE=/run/secrets/rattler-auth.json \
   -e ACME_CORE_VERSION="${ACME_CORE_VERSION:-1.0.0}" \
+  ${SOURCE_DATE_EPOCH:+-e SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH} \
   localhost/ak-conda/pixi-client:0.81.0 \
   pixi exec --spec "rattler-build==$RATTLER_BUILD_VERSION" -- \
     rattler-build build "${args[@]}" --output-dir /out -c conda-forge \

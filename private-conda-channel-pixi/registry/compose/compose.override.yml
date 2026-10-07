@@ -59,6 +59,12 @@ services:
       # The negative tests run a fake "public" conda channel at this one
       # address (gates/fake-upstream.sh). Remote upstreams on private networks
       # are refused by default (SSRF guard); allow exactly that host.
+      # OCI /v2/token shares the login limiter (10 per username and source IP
+      # per 15 minutes, #4020) and every exchange counts, including successful
+      # ones. A push + cosign sign + verify from one CI user exhausts it, and
+      # all host traffic reaches Caddy from one address (rootless port
+      # forwarding). Raised for the lab; see findings.md.
+      RATE_LIMIT_LOGIN_PER_WINDOW: ${RATE_LIMIT_LOGIN_PER_WINDOW:-200}
       AK_SSRF_ALLOW_PRIVATE_CIDRS: ${AK_SSRF_ALLOW_PRIVATE_CIDRS:-172.31.40.200/32}
       CORS_ORIGINS: https://ak.internal,https://127.0.0.1:30444,https://localhost:30444
       RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
