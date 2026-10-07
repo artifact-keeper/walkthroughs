@@ -10,7 +10,7 @@
 # package manager, no credentials.
 #
 # Build context: the private-conda-channel-pixi/ directory (see image/build.sh).
-ARG REGISTRY=localhost:30444
+ARG REGISTRY=ak.internal
 ARG PIXI_IMAGE=${REGISTRY}/oci-ghcr/prefix-dev/pixi:0.81.0@sha256:788ae451641666e2d1f79d3dbe35392dfc7e9b394b16a3acb75c347f3badb2ab
 ARG MICRO_IMAGE=${REGISTRY}/oci-redhat/ubi9/ubi-micro:9.8@sha256:7a0454cbd9bd847e8f6a63b6f0254a6efbeb6e0ed71a5d824a4f6cccbe626650
 
@@ -41,10 +41,10 @@ RUN --mount=type=secret,id=rattler-auth,target=/run/secrets/rattler-auth.json \
 # attestation signed by the trusted key, bound to the locked sha256. cosign,
 # jq and curl come from conda-forge through the registry, like everything else.
 COPY image/verify-attestations.sh /usr/local/bin/verify-attestations.sh
-ARG VERIFY_EXTRA_ENV=
+ARG ATTESTATION_GATE=enforce
 RUN --mount=type=secret,id=rattler-auth,target=/run/secrets/rattler-auth.json \
     --mount=type=cache,target=/root/.cache/rattler \
-    env RATTLER_AUTH_FILE=/run/secrets/rattler-auth.json ${VERIFY_EXTRA_ENV} \
+    env RATTLER_AUTH_FILE=/run/secrets/rattler-auth.json ATTESTATION_GATE=${ATTESTATION_GATE} \
     pixi exec -s cosign -s jq -s curl -s bash -- \
       bash /usr/local/bin/verify-attestations.sh /app/pixi.lock
 
@@ -52,8 +52,10 @@ RUN --mount=type=secret,id=rattler-auth,target=/run/secrets/rattler-auth.json \
 RUN pixi shell-hook --locked -s bash > /app/activate.sh && echo 'exec "$@"' >> /app/activate.sh
 
 FROM ${MICRO_IMAGE}
+ARG ATTESTATION_GATE=enforce
 LABEL org.opencontainers.image.title="acme-analytics" \
-      org.opencontainers.image.description="pixi environment on UBI micro, built from the ak.internal registry only"
+      org.opencontainers.image.description="pixi environment on UBI micro, built from the ak.internal registry only" \
+      acme.attestation-gate="${ATTESTATION_GATE}"
 WORKDIR /app
 COPY --from=builder /app/pixi.toml /app/pixi.lock /app/activate.sh /app/
 COPY --from=builder /app/.pixi/envs/default /app/.pixi/envs/default

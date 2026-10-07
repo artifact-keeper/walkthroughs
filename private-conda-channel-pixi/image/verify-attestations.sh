@@ -16,6 +16,9 @@
 #                           (default https://ak.internal/conda/conda-internal/)
 #        RATTLER_AUTH_FILE  {"host": {"BearerToken": "..."}} for authenticated reads
 #        SIDECAR_ONLY=1     do not fall back to <url>/attestation
+#        ATTESTATION_GATE=warn  report failures but exit 0 (only for registries
+#                           that cannot store attestations yet; the image is
+#                           labelled acme.attestation-gate=warn by the build)
 # Needs: bash, curl, jq, cosign, sha256sum (the image build runs it under
 #        `pixi exec -s cosign -s jq -s curl`, so those come from the registry too)
 set -euo pipefail
@@ -78,5 +81,8 @@ while IFS=$'\t' read -r url want; do
   else echo "FAIL $f: $why"; fail=1; fi
 done < "$WORK/pkgs.tsv"
 
-if (( fail )); then echo "verify: attestation gate FAILED"; exit 1; fi
+if (( fail )); then
+  if [[ "${ATTESTATION_GATE:-enforce}" == warn ]]; then echo "verify: attestation gate FAILED (ATTESTATION_GATE=warn: continuing)"; exit 0; fi
+  echo "verify: attestation gate FAILED"; exit 1
+fi
 echo "verify: attestation gate passed for $n package(s)"

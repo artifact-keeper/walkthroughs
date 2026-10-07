@@ -5,6 +5,7 @@
 !client/.work/rattler-config.toml
 !image/.work/ak-internal-ca.crt
 !image/.work/conda-ci-cosign.pub
+!image/.work/certs.d
 !image/verify-attestations.sh
 !project/pixi.toml
 !project/pixi.lock

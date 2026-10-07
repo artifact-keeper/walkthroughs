@@ -68,6 +68,7 @@ create_repo oci-apps '{"key":"oci-apps","name":"Application images","format":"do
 # podman at localhost:30444, see image/README.md).
 create_repo oci-ghcr '{"key":"oci-ghcr","name":"ghcr.io (proxy)","format":"docker","repo_type":"remote","visibility":"internal","upstream_url":"https://ghcr.io"}'
 create_repo oci-redhat '{"key":"oci-redhat","name":"registry.access.redhat.com (proxy)","format":"docker","repo_type":"remote","visibility":"internal","upstream_url":"https://registry.access.redhat.com"}'
+create_repo oci-quay '{"key":"oci-quay","name":"quay.io (proxy)","format":"docker","repo_type":"remote","visibility":"internal","upstream_url":"https://quay.io"}'
 create_repo trust '{"key":"trust","name":"Trust anchors: CA certificate, verification keys, SBOMs","format":"generic","repo_type":"local","visibility":"public"}'
 
 r=$(api PUT /promotion/repositories/conda-staging/release-target -d '{"release_repository_key":"conda-internal"}')
@@ -134,7 +135,7 @@ if [[ -z "$uid" ]]; then
   log "created user consumer ($uid)"
 fi
 if works "$TOKENS/consumer.token" /api/v1/auth/me; then log "consumer.token still valid"; else
-  ids=$(for k in conda-virtual conda-internal conda-forge pypi-remote oci-ghcr oci-redhat; do
+  ids=$(for k in conda-virtual conda-internal conda-forge pypi-remote oci-ghcr oci-redhat oci-quay; do
           body_of "$(api GET "/repositories/$k")" | jq -r .id; done | jq -R . | jq -sc .)
   # Minted by the consumer itself: POST /users/{id}/tokens (admin minting for
   # another user) rejects repo_selector on this build; /auth/tokens accepts it.
@@ -145,7 +146,7 @@ if works "$TOKENS/consumer.token" /api/v1/auth/me; then log "consumer.token stil
       '{name:"consumer-read",scopes:["read:artifacts"],expires_in_days:90,repo_selector:{match_repos:$ids}}')")
   [[ $(code_of "$r") =~ ^20 ]] || { echo "bootstrap.sh: consumer token failed: HTTP $(code_of "$r") $(body_of "$r")" >&2; exit 1; }
   (umask 077; body_of "$r" | jq -r .token > "$TOKENS/consumer.token")
-  log "minted consumer.token (user consumer, read:artifacts, selector: conda-virtual conda-internal conda-forge pypi-remote oci-ghcr oci-redhat)"
+  log "minted consumer.token (user consumer, read:artifacts, selector: conda-virtual conda-internal conda-forge pypi-remote oci-ghcr oci-redhat oci-quay)"
 fi
 auth_file "$TOKENS/consumer.token" "$TOKENS/consumer-auth.json"
 
