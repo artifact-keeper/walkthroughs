@@ -18,6 +18,16 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](rocky-linux-image-mode-bare-metal/index.md)
 
+-   :material-package-variant-closed:{ .lg .middle } __A private conda channel for pixi__
+
+    ---
+
+    Proxy conda-forge, host your own packages, and present one virtual channel that cannot be
+    shadowed. Sign every package with your own key, verify before linking, build containers on
+    a network with no internet, and answer "which environments contain this?" from the registry.
+
+    [:octicons-arrow-right-24: Start the walkthrough](private-conda-channel-pixi/index.md)
+
 </div>
 
 Want a walkthrough for a deployment that is not here yet?

@@ -102,6 +102,27 @@ nav:
           - Design:
               - Original plan: rocky-linux-image-mode-bare-metal/plan.md
 
+  - A private conda channel for pixi:
+      - private-conda-channel-pixi/index.md
+      - 1. Stand up the registry: private-conda-channel-pixi/1-stand-up-the-registry.md
+      - 2. Configure pixi for registry-only use: private-conda-channel-pixi/2-configure-pixi.md
+      - 3. Build, publish and attest: private-conda-channel-pixi/3-build-and-publish.md
+      - 4. Promote with gates: private-conda-channel-pixi/4-promote-with-gates.md
+      - 5. Resolve through one channel: private-conda-channel-pixi/5-resolve-through-one-channel.md
+      - 6. Build the container on an isolated network: private-conda-channel-pixi/6-build-the-container.md
+      - 7. Verify attestations: private-conda-channel-pixi/7-verify-attestations.md
+      - 8. SBOM and blast radius: private-conda-channel-pixi/8-sbom-and-blast-radius.md
+      - 9. Prove it fails safely: private-conda-channel-pixi/9-prove-it-fails-safely.md
+      - Results: private-conda-channel-pixi/results.md
+      - Next steps: private-conda-channel-pixi/next-steps.md
+      - Reference:
+          - pixi configuration: private-conda-channel-pixi/reference/pixi-config.md
+          - Registry API used: private-conda-channel-pixi/reference/registry-api.md
+      - Lab notes:
+          - Findings: private-conda-channel-pixi/findings.md
+          - Design:
+              - Original plan: private-conda-channel-pixi/plan.md
+
 validation:
   links:
     anchors: warn
