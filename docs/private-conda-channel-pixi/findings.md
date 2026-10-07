@@ -575,7 +575,7 @@ Gate notes:
 
 ## Candidate issues
 
-Not filed. Each has the exact symptom above.
+Each has the exact symptom above. Where each one was filed: [Filed upstream](#filed-upstream).
 
 | # | Component | Issue | Plan item |
 |---|---|---|---|
@@ -727,3 +727,35 @@ so a UI cannot show "attestation verified" from the promotion response alone (C2
 | Hosted scan of a conda package (Grype) | < 30 s |
 | Full gate run | 8 min 17 s (main), ~10 min (fix branch) |
 | `make all` from an empty registry, fix branch | 14 min 6 s |
+
+## Filed upstream
+
+The Artifact Keeper items above, filed against the 1.11.0 milestone on 2026-10-07. The fixes are in two pull requests: [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) (conda channels, attestations, promotion) and [#4562](https://github.com/artifact-keeper/artifact-keeper/pull/4562) (`/v2/token` rate limit, scan-policy names).
+
+| # | Finding | Issue | Pull request |
+|---|---|---|---|
+| C1 | virtual channel drops an oversized member and answers 200 | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) (with [#4180](https://github.com/artifact-keeper/artifact-keeper/issues/4180), [#4192](https://github.com/artifact-keeper/artifact-keeper/issues/4192)) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C2 | remote member shadows a hosted package name | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C3 | repository token on a virtual repository cannot read through it | [#4559](https://github.com/artifact-keeper/artifact-keeper/issues/4559) (decision; related [#4130](https://github.com/artifact-keeper/artifact-keeper/issues/4130)) | none yet |
+| C4 | CEP-16 shard index encoding | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) (with [#4173](https://github.com/artifact-keeper/artifact-keeper/issues/4173)) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C5 | promotion drops artifact metadata | [#4557](https://github.com/artifact-keeper/artifact-keeper/issues/4557) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C6 | upload subdir not checked against `index.json` | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C7 | `unknown` subdir is 400 | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C8 | proxy downloads missing from the download records | [#4560](https://github.com/artifact-keeper/artifact-keeper/issues/4560) (main has since merged [#4539](https://github.com/artifact-keeper/artifact-keeper/issues/4539); verification left) | none yet |
+| C9 | `/v2/token` shares the login rate limit | [#4558](https://github.com/artifact-keeper/artifact-keeper/issues/4558) | [#4562](https://github.com/artifact-keeper/artifact-keeper/pull/4562) |
+| C10 | key-based Sigstore bundles refused, no trust policy | [#4556](https://github.com/artifact-keeper/artifact-keeper/issues/4556) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C11 | no CEP-50 sidecars, no `attestations_sha256` | [#4556](https://github.com/artifact-keeper/artifact-keeper/issues/4556) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C12 | no server-set `indexed_timestamp` | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C13 | rattler's `/t/<token>/conda/<repo>/` layout is 401 | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C14 | `POST /api/v1/users/{id}/tokens` rejects `repo_selector` | not filed yet |  |
+| C15 | authenticated repodata sent `cache-control: public` | [#4555](https://github.com/artifact-keeper/artifact-keeper/issues/4555) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C16 | duplicate scan policy names accepted | [#4558](https://github.com/artifact-keeper/artifact-keeper/issues/4558) | [#4562](https://github.com/artifact-keeper/artifact-keeper/pull/4562) |
+| C17 | promotion route and conda upload docs | not filed yet (site docs) |  |
+| C18 | stock compose hardcodes `container_name`, publishes service ports | not filed yet |  |
+| C19 | pixi `exclude-newer` filters on the publisher `timestamp` | upstream: [conda/ceps#154](https://github.com/conda/ceps/issues/154) |  |
+| C20 | cosign `attest-blob --predicate` emits Statement v0.1 | doc note in this walkthrough |  |
+| C21 | Syft emits no purl for conda packages | not filed yet (upstream) |  |
+| C22 | rootless `podman build --network <name>` refused | doc note in this walkthrough |  |
+| C23 | promotion `gate_results` omit passed predicates | [#4556](https://github.com/artifact-keeper/artifact-keeper/issues/4556) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| F18 | bulk promotion returns empty `gate_results` | [#4557](https://github.com/artifact-keeper/artifact-keeper/issues/4557) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| F19 | staging uploads recorded with a `virtual` origin | [#4557](https://github.com/artifact-keeper/artifact-keeper/issues/4557) (related [#4152](https://github.com/artifact-keeper/artifact-keeper/issues/4152)) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
