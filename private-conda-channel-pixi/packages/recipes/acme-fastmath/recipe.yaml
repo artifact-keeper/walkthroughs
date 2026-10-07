@@ -1,0 +1,39 @@
+# acme-fastmath: a compiled C library and CLI (linux-64), so the walkthrough
+# exercises a real platform subdir and a C toolchain pulled through the proxy.
+context:
+  version: "1.0.0"
+
+package:
+  name: acme-fastmath
+  version: ${{ version }}
+
+source:
+  path: src
+
+build:
+  number: 0
+  script:
+    - ${CC} ${CFLAGS} -O2 -fPIC -shared -o libacmefastmath.so fastmath.c ${LDFLAGS}
+    - ${CC} ${CFLAGS} -O2 -o acme-fastmath main.c -L. -lacmefastmath -Wl,-rpath,'$ORIGIN/../lib' ${LDFLAGS}
+    - install -Dm755 libacmefastmath.so ${PREFIX}/lib/libacmefastmath.so
+    - install -Dm755 acme-fastmath ${PREFIX}/bin/acme-fastmath
+    - install -Dm644 fastmath.h ${PREFIX}/include/acme/fastmath.h
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+
+tests:
+  - script:
+      - test "$(acme-fastmath 3 4)" = "5.000000"
+  - package_contents:
+      lib:
+        - acmefastmath
+      bin:
+        - acme-fastmath
+
+about:
+  homepage: https://github.com/brandonrc/walkthroughs
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Acme fast math helpers, a compiled library (walkthrough example package)

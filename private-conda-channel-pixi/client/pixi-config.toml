@@ -1,0 +1,25 @@
+# /etc/pixi/config.toml for every client container in this walkthrough.
+# The registry is the only source: conda-forge is mirrored to the registry's
+# proxy, PyPI goes to the registry's PyPI proxy. Credentials are NOT here; they
+# come from RATTLER_AUTH_FILE (CI, builds) or `pixi auth login` (people).
+
+# The internal CA is installed in the system store (update-ca-certificates).
+tls-root-certs = "system"
+
+[mirrors]
+# Keys are the canonical channel URLs that end up in pixi.lock; values are
+# where the bytes are actually fetched from.
+"https://conda.anaconda.org/conda-forge" = ["https://ak.internal/conda/conda-forge"]
+
+[pypi-config]
+index-url = "https://ak.internal/pypi/pypi-remote/simple"
+
+# WORKAROUND (Artifact Keeper main 5e351fc): the hosted channel's CEP-16 shard
+# index is served with `Content-Encoding: zstd`, so the HTTP client strips the
+# zstd frame and rattler fails with "failed to decode zstd shard ... Unknown
+# frame descriptor". Fixed in the 1.11.0 branch (F4); this block is removed by
+# `make client CLIENT_SHARDS=on` / client/build.sh when the fixed backend runs.
+[repodata-config."https://ak.internal/conda/conda-internal"]
+disable-sharded = true
+[repodata-config."https://ak.internal/conda/conda-staging"]
+disable-sharded = true

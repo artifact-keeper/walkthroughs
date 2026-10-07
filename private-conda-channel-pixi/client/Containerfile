@@ -1,0 +1,13 @@
+# A pixi client for the ak-conda network: the pixi image (pulled through the
+# registry's ghcr.io proxy), the internal CA in the system trust store, and the
+# registry-only pixi/rattler configuration. No credentials are baked in.
+ARG PIXI_IMAGE=localhost:30444/oci-ghcr/prefix-dev/pixi:0.81.0
+FROM ${PIXI_IMAGE}
+COPY ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN update-ca-certificates >/dev/null
+COPY .work/pixi-config.toml /etc/pixi/config.toml
+COPY .work/rattler-config.toml /etc/rattler/config.toml
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    PIXI_NO_TELEMETRY=1 \
+    RATTLER_CACHE_DIR=/cache/rattler \
+    PIXI_CACHE_DIR=/cache/rattler

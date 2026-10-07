@@ -1,0 +1,41 @@
+# Caddy for the ak-conda stack: one site, ak.internal, TLS from Caddy's internal CA.
+# Derived from the upstream docker/Caddyfile (same backend routes), with:
+#   - the site name fixed to ak.internal (plus localhost/127.0.0.1 for the
+#     host port 127.0.0.1:30444 used by humans and screenshots),
+#   - `tls internal` (Caddy's local CA; the root is exported by up.sh to
+#     registry/out/ak-internal-ca.crt and trusted by every client container),
+#   - no plain-HTTP site: port 80 only redirects to https (credentials are
+#     never sent over HTTP),
+#   - two routes the stock file lacks: /general/* (generic repos) and /t/*
+#     (rattler's /t/<token>/... URL layout, F11).
+{
+	# Clients that connect by IP (the host port) send no SNI; give them the
+	# ak.internal certificate.
+	default_sni ak.internal
+	local_certs
+}
+
+(backend_routes) {
+	reverse_proxy /api/* backend:8080
+	reverse_proxy /health backend:8080
+	reverse_proxy /livez backend:8080
+	reverse_proxy /readyz backend:8080
+	reverse_proxy /metrics backend:8080
+	reverse_proxy /swagger-ui* backend:8080
+	reverse_proxy /v2 backend:8080
+	reverse_proxy /v2/* backend:8080
+	reverse_proxy /pypi/* backend:8080
+	reverse_proxy /conda/* backend:8080
+	reverse_proxy /general/* backend:8080
+	reverse_proxy /t/* backend:8080
+}
+
+ak.internal, localhost, 127.0.0.1 {
+	tls internal
+	log {
+		output stdout
+		format json
+	}
+	import backend_routes
+	reverse_proxy web:3000
+}

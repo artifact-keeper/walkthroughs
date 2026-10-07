@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acme-core"
+dynamic = ["version"]
+requires-python = ">=3.10"
+license = "Apache-2.0"
+description = "Acme core helpers (walkthrough example package)"
+
+[tool.setuptools.dynamic]
+version = {attr = "acme_core.__version__"}

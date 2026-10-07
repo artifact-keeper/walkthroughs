@@ -1,0 +1,94 @@
+# Local overrides on top of the stock upstream docker-compose.yml (artifact-keeper main).
+# The stock file in this directory is byte-for-byte upstream; every change for
+# this walkthrough lives here. Compose project name: ak-conda (see ../up.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE select the backend and web builds
+#     (default: the :main images; the fixed 1.11.0 builds are local images).
+#     Short names are fully qualified (rootless podman resolves short names
+#     against local storage first).
+#   - container_name: every upstream name is prefixed ak-conda- so this stack can
+#     run next to the stock "artifact-keeper" project on the same host.
+#   - networks: the default network is ak-conda-net (pinned subnet, NOT internal:
+#     the backend needs the internet to proxy conda-forge and PyPI). A second
+#     network, build-isolated, is internal (no route out); only Caddy joins it, so
+#     a client on build-isolated can reach https://ak.internal and nothing else.
+#   - Caddy answers as ak.internal (network alias on both networks) with TLS from
+#     its internal CA. The only host port is 127.0.0.1:30444 -> 443, for humans
+#     and screenshots. Postgres, OpenSearch, Trivy and OpenSCAP publish nothing.
+#   - openscap is disabled (profile "scanners"); Trivy stays on (hosted scanning).
+services:
+  pg-certs:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-conda-pg-certs
+  scan-workspace-init:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-conda-scan-ws-init
+  dtrack-init:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-conda-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-conda-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-conda-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    image: docker.io/library/postgres:18-alpine
+    container_name: ak-conda-db
+    ports: !reset []
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6
+    container_name: ak-conda-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-conda-trivy
+    ports: !reset []
+  openscap:
+    image: ghcr.io/artifact-keeper/artifact-keeper-openscap:latest
+    container_name: ak-conda-openscap
+    profiles: ["scanners"]
+    ports: !reset []
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:main}
+    container_name: ak-conda-backend
+    environment:
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.31.40.0/24
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:30444,https://localhost:30444
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:main}
+    container_name: ak-conda-web
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    container_name: ak-conda-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30444}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+      build-isolated:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-conda-net
+    ipam:
+      config:
+        - subnet: 172.31.40.0/24
+  build-isolated:
+    name: build-isolated
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.31.41.0/24

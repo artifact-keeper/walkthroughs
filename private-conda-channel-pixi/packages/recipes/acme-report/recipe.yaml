@@ -1,0 +1,45 @@
+# acme-report: noarch Python package that depends on an internal package
+# (acme-core) and on conda-forge packages (pandas, rich).
+context:
+  version: "1.0.0"
+
+package:
+  name: acme-report
+  version: ${{ version }}
+
+source:
+  path: src
+
+build:
+  number: 0
+  noarch: python
+  script:
+    - python -m pip install . --no-deps --no-build-isolation -vv
+  python:
+    entry_points:
+      - acme-report = acme_report.cli:main
+
+requirements:
+  host:
+    - python 3.12.*
+    - pip
+    - setuptools >=68
+  run:
+    - python >=3.10
+    - acme-core >=1.0,<2
+    - pandas >=2
+    - rich >=13
+
+tests:
+  - python:
+      imports:
+        - acme_report
+      pip_check: false
+  - script:
+      - acme-report --help
+
+about:
+  homepage: https://github.com/brandonrc/walkthroughs
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Acme reporting CLI (walkthrough example package)

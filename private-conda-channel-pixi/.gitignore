@@ -1,0 +1,10 @@
+.env
+*.token
+.tokens/
+out/
+.work/
+signing/keys/
+packages/out/
+.pixi/
+image/.work/
+*.sigstore.json

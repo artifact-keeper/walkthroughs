@@ -1,0 +1,12 @@
+# The image build context is this whole directory; send only what the
+# Containerfile copies (never registry/.tokens, signing/keys, .env).
+*
+!client/.work/pixi-config.toml
+!client/.work/rattler-config.toml
+!image/.work/ak-internal-ca.crt
+!image/.work/conda-ci-cosign.pub
+!image/verify-attestations.sh
+!project/pixi.toml
+!project/pixi.lock
+!project-direct/pixi.toml
+!project-direct/pixi.lock

@@ -1,0 +1,39 @@
+# acme-core: a small pure-Python library (noarch: python).
+context:
+  version: ${{ env.get("ACME_CORE_VERSION", default="1.0.0") }}
+
+package:
+  name: acme-core
+  version: ${{ version }}
+
+source:
+  path: src
+
+build:
+  number: 0
+  noarch: python
+  script:
+    - sed -i "s/^__version__ = .*/__version__ = \"${PKG_VERSION}\"/" acme_core/__init__.py
+    - python -m pip install . --no-deps --no-build-isolation -vv
+
+requirements:
+  host:
+    - python 3.12.*
+    - pip
+    - setuptools >=68
+  run:
+    - python >=3.10
+
+tests:
+  - python:
+      imports:
+        - acme_core
+      pip_check: false
+  - script:
+      - python -c "import acme_core; assert acme_core.slugify('Hello World') == 'hello-world'"
+
+about:
+  homepage: https://github.com/brandonrc/walkthroughs
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Acme core helpers (walkthrough example package)

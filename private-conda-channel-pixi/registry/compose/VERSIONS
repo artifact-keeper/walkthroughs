@@ -1,0 +1,11 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  main
+commit:  bb25ef098f597d8ac41b3fa2480a7dc03aac6c1a  ("feat(storage): S3_PUBLIC_ENDPOINT / AZURE_STORAGE_PUBLIC_ENDPOINT ...", 2026-10-06)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql,
+         docker/init-pg-ssl.sh, docker/init-dtrack.sh  (copied unmodified;
+         docker/Caddyfile is NOT used: registry/caddy/Caddyfile replaces it)
+
+# Default images (registry/.env.example), 2026-10-07
+ghcr.io/artifact-keeper/artifact-keeper-backend:main  revision 5e351fccab73  digest sha256:90629d5a0800040f081b6dd06db247dbe48b19fc3395dcf37c2f262a952e844c
+ghcr.io/artifact-keeper/artifact-keeper-web:main      revision 55d2dcae796b  digest sha256:e06d7e0da830f7b3d6fd47c0667d1b63478b5251ccba407ffa810741c08ce2b5

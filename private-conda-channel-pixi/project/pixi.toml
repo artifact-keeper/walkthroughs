@@ -1,0 +1,46 @@
+# Consumer project: one channel URL, safe by construction.
+#
+# - conda-virtual is the only general channel: internal packages first, then
+#   the conda-forge proxy, merged by the registry.
+# - Internal packages are additionally pinned to conda-internal, so they can
+#   only ever come from the hosted channel even if the virtual merge changed.
+# - Public packages wait 14 days (cooldown); internal packages are exempt.
+# - No credentials anywhere in this file or in pixi.lock: pixi looks them up by
+#   host (ak.internal) in its auth store / RATTLER_AUTH_FILE.
+# - TLS trust and the conda-forge mirror come from /etc/pixi/config.toml on the
+#   machine or container, not from this file.
+[workspace]
+name = "acme-analytics"
+version = "1.0.0"
+channels = [
+  "https://ak.internal/conda/conda-virtual",
+  # Listed so dependencies below can be pinned to it (pixi requires a pinned
+  # channel to be one of the workspace channels). Lower priority than the
+  # virtual channel; the pins, not the order, decide where acme-* come from.
+  "https://ak.internal/conda/conda-internal",
+]
+platforms = ["linux-64"]
+channel-priority = "strict"
+exclude-newer = "14d"
+
+[dependencies]
+python = "3.12.*"
+acme-core = { version = ">=1.0,<2", channel = "https://ak.internal/conda/conda-internal" }
+acme-report = { version = ">=1.0,<2", channel = "https://ak.internal/conda/conda-internal" }
+acme-fastmath = { version = ">=1.0,<2", channel = "https://ak.internal/conda/conda-internal" }
+
+[exclude-newer]
+# Our own packages are released through the promotion gate, not a cooldown.
+acme-core = "0d"
+acme-report = "0d"
+acme-fastmath = "0d"
+
+[pypi-options]
+index-url = "https://ak.internal/pypi/pypi-remote/simple"
+
+[pypi-dependencies]
+humanize = ">=4"
+
+[tasks]
+start = "acme-report"
+hypot = "acme-fastmath 3 4"
