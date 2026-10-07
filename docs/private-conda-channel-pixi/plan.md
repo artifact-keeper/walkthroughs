@@ -133,6 +133,28 @@ JLAP patches (#4175), and the full scale epic (#4172).
 | G12 | Offline: `pixi install --frozen --offline` from a pre-filled cache succeeds with the network removed; a package with a flipped byte fails the sha256 check | output |
 | G13 | Image: the application image builds from the registry only, is signed, and runs | podman output, cosign verify |
 
+
+## UI track: what the screenshots must show
+
+Each screen below is a screenshot in the walkthrough. Where the web UI (`artifact-keeper-web`)
+cannot show it today, that is a UI work item for 1.11.0, prepared the same way as the backend fixes.
+
+| # | Screen | Shows | Likely UI work |
+|---|---|---|---|
+| U1 | Repositories list filtered to conda | the four channels with type (remote, hosted, staging, virtual) and visibility | none expected |
+| U2 | `conda-virtual` detail | members in priority order, with the name-ownership rule stated | member priority display; a note that hosted members own their names |
+| U3 | `conda-internal` artifact list | packages grouped by name with subdir, version, build, size | subdir column if missing |
+| U4 | Package detail for `acme-report` | depends, license, sha256, uploader, upload time, and the **attestation**: verified, identity, issuer or key, verification time, link to the sidecar | attestation panel (new) |
+| U5 | Scan results for a conda package | Grype/Trivy findings per component, PURLs | none expected |
+| U6 | Promotion from `conda-staging` to `conda-internal` | the gate decision: attestation verified, scan passed, license allowed; and the refusal for the un-attested package with the reason | gate-result display per rule (likely new) |
+| U7 | Withdrawn package | the CEP-6 notice text and the `removed` state | notice display if missing |
+| U8 | Environments | a registered `pixi.lock`, its SBOM, and the PURL reverse lookup result (blast radius) | environment list and lookup UI if missing |
+| U9 | Download audit for a package | who pulled what and when | none expected |
+| U10 | Trust settings | the attestation trust policy (issuers, identities, key) and the repodata signing key | settings page for the policy (new) |
+
+Screenshots are taken headlessly against the demo stack, light theme, cropped to the panel, and
+stored under `docs/private-conda-channel-pixi/images/`.
+
 ## Walkthrough outline
 
 1. Why one channel: the enterprise problem statement.
