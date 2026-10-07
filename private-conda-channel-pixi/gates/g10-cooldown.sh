@@ -26,7 +26,7 @@ else blocked F10 $G "records carry a server-set indexed_timestamp" "absent on $(
 
 W="$SP_TMP/g10-project"; rm -rf "$W"; mkdir -p "$W/.pixi"
 printf '[repodata-config."https://ak.internal/conda/%s"]\ndisable-sharded = true\n' "$R" > "$W/.pixi/config.toml"
-solve() { # exclude-newer -> acme-core version chosen
+solve() { # exclude-newer [acme-core spec] -> acme-core version chosen
   cat > "$W/pixi.toml" <<TOML
 [workspace]
 name = "g10"
@@ -36,7 +36,7 @@ channel-priority = "strict"
 exclude-newer = "$1"
 [dependencies]
 python = "3.12.*"
-acme-core = { version = "*", channel = "https://ak.internal/conda/$R" }
+acme-core = { version = "${2:-*}", channel = "https://ak.internal/conda/$R" }
 [exclude-newer]
 python = "0d"
 TOML
@@ -45,9 +45,10 @@ TOML
     -v "$(admin_auth_file):/run/secrets/a.json:ro,z" -e RATTLER_AUTH_FILE=/run/secrets/a.json "$CLIENT" pixi lock >/dev/null 2>&1
   grep -m1 -oE '^- conda: https://[^ ]*/acme-core-[^-]+-' "$W/pixi.lock" 2>/dev/null | sed -E 's/.*acme-core-([^-]+)-$/\1/'
 }
-v0=$(solve 0d); v1=$(solve 1h); echo "exclude-newer 0d -> acme-core $v0; exclude-newer 1h -> acme-core $v1"
-if [[ $v0 == 1.2.0 && $v1 == 1.0.0 ]]; then pass $G "exclude-newer 1h excludes packages indexed minutes ago (picks 1.0.0)"
-elif [[ $v1 == 1.2.0 ]]; then
-  pass $G "exclude-newer 1h excludes acme-core 1.1.0 built minutes ago (honest build timestamp)"
-  fail $G "exclude-newer excludes a backdated package indexed minutes ago" "pixi picked 1.2.0: it filters on the publisher-set build timestamp; the server-set indexed_timestamp is not used by pixi 0.81.0 (conda/ceps#154)"
-else fail $G "exclude-newer solve" "0d=$v0 1h=$v1"; fi
+v0=$(solve 0d); v1=$(solve 1h "<1.2"); v2=$(solve 1h)
+echo "exclude-newer 0d -> acme-core $v0; 1h with acme-core <1.2 -> $v1; 1h unrestricted -> $v2"
+[[ $v1 == 1.0.0 ]] && pass $G "exclude-newer 1h excludes acme-core 1.1.0 built minutes ago (picks 1.0.0)" \
+  || fail $G "exclude-newer 1h excludes a package built minutes ago" "picked $v1"
+if [[ $v2 == 1.0.0 ]]; then pass $G "exclude-newer excludes a backdated package indexed minutes ago"
+elif [[ $v2 == 1.2.0 ]]; then fail $G "exclude-newer excludes a backdated package indexed minutes ago" "pixi picked 1.2.0: it filters on the publisher-set build timestamp; the server-set indexed_timestamp is not used by pixi 0.81.0 (conda/ceps#154)"
+else fail $G "exclude-newer solve" "$v2"; fi

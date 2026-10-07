@@ -6,13 +6,15 @@ SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 .DEFAULT_GOAL := help
 
-# project/ = one virtual channel (target design); project-direct/ = internal +
-# conda-forge mirror (works on Artifact Keeper main today).
-PROJECT ?= project
+# project/ = one virtual channel (target design, needs the 1.11.0 virtual-channel
+# fixes); project-direct/ = internal + conda-forge mirror (works on main today).
+PROJECT ?= project-direct
+# enforce | warn (warn only where the registry cannot store attestations yet)
+ATTESTATION_GATE ?= enforce
 SCRATCH ?= $(abspath ../../conda-walkthrough)
 
-.PHONY: help registry-up registry-down bootstrap keys publish-keys client packages publish attest \
-        scan-hosted promote lock install image push sign scan gates screens-ready all clean
+.PHONY: help registry-up registry-down bootstrap keys publish-keys client packages publish attest seed-internal-main \
+        scan-hosted promote lock install image push scan gates screens-ready all all-main clean
 
 help: ## list targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -50,6 +52,9 @@ scan-hosted: ## trigger and wait for the registry's scans of conda-staging
 promote: ## promote staging -> conda-internal through the release gate
 	packages/promote.sh
 
+seed-internal-main: ## WORKAROUND for main only: put the packages into conda-internal directly
+	packages/seed-internal-main.sh
+
 lock: ## pixi lock for $(PROJECT) inside a client container on ak-conda-net
 	$(PROJECT)/pixi-run.sh lock
 
@@ -57,13 +62,13 @@ install: ## pixi install --locked for $(PROJECT) in a client container
 	$(PROJECT)/pixi-run.sh install --locked
 
 image: ## build localhost/acme-analytics (registry only, attestation gate) from $(PROJECT)
-	PROJECT=$(PROJECT) image/build.sh
+	PROJECT=$(PROJECT) ATTESTATION_GATE=$(ATTESTATION_GATE) image/build.sh
 
 push: ## push the image to oci-apps and cosign-sign it by digest
 	image/push.sh
 
 scan: ## Syft + Grype on the image and the environment; registry SBOM + PURL lookup
-	scan/scan.sh
+	PROJECT=$(PROJECT) scan/scan.sh
 
 gates: ## run G1-G13 (PASS / FAIL / BLOCKED per gate), results in out/gates/
 	gates/run-all.sh
@@ -77,5 +82,17 @@ screens-ready: ## print the UI URL and where the admin credentials are
 
 all: registry-up bootstrap keys publish-keys client packages publish attest scan-hosted promote lock image push scan gates ## everything
 
+all-main: ## the same pipeline on Artifact Keeper main: attestation refusals tolerated, seeded internal channel, gate in warn mode
+	$(MAKE) registry-up bootstrap keys publish-keys client packages
+	-$(MAKE) publish
+	-$(MAKE) attest
+	$(MAKE) scan-hosted
+	-$(MAKE) promote
+	$(MAKE) seed-internal-main lock
+	$(MAKE) image ATTESTATION_GATE=warn
+	$(MAKE) push scan
+	-$(MAKE) gates
+
 clean: ## remove local build outputs (not the registry's data, not keys or tokens)
 	rm -rf packages/out image/.work client/.work out
+	-podman rm -f ak-conda-fake-upstream ak-conda-gate-sigs ak-conda-g12-mirror
