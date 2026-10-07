@@ -3,7 +3,7 @@
 # build-isolated, cold storage), is signed in oci-apps, and runs (also with no network).
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-G=G13; PROJECT="${PROJECT:-project-direct}"; GATE="${ATTESTATION_GATE:-warn}"
+G=G13; PROJECT="${PROJECT:-project-direct}"; GATE="${ATTESTATION_GATE:-enforce}"
 podman volume rm -f ak-conda-builder-g13 >/dev/null 2>&1
 log="$GOUT/g13-build.log"; s0=$SECONDS
 if NETWORK="$ISOLATED_NET" BUILDER_VOLUME=ak-conda-builder-g13 TAG=1.0.0 ATTESTATION_GATE="$GATE" PROJECT="$PROJECT" \

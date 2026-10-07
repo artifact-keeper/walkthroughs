@@ -8,7 +8,9 @@ SHELL := /bin/bash
 
 # project/ = one virtual channel (target design, needs the 1.11.0 virtual-channel
 # fixes); project-direct/ = internal + conda-forge mirror (works on main today).
-PROJECT ?= project-direct
+PROJECT ?= project
+# on (fixed backend) | off (main: hosted shards are broken, F4)
+CLIENT_SHARDS ?= on
 # enforce | warn (warn only where the registry cannot store attestations yet)
 ATTESTATION_GATE ?= enforce
 SCRATCH ?= $(abspath ../../conda-walkthrough)
@@ -34,8 +36,8 @@ keys: ## cosign key pairs for the CI signer and a wrong key for negative tests
 publish-keys: ## publish the CI verification key to the trust repo
 	signing/publish-keys.sh
 
-client: ## build the pixi client image (CLIENT_SHARDS=on drops the shard workaround)
-	client/build.sh
+client: ## build the pixi client image (CLIENT_SHARDS=off keeps the main-only shard workaround)
+	CLIENT_SHARDS=$(CLIENT_SHARDS) client/build.sh
 
 packages: ## rattler-build the acme-* packages through the registry
 	packages/build.sh
@@ -55,8 +57,9 @@ promote: ## promote staging -> conda-internal through the release gate
 seed-internal-main: ## WORKAROUND for main only: put the packages into conda-internal directly
 	packages/seed-internal-main.sh
 
-lock: ## pixi lock for $(PROJECT) inside a client container on ak-conda-net
-	$(PROJECT)/pixi-run.sh lock
+lock: ## pixi lock for project/ and project-direct/ inside a client container on ak-conda-net
+	project/pixi-run.sh lock
+	project-direct/pixi-run.sh lock
 
 install: ## pixi install --locked for $(PROJECT) in a client container
 	$(PROJECT)/pixi-run.sh install --locked
@@ -71,7 +74,7 @@ scan: ## Syft + Grype on the image and the environment; registry SBOM + PURL loo
 	PROJECT=$(PROJECT) scan/scan.sh
 
 gates: ## run G1-G13 (PASS / FAIL / BLOCKED per gate), results in out/gates/
-	gates/run-all.sh
+	PROJECT=$(PROJECT) ATTESTATION_GATE=$(ATTESTATION_GATE) gates/run-all.sh
 
 screens-ready: ## print the UI URL and where the admin credentials are
 	@echo "UI:        https://127.0.0.1:$${HTTPS_PORT:-30444}  (self-signed by the stack's internal CA)"
@@ -80,18 +83,19 @@ screens-ready: ## print the UI URL and where the admin credentials are
 	@echo "Consumer:  user consumer, password in $(CURDIR)/registry/.tokens/consumer.password"
 	@echo "In network: https://ak.internal (podman networks ak-conda-net, build-isolated)"
 
-all: registry-up bootstrap keys publish-keys client packages publish attest scan-hosted promote lock image push scan gates ## everything
+all: keys registry-up bootstrap publish-keys client packages publish attest scan-hosted promote lock image push scan gates ## everything (Artifact Keeper 1.11.0 backend)
 
 all-main: ## the same pipeline on Artifact Keeper main: attestation refusals tolerated, seeded internal channel, gate in warn mode
-	$(MAKE) registry-up bootstrap keys publish-keys client packages
+	$(MAKE) keys registry-up bootstrap publish-keys client CLIENT_SHARDS=off packages
 	-$(MAKE) publish
 	-$(MAKE) attest
 	$(MAKE) scan-hosted
 	-$(MAKE) promote
-	$(MAKE) seed-internal-main lock
-	$(MAKE) image ATTESTATION_GATE=warn
-	$(MAKE) push scan
-	-$(MAKE) gates
+	$(MAKE) seed-internal-main
+	project-direct/pixi-run.sh lock
+	$(MAKE) image ATTESTATION_GATE=warn PROJECT=project-direct
+	$(MAKE) push scan PROJECT=project-direct
+	-$(MAKE) gates PROJECT=project-direct ATTESTATION_GATE=warn
 
 clean: ## remove local build outputs (not the registry's data, not keys or tokens)
 	rm -rf packages/out image/.work client/.work out

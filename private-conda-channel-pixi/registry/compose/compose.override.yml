@@ -59,15 +59,19 @@ services:
       # The negative tests run a fake "public" conda channel at this one
       # address (gates/fake-upstream.sh). Remote upstreams on private networks
       # are refused by default (SSRF guard); allow exactly that host.
-      # OCI /v2/token shares the login limiter (10 per username and source IP
-      # per 15 minutes, #4020) and every exchange counts, including successful
-      # ones. A push + cosign sign + verify from one CI user exhausts it, and
-      # all host traffic reaches Caddy from one address (rootless port
-      # forwarding). Raised for the lab; see findings.md.
-      RATE_LIMIT_LOGIN_PER_WINDOW: ${RATE_LIMIT_LOGIN_PER_WINDOW:-200}
+      # Lab setting for Artifact Keeper main only: /v2/token shares the login
+      # limiter there (10 per user and IP per 15 min, successful exchanges
+      # included). The 1.11.0 backend gives /v2/token its own bucket, so leave
+      # this unset with it. See findings.md (C9).
+      RATE_LIMIT_LOGIN_PER_WINDOW: ${RATE_LIMIT_LOGIN_PER_WINDOW:-10}
+      # CEP-27 trust policy (1.11.0): accept key-based Sigstore bundles signed by
+      # the CI key (signing/gen-keys.sh). Ignored by backends without F6.
+      CONDA_ATTESTATION_PUBLIC_KEYS: ci=/etc/artifact-keeper/keys/conda-ci-cosign.pub
       AK_SSRF_ALLOW_PRIVATE_CIDRS: ${AK_SSRF_ALLOW_PRIVATE_CIDRS:-172.31.40.200/32}
       CORS_ORIGINS: https://ak.internal,https://127.0.0.1:30444,https://localhost:30444
       RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+    volumes:
+      - ../../signing/keys/cosign.pub:/etc/artifact-keeper/keys/conda-ci-cosign.pub:ro,z
 
   web:
     image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:main}

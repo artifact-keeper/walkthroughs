@@ -9,7 +9,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 G=G9
 [[ -x "$ROOT/registry/trust-policy.sh" ]] && "$ROOT/registry/trust-policy.sh" 2>&1 | sed 's/^/  /'
-PKG=$(ls "$ROOT"/out/g7/noarch/acme-core-1.0.1-*.conda 2>/dev/null | head -1)
+PKG=$(ls "$ROOT"/out/g7/noarch/acme-core-*.conda 2>/dev/null | head -1)
 [[ -n "$PKG" ]] || { fail $G "setup" "run G7 first (acme-core 1.0.1 in conda-staging)"; exit 0; }
 f=$(basename "$PKG")
 up() { # key-dir -> HTTP code + body

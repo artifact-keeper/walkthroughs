@@ -601,12 +601,107 @@ Not filed. Each has the exact symptom above.
 | C20 | cosign | `attest-blob --predicate --type` emits in-toto Statement v0.1; CEP-27 needs v1 (use `--statement`) | doc note |
 | C21 | Syft | conda packages get no purl | upstream |
 | C22 | podman | rootless `podman build --network <name>` is refused; build inside a container on the network instead | doc note |
+| C23 | Artifact Keeper | promotion `gate_results` omits predicates that passed (attestation verified, license allowed); only failures appear, as one `policy-predicate` rule | new (UI U6) |
 
 ## What the fixes changed
 
-Pending: the fixed backend (`BACKEND_READY`) has not been delivered yet.
+### Run 2: Artifact Keeper 1.11.0 fix branch, clean registry, `make all`
 
-Web UI:
+Backend `localhost/ak-backend:conda-1.11` (BACKEND_READY v1, image `9774f28a9540`, branch
+`conda-walkthrough-1.11` at `8f0d5b13` on main `bb25ef09`: F1-F11 plus unknown-subdir,
+`Cache-Control: private`, `/v2/token` bucket). Switch: `BACKEND_IMAGE` in `registry/.env`, the
+CI public key mounted into the backend and named in `CONDA_ATTESTATION_PUBLIC_KEYS=ci=...`
+(compose override), the login-limit lab setting returned to the default 10. Then
+`registry/down.sh --volumes` and `make all` from an empty registry: **exit 0 in 14 min 6 s**, no
+workaround anywhere (client with shards on, real promotion, attestation gate enforced, the
+virtual-channel project).
+
+```text
+GET /api/v1/attestations/policy -> {"require_verified":true,"issuers":["https://token.actions.githubusercontent.com"],"identities":[],
+  "keys":[{"id":"53ff3ea8b0f33847","name":"ci","fingerprint":"53ff3ea8...","algorithm":"ecdsa-p256-sha256"}]}
+attest: conda-staging/noarch/acme-core-1.0.0-pyh4616a5c_0.conda -> HTTP 201 {"attestation_count":1,"attestations_sha256":"a40c9cfc...",
+  "status":"attestation stored","verification":{"checks_passed":771,"identity":"ci","issuer":"key:53ff3ea8b0f33847","method":"sigstore-key",
+  "state":"verified","statement_type":"https://in-toto.io/Statement/v1",...}}
+promote: noarch/acme-core-1.0.0-pyh4616a5c_0.conda -> conda-internal: HTTP 200 promoted=true      (all three, policy enforced)
+verify: 3 package(s) from https://ak.internal/conda/conda-internal/; trusted key f3751a577f375056
+PASS acme-fastmath-1.0.0-hb0f4dca_0.conda (sidecar, sha256 365a421b75d1..., channel https://ak.internal/conda/conda-internal)
+PASS acme-core-1.0.0-pyh4616a5c_0.conda (sidecar, ...)
+PASS acme-report-1.0.0-pyh4616a5c_0.conda (sidecar, ...)
+verify: attestation gate passed for 3 package(s)
+```
+
+The promoted record in `conda-internal` now keeps everything and gains the new fields:
+`{"build":"pyh4616a5c_0","depends":["python >=3.10","acme-core >=1.0,<2","pandas >=2","rich >=13","python"],"md5":"3d3b34db...","license":"Apache-2.0","noarch":"python","attestations_sha256":"b5ba0b8a...","indexed_timestamp":1791381108494}`.
+`conda-virtual` merges conda-forge: 790,178 linux-64 records, `repodata.json.zst` 74 MB in 3.9 s.
+`project/` (one virtual channel) locks and installs; its image is built with the gate enforced.
+
+Gate verdicts that changed (everything not listed is as in run 1, PASS):
+
+| Gate | Check | Run 1 (main) | Run 2 (fix branch) |
+|---|---|---|---|
+| G1 | rattler `/t/<token>/conda/<repo>/` | BLOCKED(F11) 401 | PASS |
+| G2 | POST without subdir header | BLOCKED(F8) noarch | PASS, filed under linux-64 per `index.json` |
+| G2 | linux-64 package under `noarch/` | BLOCKED(F8) 201 | PASS, 400 |
+| G3 | `project` (virtual) locks and installs on `build-isolated` | BLOCKED(F2,F3) | PASS, 44 packages, all via `ak.internal` |
+| G3 | download records for proxy downloads | FAIL | **FAIL** (+3 records for 44-47 downloads; C8 not in scope of the fixes) |
+| G4 | virtual offers only the hosted `acme-core` | BLOCKED(F1) `["1.0.0","99.0.0"]` | PASS `["1.0.0"]` |
+| G4 | unpinned solve | BLOCKED(F1) 99.0.0 | PASS 1.0.0 |
+| G5 | shard index without `Content-Encoding` | BLOCKED(F4) | PASS (`content-type: application/x-msgpack`) |
+| G5 | pixi consumes hosted shards | BLOCKED(F4) | PASS, shard index and shards fetched, no fallback |
+| G6 | broken member fails loudly | BLOCKED(F3) 200 | PASS 502 |
+| G6 | `conda-virtual` merges conda-forge | BLOCKED(F2,F3) 1 record | PASS 790,178 records |
+| G7 | attested, clean package promotes | BLOCKED(F6,F7) | PASS |
+| G7 | metadata kept on promotion | BLOCKED(F9) | PASS |
+| G7 | attestation follows the package | (not reachable) | PASS |
+| G8 | `.sigs` sidecar, `attestations_sha256` | BLOCKED(F5) | PASS |
+| G8 | image build gate passes for registry-signed packages | BLOCKED(F5,F6) | PASS (enforce) |
+| G9 | trusted key accepted, wrong key refused | BLOCKED(F6) both 400 | PASS: 201 / 400 `bundle is signed by key hint wiEcltjl..., which is not a configured trusted key` |
+| G10 | server-set `indexed_timestamp` | BLOCKED(F10) | PASS (the backdated package shows its real index time) |
+| G10 | backdated package excluded by `exclude-newer` | FAIL | **FAIL**: pixi 0.81.0 still filters on the build `timestamp` (C19, pixi side) |
+| G13 | image from the registry only | PASS (gate warn) | PASS (gate **enforce**, 191 s cold on `build-isolated`) |
+
+Also confirmed on the fix branch: `GET /conda/<repo>/unknown/repodata.json` 200 (C7 fixed), repodata
+for authenticated requests `cache-control: private, max-age=60` (C15 fixed), push + sign + verify
+with the default login limit and no 429 (C9 fixed). Unchanged: a repository token on
+`conda-virtual` still cannot read through it (C3; `consumer-repo` 404 on every URL).
+
+New behavior worth noting: a deleted conda file name cannot be uploaded again
+(`409 Artifact version already exists and is immutable`); on main it could. The gates now build
+a fresh version per run (G7 `acme-core 1.0.<epoch>`, G10 `1.<epoch>.0`) instead of reusing names.
+G10 also uses a fresh client cache: pixi's cached repodata (max-age 60) otherwise hides packages
+uploaded seconds earlier.
+
+### Backend version 2 (F17-F19), G7 again
+
+`localhost/ak-backend:conda-1.11` rebuilt (BACKEND_READY version 2, image `e4788989c3d3`, branch at
+`38a441dc`: F17 duplicate policy names 409, F18 bulk promotion `gate_results`, F19 origin
+`hosted` for staging uploads). Only the backend container was recreated. G7 (with an added check:
+a clean, un-attested candidate) and G9:
+
+```text
+PASS  G7  vulnerable package (acme-legacy) refused on its scan findings
+PASS  G7  GPL-3.0-only package (acme-copyleft) refused on the license rule
+PASS  G7  un-attested package (acme-core 1.0.1791387572, clean scan) refused on the attestation rule
+PASS  G7  attested, clean acme-core 1.0.1791387567 promotes
+PASS  G7  promoted package keeps its metadata in conda-internal repodata
+PASS  G7  the attestation follows the package to conda-internal
+PASS  G9  attestation signed by the trusted key accepted (201); wrong key refused (400 ...)
+```
+
+`gate_results` on a refusal (acme-copyleft):
+
+```text
+gate cve-severity-threshold: passed (0 open finding(s), none above the policy threshold)
+gate block-unscanned: passed (a security scan has completed)
+gate policy-predicate: FAILED (Policy 'conda-release-gate' [conda.license]: declared license 'gpl-3.0-only' is denied; ... [conda.license_family]: declared license family 'gpl' is denied)
+```
+
+On a successful promotion `gate_results` lists only `cve-severity-threshold` and `block-unscanned`;
+the satisfied predicates (attestation verified, license allowed) are not reported as passed rules,
+so a UI cannot show "attestation verified" from the promotion response alone (C23).
+
+### Web UI on the stack
+
 - 2026-10-07T11:22Z: `localhost/ak-web:conda-1.11` (WEB_READY v1, `d61d95c`) via `WEB_IMAGE` in
   `registry/.env` and `registry/up.sh`.
 - 2026-10-07T12:25Z: WEB_READY v2, the same tag rebuilt from the UI integration branch (image
@@ -615,6 +710,9 @@ Web UI:
   `https://127.0.0.1:30444/` -> 200, `<title>Artifact Keeper`; `/readyz` 200.
 - The UI agent's throwaway repository `ui-test-conda` was deleted
   (`DELETE /api/v1/repositories/ui-test-conda` -> 200, then GET -> 404).
+- 2026-10-07T13:50Z: registry data wiped for run 2 (`registry/down.sh --volumes`, then
+  `make all`); `.env` (admin password) kept, tokens re-minted into the same files.
+- 2026-10-07T14:10Z: WEB_READY v4, image `bbe52fb10974`; web container recreated, UI 200.
 
 ## Timings
 
@@ -627,4 +725,5 @@ Web UI:
 | Image build on `ak-conda-net`, warm builder | ~3 min 15 s |
 | Image build on `build-isolated`, cold builder | 200-231 s |
 | Hosted scan of a conda package (Grype) | < 30 s |
-| Full gate run | 8 min 17 s |
+| Full gate run | 8 min 17 s (main), ~10 min (fix branch) |
+| `make all` from an empty registry, fix branch | 14 min 6 s |
