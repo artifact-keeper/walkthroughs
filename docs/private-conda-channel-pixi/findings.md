@@ -604,8 +604,17 @@ Not filed. Each has the exact symptom above.
 
 ## What the fixes changed
 
-Pending: the fixed backend (`BACKEND_READY`) has not been delivered yet. The web UI branch
-(`localhost/ak-web:conda-1.11`) is running since 2026-10-07T11:22Z.
+Pending: the fixed backend (`BACKEND_READY`) has not been delivered yet.
+
+Web UI:
+- 2026-10-07T11:22Z: `localhost/ak-web:conda-1.11` (WEB_READY v1, `d61d95c`) via `WEB_IMAGE` in
+  `registry/.env` and `registry/up.sh`.
+- 2026-10-07T12:25Z: WEB_READY v2, the same tag rebuilt from the UI integration branch (image
+  `90ee4ccb1fb6`). Only the web container was recreated
+  (`podman compose ... up -d --force-recreate --no-deps web`); backend, data and tokens untouched.
+  `https://127.0.0.1:30444/` -> 200, `<title>Artifact Keeper`; `/readyz` 200.
+- The UI agent's throwaway repository `ui-test-conda` was deleted
+  (`DELETE /api/v1/repositories/ui-test-conda` -> 200, then GET -> 404).
 
 ## Timings
 
