@@ -16,10 +16,11 @@ ATTESTATION_GATE ?= enforce
 SCRATCH ?= $(abspath ../../conda-walkthrough)
 
 .PHONY: help registry-up registry-down bootstrap keys publish-keys client packages publish attest seed-internal-main \
-        scan-hosted promote lock install image push scan allowlist allowlist-off gates screens-ready all all-main clean
+        scan-hosted promote lock install image push scan allowlist allowlist-off gates screens-ready all all-main clean \
+        scenarios-up scenarios-down scenarios scenario-S1 scenario-S2 scenario-S3 scenario-S4 scenario-S5 scenario-S6 scenario-S7
 
 help: ## list targets
-	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 registry-up: ## start the ak-conda stack (generates .env and secrets, exports the CA)
 	registry/up.sh
@@ -82,6 +83,30 @@ allowlist-off: ## turn the conda-virtual allowlist off: the full conda-forge mer
 
 gates: ## run G1-G14 (PASS / FAIL / BLOCKED per gate), results in out/gates/
 	PROJECT=$(PROJECT) ATTESTATION_GATE=$(ATTESTATION_GATE) gates/run-all.sh
+
+scenarios-up: ## Nexus CE + scn-fake-forge beside the stack (compose overlay), AK scn-* repos, Nexus config
+	scenarios/up.sh
+
+scenarios-down: ## stop scn-nexus and scn-fake-forge (Nexus volume kept)
+	scenarios/down.sh
+
+scenarios: ## run S1-S7 (PASS / FAIL / BLOCKED per check), logs in ~/.cache/ak-scenarios/
+	scenarios/run-all.sh
+
+scenario-S1: ## behind Nexus: install cold/warm, name guard, allowlist propagation delay
+	scenarios/s1-behind-nexus.sh
+scenario-S2: ## conda-forge unreachable from AK, Nexus warm
+	scenarios/s2-public-source-down.sh
+scenario-S3: ## AK backend stopped for 90 s, Nexus in front
+	scenarios/s3-curated-channel-down.sh
+scenario-S4: ## counter-example: Nexus group merges conda-virtual with a public source
+	scenarios/s4-merged-in-the-artifact-manager.sh
+scenario-S5: ## a package with a known CVE through conda-forge with scan-on-proxy blocking
+	scenarios/s5-cve-on-proxy.sh
+scenario-S6: ## the allowlist CI loop (scenarios/allowlist-ci.sh) for two pull requests
+	scenarios/s6-allowlist-from-a-pull-request.sh
+scenario-S7: ## merged index size per solve, shards, a malformed public record
+	scenarios/s7-big-and-malformed-index.sh
 
 screens-ready: ## print the UI URL and where the admin credentials are
 	@echo "UI:        https://127.0.0.1:$${HTTPS_PORT:-30444}  (self-signed by the stack's internal CA)"

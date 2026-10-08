@@ -1,8 +1,13 @@
-# Scenario fragment: Sonatype Nexus Repository (Community Edition, the free
-# successor of Nexus OSS) on ak-conda-net, in front of Artifact Keeper.
-# Start: scenarios/nexus/up.sh   (compose project ak-scn-nexus; never touches ak-conda)
-# Configure: scenarios/nexus/bootstrap.sh (REST API only, idempotent)
+# Scenario overlay: Sonatype Nexus Repository (Community Edition, the free
+# successor of Nexus OSS) and a small "public" channel we control, both on
+# ak-conda-net beside the ak-conda stack. A separate compose project
+# (ak-scn-nexus): it never touches ak-conda's containers or volumes.
+#   make scenarios-up     scenarios/up.sh: fake-forge files, compose up, AK scn-* repos, Nexus bootstrap
+#   make scenarios-down   scenarios/down.sh: compose down (named volume kept)
+# By hand: podman compose -p ak-scn-nexus -f scenarios/compose.nexus.yml up -d
 #
+# nexus:
+
 # - No database container: Community Edition uses its embedded H2 database.
 # - Heap: NEXUS_HEAP (default 8g). The image default (2.7 GB) is enough for
 #   proxying, but a conda GROUP parses every member's repodata.json into a
@@ -33,6 +38,19 @@ services:
       retries: 60
       start_period: 60s
     mem_limit: ${NEXUS_MEM_LIMIT:-12g}
+
+  # fake-forge: http://scn-fake-forge:8000, a static conda channel (busybox
+  # httpd) serving scenarios/.work/fake-forge, which scenarios/fake-forge.sh
+  # builds: acme-core 99.0.0 (a squatted internal name) and a different file
+  # under the exact name of our acme-core 1.0.0. S7 adds a malformed record
+  # while it runs. The files are read on every request, so edits need no restart.
+  fake-forge:
+    image: docker.io/library/busybox:1.37
+    container_name: scn-fake-forge
+    command: ["httpd", "-f", "-p", "8000", "-h", "/chan"]
+    volumes:
+      - ./.work/fake-forge:/chan:ro,z
+    networks: [ak-conda-net]
 
 volumes:
   scn-nexus-data:

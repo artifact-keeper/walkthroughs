@@ -9,11 +9,23 @@
 #   - conda repositories:
 #       ak-virtual   proxy  -> https://ak.internal/conda/conda-virtual (consumer token, basic auth)
 #       ak-internal  proxy  -> https://ak.internal/conda/conda-internal (consumer token, basic auth)
+#       ak-scn-virtual proxy -> https://ak.internal/conda/scn-virtual (scenarios/.tokens/scn-reader.token;
+#                    conda-virtual plus a hostile member, made by scenarios/ak-setup.sh)
 #       cf-direct    proxy  -> https://conda.anaconda.org/conda-forge (no auth)
 #       scn-fake     proxy  -> http://scn-fake-forge:8000 (a channel we control; scenarios/fake-forge.sh)
 #       nx-hosted    hosted
 #       merged       group  [ak-virtual, cf-direct]
 #       merged-fake  group  [ak-virtual, scn-fake]   (precedence test)
+# Caching (minutes) on the proxies of Artifact Keeper and of scn-fake-forge:
+#   NEXUS_METADATA_MAX_AGE (default 2)  repodata*.json, channeldata.json: how long Nexus serves its
+#                                       copy before it asks upstream again (conditional GET, AK 304s)
+#   NEXUS_NEGATIVE_TTL     (default 2)  how long a 404 from upstream is remembered
+#   NEXUS_CONTENT_MAX_AGE  (default 1440) package files (immutable by name, so a day is fine)
+#   The REST API has no defaults; the spike used 1440 for all three. 2 minutes is short on purpose:
+#   an allowlist change in Artifact Keeper reaches Nexus clients only after Nexus revalidates,
+#   so this value IS the policy propagation delay (S1 measures it). The cost is small: a
+#   revalidation is a conditional GET that AK answers 304 when nothing changed. cf-direct
+#   (conda.anaconda.org) keeps 1440: it is the public source, not the policy channel.
 # Env: UPSTREAM_AUTH=basic|bearer (default basic: consumer:<token>. bearer is accepted by
 #      the API but Nexus 3.96.4 never sends it for conda; kept to show that), NEXUS_PORT
 set -euo pipefail
@@ -80,19 +92,24 @@ repo() { # TYPE NAME JSON
   r=$(nx GET "/v1/repositories/conda/$t/$n")
   if [[ $(code_of "$r") == 200 ]]; then r=$(nx PUT "/v1/repositories/conda/$t/$n" -d "$j"); need "$r" '200|204' "update $n"; log "updated conda $t $n"
   else r=$(nx POST "/v1/repositories/conda/$t" -d "$j"); need "$r" '200|201' "create $n"; log "created conda $t $n"; fi; }
-proxy_json() { # NAME URL AUTH_JSON|null
-  jq -nc --arg n "$1" --arg u "$2" --argjson a "$3" '{
+MD_AGE=${NEXUS_METADATA_MAX_AGE:-2} NEG_TTL=${NEXUS_NEGATIVE_TTL:-2} CT_AGE=${NEXUS_CONTENT_MAX_AGE:-1440}
+proxy_json() { # NAME URL AUTH_JSON|null [METADATA_MAX_AGE NEGATIVE_TTL]
+  jq -nc --arg n "$1" --arg u "$2" --argjson a "$3" --argjson md "${4:-$MD_AGE}" --argjson neg "${5:-$NEG_TTL}" --argjson ct "$CT_AGE" '{
     name:$n, online:true,
     storage:{blobStoreName:"default", strictContentTypeValidation:false},
-    proxy:{remoteUrl:$u, contentMaxAge:1440, metadataMaxAge:1440},
-    negativeCache:{enabled:true, timeToLive:1440},
+    proxy:{remoteUrl:$u, contentMaxAge:$ct, metadataMaxAge:$md},
+    negativeCache:{enabled:true, timeToLive:$neg},
     httpClient:({blocked:false, autoBlock:true, connection:{useTrustStore:($u | startswith("https://ak.internal")), timeout:600}} + (if $a then {authentication:$a} else {} end))}'; }
 A=$(auth_json)
 repo proxy ak-virtual  "$(proxy_json ak-virtual  "$AK_URL/conda/conda-virtual"  "$A")"
 repo proxy ak-internal "$(proxy_json ak-internal "$AK_URL/conda/conda-internal" "$A")"
-repo proxy cf-direct   "$(proxy_json cf-direct https://conda.anaconda.org/conda-forge null)"
+[[ -s "$SCN_DIR/.tokens/scn-reader.token" ]] || { echo "nexus/bootstrap.sh: run scenarios/ak-setup.sh first (scn-reader.token)" >&2; exit 1; }
+SA=$(jq -nc --arg t "$(<"$SCN_DIR/.tokens/scn-reader.token")" '{type:"username", username:"consumer", password:$t}')
+repo proxy ak-scn-virtual "$(proxy_json ak-scn-virtual "$AK_URL/conda/scn-virtual" "$SA")"
+repo proxy cf-direct   "$(proxy_json cf-direct https://conda.anaconda.org/conda-forge null 1440 1440)"
 repo proxy scn-fake    "$(proxy_json scn-fake http://scn-fake-forge:8000 null)"
 repo hosted nx-hosted '{"name":"nx-hosted","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":false,"writePolicy":"allow_once"}}'
 repo group merged      '{"name":"merged","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":false},"group":{"memberNames":["ak-virtual","cf-direct"]}}'
 repo group merged-fake '{"name":"merged-fake","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":false},"group":{"memberNames":["ak-virtual","scn-fake"]}}'
-log "channels (on ak-conda-net): http://scn-nexus:8081/repository/{ak-virtual,ak-internal,cf-direct,nx-hosted,merged,merged-fake}"
+log "metadata max age ${MD_AGE} min, negative cache ${NEG_TTL} min, content ${CT_AGE} min (AK and scn-fake proxies)"
+log "channels (on ak-conda-net): http://scn-nexus:8081/repository/{ak-virtual,ak-internal,ak-scn-virtual,cf-direct,nx-hosted,merged,merged-fake}"

@@ -6,6 +6,7 @@ tls-root-certs = "system"
 [mirrors]
 "https://ak.internal/conda/conda-virtual" = ["http://scn-nexus:8081/repository/ak-virtual"]
 "https://ak.internal/conda/conda-internal" = ["http://scn-nexus:8081/repository/ak-internal"]
+"https://ak.internal/conda/scn-virtual" = ["http://scn-nexus:8081/repository/ak-scn-virtual"]
 "https://conda.anaconda.org/conda-forge" = ["http://scn-nexus:8081/repository/cf-direct"]
 
 [pypi-config]
