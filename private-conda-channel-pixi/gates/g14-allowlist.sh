@@ -41,6 +41,8 @@ for sub in noarch linux-64; do
   http GET "$U/conda/$V/$sub/repodata.json.zst" consumer >/dev/null; zstd -dqc "$SP_TMP/body" | jq -S . > "$SP_TMP/g14-rd.zst.json" || ok_enc=0
   http GET "$U/conda/$V/$sub/repodata.json.bz2" consumer >/dev/null; bzip2 -dc "$SP_TMP/body" | jq -S . > "$SP_TMP/g14-rd.bz2.json" || ok_enc=0
   cmp -s "$SP_TMP/g14-rd.json" "$SP_TMP/g14-rd.zst.json" && cmp -s "$SP_TMP/g14-rd.json" "$SP_TMP/g14-rd.bz2.json" || { ok_enc=0; echo "$sub: encodings differ"; }
+  dropped=$(akcurl -sS -o /dev/null -D - -H "Authorization: Bearer $(tok consumer)" "$U/conda/$V/$sub/repodata.json" | tr -d '\r' | grep -i '^x-ak-allowlist-dropped:')
+  echo "$sub/repodata.json: ${dropped:-no x-ak-allowlist-dropped header}"
   records "$SP_TMP/g14-rd.json" > "$SP_TMP/g14-virtual.tsv"
   : > "$SP_TMP/g14-hosted.tsv"
   for h in $hosted; do http GET "$U/conda/$h/$sub/repodata.json" admin >/dev/null; jq -S . "$SP_TMP/body" > "$SP_TMP/g14-h.json"; records "$SP_TMP/g14-h.json" >> "$SP_TMP/g14-hosted.tsv"; done
@@ -70,6 +72,8 @@ done
   || fail $G "a. $V repodata matches the lock" "$why"
 
 # (b) channeldata
+dropped=$(akcurl -sS -o /dev/null -D - -H "Authorization: Bearer $(tok consumer)" "$U/conda/$V/channeldata.json" | tr -d '\r' | grep -i '^x-ak-allowlist-dropped:')
+echo "channeldata.json: ${dropped:-no x-ak-allowlist-dropped header}"
 http GET "$U/conda/$V/channeldata.json" consumer >/dev/null
 jq -r '.packages | keys[]' "$SP_TMP/body" | sort -u > "$SP_TMP/g14-cd-names"
 sort -u <(cut -f1 "$SP_TMP/g14-lock.tsv") "$SP_TMP/g14-hosted-names" > "$SP_TMP/g14-allowed-names"
