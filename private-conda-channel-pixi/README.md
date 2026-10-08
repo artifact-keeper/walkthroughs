@@ -17,7 +17,8 @@ build) is a container on that network. Nothing in this directory needs sudo.
 | `project/`, `project-direct/` | the consumer: one virtual channel (target), or internal + conda-forge mirror (works on main) |
 | `image/` | pixi on UBI micro, built on the registry network with an attestation gate; push and sign |
 | `scan/` | Syft + Grype, registry SBOM, PURL blast radius |
-| `gates/` | G1-G13 as runnable checks: PASS / FAIL / BLOCKED(Fn) |
+| `allowlist/` | the lockfile as the allowlist of `conda-virtual`: `from-lock.sh`, `show.sh`, `off.sh` |
+| `gates/` | G1-G14 as runnable checks: PASS / FAIL / BLOCKED(Fn) |
 
 ## Run it
 
@@ -25,6 +26,7 @@ build) is a container on that network. Nothing in this directory needs sudo.
 make all-main        # on Artifact Keeper main (BACKEND_IMAGE default)
 make all             # on the fixed backend: no workarounds, attestation gate enforced
 make gates           # re-run the gates any time
+make allowlist       # admit only project/pixi.lock's packages on conda-virtual; make allowlist-off undoes it
 make screens-ready   # UI URL and credentials
 ```
 

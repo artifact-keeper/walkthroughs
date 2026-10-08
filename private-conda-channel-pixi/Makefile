@@ -16,7 +16,7 @@ ATTESTATION_GATE ?= enforce
 SCRATCH ?= $(abspath ../../conda-walkthrough)
 
 .PHONY: help registry-up registry-down bootstrap keys publish-keys client packages publish attest seed-internal-main \
-        scan-hosted promote lock install image push scan gates screens-ready all all-main clean
+        scan-hosted promote lock install image push scan allowlist allowlist-off gates screens-ready all all-main clean
 
 help: ## list targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -73,7 +73,14 @@ push: ## push the image to oci-apps and cosign-sign it by digest
 scan: ## Syft + Grype on the image and the environment; registry SBOM + PURL lookup
 	PROJECT=$(PROJECT) scan/scan.sh
 
-gates: ## run G1-G13 (PASS / FAIL / BLOCKED per gate), results in out/gates/
+allowlist: ## admit exactly the conda packages of project/pixi.lock on conda-virtual (needs #4576)
+	allowlist/from-lock.sh
+	allowlist/show.sh
+
+allowlist-off: ## turn the conda-virtual allowlist off: the full conda-forge merge comes back
+	allowlist/off.sh
+
+gates: ## run G1-G14 (PASS / FAIL / BLOCKED per gate), results in out/gates/
 	PROJECT=$(PROJECT) ATTESTATION_GATE=$(ATTESTATION_GATE) gates/run-all.sh
 
 screens-ready: ## print the UI URL and where the admin credentials are
