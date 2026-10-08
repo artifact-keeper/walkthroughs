@@ -1,6 +1,6 @@
 # Reference: Artifact Keeper API calls used
 
-Base `https://ak.internal`. Verified on backend `main` (5e351fc). `Authorization: Bearer <token>`
+Base `https://ak.internal`. Verified on backend `main` (5e351fc); the allowlist on `localhost/ak-backend:allowlist-1.11` (main `7e5a3335` plus #4576). `Authorization: Bearer <token>`
 unless noted.
 
 ## Conda channel
@@ -32,6 +32,40 @@ unless noted.
 | `POST /api/v1/auth/tokens` | the caller's own token; `repo_selector: {"match_repos":[uuid...]}` narrows it to several repositories |
 | `POST /api/v1/auth/login` | `{"username","password"}`; 10 per username and IP per 15 min (shared with `/v2/token`) |
 | `PUT /api/v1/repositories/{key}/artifacts/{path}` | generic repositories (the `trust` repo); read anonymously at `GET /api/v1/repositories/{key}/download/{path}` |
+
+## Allowlist on a virtual conda channel (1.11.0, [#4576](https://github.com/artifact-keeper/artifact-keeper/issues/4576))
+
+Admin only (GET included; scopes `read:repositories` / `write:repositories`). Only on a virtual
+repository of format `conda` or `conda_native`; anything else is
+`400 The allowlist is only available on virtual conda repositories`.
+
+| Call | Body / response |
+|---|---|
+| `GET /api/v1/repositories/{key}/allowlist` | `{"repository_key","enabled","entries":[...],"entry_count"}`; nothing configured: `enabled:false`, `entries:[]` |
+| `PUT /api/v1/repositories/{key}/allowlist` | `{"enabled": true, "entries": [{"name","version"?,"subdirs"?}]}`; `enabled` required, unknown fields rejected; replaces the list; 200 with the stored list |
+| `DELETE /api/v1/repositories/{key}/allowlist` | removes the list (idempotent); the merge is unfiltered |
+
+Entries: `name` exact or glob (`*`, `?`), case-insensitive, `[a-z0-9_.-*?]`, up to 128 bytes.
+`version` a conda version spec with conda ordering: a bare `2.5.3` is exact, `2.5.*`, `>=2,<3`,
+`1.0|1.1`, `!=1.5`, `~=1.2`; omitted or `*` is any version; it must parse on `PUT`
+(`400 entries[0]: version ">=>2" is not a conda version spec: invalid operator '>=>'`); a record
+version that does not parse is not admitted. `subdirs` omitted or empty is every subdir (a
+restricted entry for a noarch package needs `noarch`). Builds are not matched. A package is
+admitted if any entry admits it. Up to 10,000 entries.
+
+Enforcement on `/conda/{virtual}/...`, remote members only (hosted members are never filtered,
+the remote's own URL is not filtered):
+
+- `{subdir}/repodata.json`, `.zst`, `.bz2`: records not admitted are dropped (checked by the
+  name and version in the file name and in the record). (`current_repodata.json` is served
+  empty by the proxy and the virtual channel, with or without a list; pixi does not request it.)
+- `channeldata.json`: names not admitted are dropped.
+- `{subdir}/{file}` (also `HEAD`, `/t/{token}/` and `/conda/t/{token}/` forms): not fetched upstream
+  nor served from the proxy cache; `404 {"code":"NOT_FOUND","message":"Artifact not found in any member repository"}`.
+  `.sigs` sidecars of such packages are 404 too.
+- Response header `X-AK-Allowlist-Dropped: <n>` on repodata and channeldata while a list is enforced.
+- Audit action `REPOSITORY_ALLOWLIST_CHANGED` on every `PUT` and effective `DELETE`, details
+  `{"repository","previous":{"enabled","entry_count"},"current":{...}}`.
 
 ## Release gate
 
