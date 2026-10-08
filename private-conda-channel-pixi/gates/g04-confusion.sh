@@ -18,10 +18,15 @@ c=$(http GET "$U/conda/conda-fake-upstream/noarch/repodata.json" admin); echo "r
 [[ $c == 200 ]] && body | jq -e '[.["packages.conda"][] | select(.name=="acme-core" and .version=="99.0.0")] | length == 1' >/dev/null \
   || { fail $G "setup: the remote member serves acme-core 99.0.0" "HTTP $c $(body | head -c 200)"; exit 0; }
 
+# The hosted versions: 1.0.0, plus the 1.0.<epoch> versions G7 promotes on every run.
+acme_versions() { body | jq -c '[(.["packages.conda"] // {}), (.packages // {}) | .[] | select(.name=="acme-core") | .version] | unique'; }
+http GET "$U/conda/conda-internal/noarch/repodata.json" admin >/dev/null; hosted=$(acme_versions)
+top=$(jq -r 'sort_by(split(".") | map(tonumber? // .)) | last' <<<"$hosted")
 c=$(http GET "$U/conda/conda-virtual-g4/noarch/repodata.json" admin)
-vers=$(body | jq -c '[(.["packages.conda"] // {}), (.packages // {}) | .[] | select(.name=="acme-core") | .version] | sort')
+vers=$(acme_versions)
+echo "conda-internal acme-core versions: $hosted"
 echo "conda-virtual-g4 noarch/repodata.json: HTTP $c, acme-core versions offered: $vers"
-if [[ $c == 200 && "$vers" == '["1.0.0"]' ]]; then pass $G "virtual channel offers only the hosted acme-core ($vers)"
+if [[ $c == 200 && "$vers" == "$hosted" ]]; then pass $G "virtual channel offers only the hosted acme-core ($vers)"
 elif [[ $c == 200 ]] && grep -q '99.0.0' <<<"$vers"; then blocked F1 $G "virtual channel offers only the hosted acme-core" "offers $vers"
 else fail $G "virtual channel repodata" "HTTP $c $vers"; fi
 
@@ -43,7 +48,7 @@ out=$(podman run --rm --network "$NET" -v ak-conda-pixi-cache:/cache -v "$W:/wor
 got=$(grep -m1 -oE '^- conda: https://[^ ]*/acme-core-[^-]+-' "$W/pixi.lock" 2>/dev/null | sed -E 's/.*acme-core-([^-]+)-$/\1/')
 src=$(grep -m1 -oE '^- conda: https://[^ ]*acme-core-[^ ]*' "$W/pixi.lock" 2>/dev/null | cut -c10-)
 echo "solve (unpinned acme-core): version ${got:-none} from ${src:-?}"; [[ -z "$got" ]] && echo "$out" | tail -4
-if [[ "$got" == 1.0.0 ]]; then pass $G "unpinned solve through the virtual channel keeps acme-core 1.0.0"
+if [[ "$got" == "$top" ]]; then pass $G "unpinned solve through the virtual channel keeps the hosted acme-core ($got)"
 elif [[ "$got" == 99.0.0 ]]; then blocked F1 $G "unpinned solve keeps the internal acme-core" "solver picked 99.0.0 from the virtual channel"
 else fail $G "unpinned solve" "$(tail -1 <<<"$out")"; fi
 
@@ -55,4 +60,4 @@ out=$(podman run --rm --network "$NET" -v ak-conda-pixi-cache:/cache -v "$W:/wor
 got=$(grep -m1 -oE '^- conda: https://[^ ]*/acme-core-[^-]+-' "$W/pixi.lock" 2>/dev/null | sed -E 's/.*acme-core-([^-]+)-$/\1/')
 src=$(grep -m1 -oE '^- conda: https://[^ ]*acme-core-[^ ]*' "$W/pixi.lock" 2>/dev/null | cut -c10-)
 echo "solve (acme-core pinned to conda-internal): ${got:-none} from ${src:-?}"
-[[ "$got" == 1.0.0 ]] && pass $G "pinned solve keeps acme-core 1.0.0 (client-side pin)" || fail $G "pinned solve" "${got:-$(tail -1 <<<"$out")}"
+[[ "$got" == "$top" ]] && pass $G "pinned solve keeps the hosted acme-core $got (client-side pin)" || fail $G "pinned solve" "${got:-$(tail -1 <<<"$out")}"
