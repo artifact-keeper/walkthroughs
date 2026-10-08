@@ -20,6 +20,7 @@ branch built for this walkthrough) and the pixi 0.81.0 client image.
 | G11 SBOM | 44 components from the lock; Syft and Grype on the image; PURL lookup with inclusion path | all pass |
 | G12 Offline | frozen offline install; second mirror; flipped byte caught | all pass |
 | G13 Image | cold build on the isolated network; signed; verified; runs with no network | all pass |
+| G14 Allowlist | repodata (three encodings) and channeldata carry only the lock's conda-forge packages plus hosted ones; a package outside the lock is 404 and not found by pixi; the project installs; off restores the merge | all pass |
 
 ## Timings
 

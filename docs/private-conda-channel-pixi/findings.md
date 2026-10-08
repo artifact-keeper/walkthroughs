@@ -602,6 +602,10 @@ Each has the exact symptom above. Where each one was filed: [Filed upstream](#fi
 | C21 | Syft | conda packages get no purl | upstream |
 | C22 | podman | rootless `podman build --network <name>` is refused; build inside a container on the network instead | doc note |
 | C23 | Artifact Keeper | promotion `gate_results` omits predicates that passed (attestation verified, license allowed); only failures appear, as one `policy-predicate` rule | new (UI U6) |
+| C24 | Artifact Keeper | A database migrated by the 1.11.0 fix-branch image cannot start a `main` image: the branch's migration 272 (`artifacts origin staging is hosted`) was merged as 284, and `main` has a different 272. Startup fails with `Migration(VersionMismatch(272))` after applying `main`'s 257, 265, 266, and the branch image then fails with `VersionMissing(257)` | lab only (pre-release images); no released version affected |
+| C25 | Artifact Keeper (design) | The virtual channel's allowlist does not bind a consumer who can also read the remote repository: `GET /conda/conda-forge/...` serves anything. The consumer token here can read `conda-forge`, and the client config mirrors `conda-forge` to it | doc note (step 10); narrow the consumer's repositories to the virtual channel |
+| C26 | Artifact Keeper | `{subdir}/current_repodata.json` is 200 with no packages on the `conda-forge` proxy and on `conda-virtual`, allowlist on or off (upstream's is not empty). pixi does not read it; conda's classic solver does, then retries with `repodata.json` | new, minor |
+| C27 | Artifact Keeper | `PUT .../allowlist` with an unchanged list writes a `REPOSITORY_ALLOWLIST_CHANGED` audit event with `previous` equal to `current` | new, minor |
 
 ## What the fixes changed
 
@@ -713,6 +717,82 @@ so a UI cannot show "attestation verified" from the promotion response alone (C2
 - 2026-10-07T13:50Z: registry data wiped for run 2 (`registry/down.sh --volumes`, then
   `make all`); `.env` (admin password) kept, tokens re-minted into the same files.
 - 2026-10-07T14:10Z: WEB_READY v4, image `bbe52fb10974`; web container recreated, UI 200.
+
+### Allowlist backend (#4576), step 10 and G14
+
+2026-10-08. Backend `localhost/ak-backend:allowlist-1.11` (ALLOWLIST_BACKEND_READY, image
+`7e72ec12c88a`, branch `feat/4576-conda-virtual-allowlist` at `85a738c4` on main `7e5a3335`, which
+has #4561 merged). `BACKEND_IMAGE` in `registry/.env`, then only the backend recreated
+(`compose up -d --force-recreate --no-deps backend`).
+
+The switch did not work as a drop-in (C24). The first start applied `main`'s migrations 257, 265
+and 266, then stopped on `Error: Migration(VersionMismatch(272))` and restarted in a loop: this
+database was migrated by the fix-branch image, whose 272 is `artifacts origin staging is hosted`;
+on `main` that migration is 284 and 272 is `proxy cache download holds index`. Going back to
+`conda-1.11` failed too (`Migration(VersionMissing(257))`). Checksums of every migration in the
+database against `main`'s `backend/migrations/` at `7e5a3335` (sha384, as sqlx stores them): only
+272 differed, 273-284 not applied, nothing else. With the backend stopped, a `pg_dump` taken
+(kept outside the repository), the branch's 272 row deleted from `_sqlx_migrations`, and the
+backend started: `main` applied 272-284 (`migration 284: re-stamped 0 staging-origin artifact
+row(s) as hosted`), `/readyz` ready, healthy. Also logged at start, from `main`: `OCI migration
+reindex: hollow Docker/OCI tags detected ... repositories=["oci-ghcr", "oci-quay", "oci-redhat"]`;
+G13 still pulled its base images and passed.
+
+The API as built matches the issue: `GET`/`PUT`/`DELETE /api/v1/repositories/{key}/allowlist`,
+`enabled` required, entries `{name, version?, subdirs?}`, a bare version is exact, builds not
+matched, hosted members not filtered. Details in [the API reference](reference/registry-api.md).
+Checked by hand with the list on (all as designed):
+
+```text
+shard index noarch                    -> 404 Sharded repodata (CEP-16) is only available for local/hosted conda repositories
+token-in-URL colorama (/t/<token>/conda/..., /conda/t/<token>/...)  -> 404 not found in any member repository
+HEAD colorama                         -> 404
+colorama .sigs                        -> 404 Attestation sidecar not found
+colorama, other build and .tar.bz2    -> 404
+six 1.17.0 (locked)                   -> 200;  six 1.16.0 (not locked) -> 404
+consumer token GET allowlist          -> 403 Token does not have required scope: read:repositories
+PUT version ">=>2"                    -> 400 entries[0]: version ">=>2" is not a conda version spec: invalid operator '>=>'
+PUT without enabled                   -> 400 ... missing field `enabled`
+GET on conda-internal or conda-forge  -> 400 The allowlist is only available on virtual conda repositories
+audit                                 -> REPOSITORY_ALLOWLIST_CHANGED {"current":{"enabled":true,"entry_count":43},"previous":{"enabled":false,"entry_count":43},"repository":"conda-virtual"}
+```
+
+G14 (the lock is project/pixi.lock: 43 conda packages, 31 linux-64 and 12 noarch):
+
+```text
+noarch/repodata.json: x-ak-allowlist-dropped: 382366
+noarch: 22 records (17 from the remote covering 10 name/version pairs, 5 hosted); lock: 12 files
+linux-64/repodata.json: x-ak-allowlist-dropped: 790523
+linux-64: 231 records (230 from the remote covering 30 name/version pairs, 1 hosted); lock: 31 files
+channeldata.json: x-ak-allowlist-dropped: 34585
+channeldata.json: 43 names; colorama listed: 0
+GET /conda/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda  200   (the remote itself is not filtered)
+GET /conda/conda-virtual/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda  404  {"code":"NOT_FOUND","message":"Artifact not found in any member repository"}
+$ pixi add --no-install colorama      # allowlist on
+  ╰─▶ Cannot solve the request because of: No candidates were found for
+      colorama *.
+conda-virtual requests during install: 41 (40 package downloads 200, 0 other than 200/304)
+allowlist off: colorama download HTTP 200; linux-64 records 790754; channeldata 34628 names, colorama listed: true
+$ pixi add --no-install colorama      # allowlist off
+Added colorama >=0.4.6,<0.5
+```
+
+Full `make gates` on this backend (2026-10-08T18:15Z-18:25Z): everything PASS except
+
+| Gate | Check | Result |
+|---|---|---|
+| G3 | download records for proxy downloads | **PASS** now (+44 for 44 downloads; C8 fixed on `main`) |
+| G4 | all three checks | FAIL in the run, then PASS after a gate fix: the virtual channel offered `["1.0.0","1.0.1","1.0.1791387539","1.0.1791387567"]`, all hosted (G7 promotes `acme-core 1.0.<epoch>` into `conda-internal` on every run) and never 99.0.0; the gate expected the literal `["1.0.0"]`. G4 now compares with `conda-internal`'s own versions |
+| G10 | backdated package excluded by `exclude-newer` | FAIL, unchanged (C19, pixi) |
+| G14 | all eight checks | PASS |
+
+The gate leaves the allowlist off (`enabled=false`, 43 entries kept).
+
+`make all` on this populated registry stops at `publish` (409 for the three packages already in
+`conda-staging`; a published name is immutable since 1.11.0), as it would on any re-run; it is
+meant for an empty registry. The registry was not wiped for this step. The rest of the pipeline,
+`make lock image push scan`, exits 0 on the new backend with both lockfiles unchanged, and
+`make gates` (G1-G14) is above.
 
 ## Timings
 
