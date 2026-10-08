@@ -30,5 +30,7 @@ public repository you can clone and run with the same commands, so nothing here 
 
 </div>
 
+Looking for a specific format, tool or control? [Browse by tag](tags.md).
+
 Want a walkthrough for a deployment that is not here yet?
 [Open an issue](https://github.com/artifact-keeper/walkthroughs/issues/new) and describe it.

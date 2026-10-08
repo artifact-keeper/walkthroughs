@@ -1,3 +1,22 @@
+---
+tags:
+  - conda
+  - pixi
+  - supply chain
+  - attestations
+  - signing
+  - SBOM
+  - scanning
+  - promotion gates
+  - dependency confusion
+  - isolated builds
+  - OCI
+  - TLS
+description: >-
+  A private conda channel for pixi on Artifact Keeper: proxy conda-forge, host and attest your
+  own packages, promote through gates, and build on a network with no internet.
+---
+
 # A private conda channel for pixi, with supply-chain controls
 
 This walkthrough builds a private conda channel that a security team would sign off on. One

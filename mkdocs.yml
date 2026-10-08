@@ -47,6 +47,7 @@ theme:
 
 plugins:
   - search
+  - tags
 
 markdown_extensions:
   - abbr
@@ -75,7 +76,9 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
-  - Home: index.md
+  - Home:
+      - index.md
+      - Browse by tag: tags.md
   - Rocky Linux image mode on bare metal:
       - rocky-linux-image-mode-bare-metal/index.md
       - 1. Stand up Artifact Keeper: rocky-linux-image-mode-bare-metal/1-stand-up-artifact-keeper.md

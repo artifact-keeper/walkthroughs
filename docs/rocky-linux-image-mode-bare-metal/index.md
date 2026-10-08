@@ -1,4 +1,13 @@
 ---
+tags:
+  - Rocky Linux
+  - image mode
+  - bare metal
+  - Kubernetes
+  - OCI
+  - RPM
+  - signing
+  - upgrades and rollback
 description: >-
   Deploy Rocky Linux image mode to bare metal with Artifact Keeper as the single source of
   truth for RPMs, signed bootc images, keys and Kubernetes workloads.
