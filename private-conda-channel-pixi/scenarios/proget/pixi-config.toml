@@ -1,0 +1,10 @@
+# /etc/pixi/config.toml for a client whose only conda source is scn-proget
+# (NOT VERIFIED: ProGet was not licensed during the spike; see proget/bootstrap.sh).
+tls-root-certs = "system"
+
+[mirrors]
+"https://ak.internal/conda/conda-virtual" = ["http://scn-proget/conda/ak-virtual"]
+"https://ak.internal/conda/conda-internal" = ["http://scn-proget/conda/ak-internal"]
+
+[pypi-config]
+index-url = "https://ak.internal/pypi/pypi-remote/simple"

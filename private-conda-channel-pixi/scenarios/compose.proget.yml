@@ -1,0 +1,46 @@
+# Scenario fragment: Inedo ProGet (Free edition) on ak-conda-net, in front of
+# Artifact Keeper.
+# Start: scenarios/proget/up.sh   (compose project ak-scn-proget; never touches ak-conda)
+# Configure: scenarios/proget/bootstrap.sh (HTTP API, idempotent)
+#
+# - ProGet 2025+ ships an embedded PostgreSQL inside the same container
+#   (/var/proget/database); no separate database container is needed.
+# - ProGet is .NET on Ubuntu and trusts the OpenSSL system bundle. up.sh writes
+#   that bundle plus the ak.internal CA to .work/proget-ca-bundle.crt, which is
+#   mounted over the system bundle. (SSL_CERT_FILE cannot be used: in this image
+#   it configures ProGet's own HTTPS listener.)
+# - Host port 127.0.0.1:30482 for the bootstrap script and the UI only; clients
+#   on ak-conda-net use http://scn-proget.
+services:
+  proget:
+    image: proget.inedo.com/productimages/inedo/proget:${PROGET_VERSION:-26.0.12}
+    container_name: scn-proget
+    environment:
+      TZ: UTC
+    volumes:
+      - scn-proget-packages:/var/proget/packages
+      - scn-proget-database:/var/proget/database
+      - scn-proget-backups:/var/proget/backups
+      - ./.work/proget-ca-bundle.crt:/etc/ssl/certs/ca-certificates.crt:ro,z
+    ports:
+      - "127.0.0.1:${PROGET_PORT:-30482}:80"
+    networks: [ak-conda-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+    mem_limit: 4g
+
+volumes:
+  scn-proget-packages:
+    name: scn-proget-packages
+  scn-proget-database:
+    name: scn-proget-database
+  scn-proget-backups:
+    name: scn-proget-backups
+
+networks:
+  ak-conda-net:
+    external: true

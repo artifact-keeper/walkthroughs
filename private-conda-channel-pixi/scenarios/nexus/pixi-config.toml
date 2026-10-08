@@ -1,0 +1,12 @@
+# /etc/pixi/config.toml for a client whose only conda source is scn-nexus.
+# The lockfile keeps the canonical ak.internal URLs; the mirrors send every
+# conda request for those channels to the Nexus proxies instead.
+tls-root-certs = "system"
+
+[mirrors]
+"https://ak.internal/conda/conda-virtual" = ["http://scn-nexus:8081/repository/ak-virtual"]
+"https://ak.internal/conda/conda-internal" = ["http://scn-nexus:8081/repository/ak-internal"]
+"https://conda.anaconda.org/conda-forge" = ["http://scn-nexus:8081/repository/cf-direct"]
+
+[pypi-config]
+index-url = "https://ak.internal/pypi/pypi-remote/simple"

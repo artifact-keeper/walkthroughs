@@ -1,0 +1,11 @@
+# /etc/pixi/config.toml for the merged-in-Nexus test: the client's channel is
+# the Nexus group itself (http://scn-nexus:8081/repository/merged or
+# merged-fake). WORKAROUND: Artifact Keeper's repodata carries
+# info.base_url = "/conda/conda-virtual/<subdir>/" (a host-relative path) and
+# Nexus passes it through unchanged, so package URLs resolve to
+# http://scn-nexus:8081/conda/conda-virtual/... (404 on Nexus). The mirrors
+# below send those URLs back into the group.
+tls-root-certs = "system"
+
+[mirrors]
+"http://scn-nexus:8081/conda/conda-virtual" = ["http://scn-nexus:8081/repository/merged-fake"]

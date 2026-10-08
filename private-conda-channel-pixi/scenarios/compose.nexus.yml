@@ -1,0 +1,43 @@
+# Scenario fragment: Sonatype Nexus Repository (Community Edition, the free
+# successor of Nexus OSS) on ak-conda-net, in front of Artifact Keeper.
+# Start: scenarios/nexus/up.sh   (compose project ak-scn-nexus; never touches ak-conda)
+# Configure: scenarios/nexus/bootstrap.sh (REST API only, idempotent)
+#
+# - No database container: Community Edition uses its embedded H2 database.
+# - Heap: NEXUS_HEAP (default 8g). The image default (2.7 GB) is enough for
+#   proxying, but a conda GROUP parses every member's repodata.json into a
+#   Jackson tree on the heap: with conda-forge linux-64 (458 MB of JSON) a 2 GB
+#   heap died with OutOfMemoryError, which also closed the embedded H2 database
+#   (Nexus answered 500 until restarted). 8 GB served the merge; see README.
+# - Host port 127.0.0.1:30481 for the bootstrap script and the UI only; clients
+#   on ak-conda-net use http://scn-nexus:8081.
+# - The internal CA (ak.internal) is added to Nexus's own truststore by
+#   bootstrap.sh through the API, not baked into the image.
+services:
+  nexus:
+    image: docker.io/sonatype/nexus3:${NEXUS_VERSION:-3.96.4}
+    container_name: scn-nexus
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: >-
+        -Xms1g -Xmx${NEXUS_HEAP:-8g} -XX:MaxDirectMemorySize=1g
+        -Djava.util.prefs.userRoot=/nexus-data/javaprefs
+    volumes:
+      - scn-nexus-data:/nexus-data
+    ports:
+      - "127.0.0.1:${NEXUS_PORT:-30481}:8081"
+    networks: [ak-conda-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+    mem_limit: ${NEXUS_MEM_LIMIT:-12g}
+
+volumes:
+  scn-nexus-data:
+    name: scn-nexus-data
+
+networks:
+  ak-conda-net:
+    external: true
