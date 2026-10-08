@@ -19,8 +19,10 @@ theme:
     - content.code.annotate
     - navigation.instant
     - navigation.instant.progress
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.indexes
-    - navigation.sections
+    - navigation.prune
     - navigation.tracking
     - navigation.top
     - navigation.footer
@@ -99,8 +101,7 @@ nav:
           - Image build log: rocky-linux-image-mode-bare-metal/findings-image.md
           - Deploy log: rocky-linux-image-mode-bare-metal/findings-deploy.md
           - Signing log: rocky-linux-image-mode-bare-metal/findings-signing.md
-          - Design:
-              - Original plan: rocky-linux-image-mode-bare-metal/plan.md
+          - Original plan: rocky-linux-image-mode-bare-metal/plan.md
 
   - A private conda channel for pixi:
       - private-conda-channel-pixi/index.md
@@ -120,8 +121,7 @@ nav:
           - Registry API used: private-conda-channel-pixi/reference/registry-api.md
       - Lab notes:
           - Findings: private-conda-channel-pixi/findings.md
-          - Design:
-              - Original plan: private-conda-channel-pixi/plan.md
+          - Original plan: private-conda-channel-pixi/plan.md
 
 validation:
   links:
