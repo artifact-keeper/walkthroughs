@@ -9,6 +9,66 @@ Short answer: Nexus can, with caveats. ProGet could not be tested at all: it ref
 anything until a licence key is entered, and getting a Free key means registering a name and an
 e-mail address with Inedo.
 
+
+## The scenario suite (S1-S7)
+
+Built on the spike below. Each scenario is one script that prints `PASS`, `FAIL` or
+`BLOCKED(<issue>)` per check in the gates' format, an evidence block (status codes, timings,
+bytes, the client's exact messages), and restores everything it changed on `ak-conda` before
+it exits, also on failure (an `EXIT` trap). Logs: `~/.cache/ak-scenarios/<id>-<name>.log`;
+verdicts accumulate in `~/.cache/ak-scenarios/results.tsv`.
+
+```console
+make scenarios-up        # up.sh: fake-forge files, compose overlay, AK scn-* repos, Nexus config
+make scenarios           # run-all.sh: S1..S7, summary table
+make scenario-S4         # one scenario
+make scenarios-down      # down.sh: stop scn-nexus and scn-fake-forge (volume kept)
+```
+
+| Id | Script | What it proves |
+|---|---|---|
+| S1 | `s1-behind-nexus.sh` | pixi through Nexus: cold and warm installs, lock unchanged, name guard, allowlist propagation delay |
+| S2 | `s2-public-source-down.sh` | conda-forge unreachable from AK: Nexus and AK keep serving what they cached, inside and after AK's cache TTL |
+| S3 | `s3-curated-channel-down.sh` | AK stopped for 90 s: Nexus serves cached metadata and packages; never-fetched files fail |
+| S4 | `s4-merged-in-the-artifact-manager.sh` | the counter-example: a Nexus group undoes the allowlist, takes a squatted name, breaks on a file name clash; the fix |
+| S5 | `s5-cve-on-proxy.sh` | scan-on-proxy on `conda-forge` with a known-CVE package (certifi 2022.12.7) |
+| S6 | `s6-allowlist-from-a-pull-request.sh` + `allowlist-ci.sh` | the allowlist CI loop for two pull requests, direct and through Nexus |
+| S7 | `s7-big-and-malformed-index.sh` | merged index size per solve, no shards through the virtual, a list-shaped `track_features` |
+
+Supporting files:
+
+| File | What |
+|---|---|
+| `lib.sh` | shared helpers: verdicts, evidence, restore stack, Nexus and AK calls, `px` (pixi in the client image), allowlist save/restore, fake-upstream patching |
+| `up.sh`, `down.sh` | `make scenarios-up` / `scenarios-down` |
+| `compose.nexus.yml` | the overlay (compose project `ak-scn-nexus`): `scn-nexus` and `scn-fake-forge` |
+| `ak-setup.sh` | Artifact Keeper side: `scn-virtual` (conda-internal, conda-fake-upstream, conda-forge), `scn-virtual-ci` (the unfiltered twin for CI solves), token `scn-reader` (`.tokens/`, gitignored) |
+| `allowlist-ci.sh` | the CI job: lock against the twin, check, apply the allowlist, verify |
+
+Decisions made while building it:
+
+- **Nexus metadata TTL 2 minutes** (`NEXUS_METADATA_MAX_AGE`, also the negative cache). The
+  spike's 24 hours delays an allowlist change by up to a day for every client behind Nexus; the
+  TTL is the propagation delay, so S1 measures it. A revalidation is a conditional GET that AK
+  answers 304 when nothing changed. Package files keep 24 hours (immutable by name).
+- **The hostile member inside AK is the gate's fake upstream**, not `scn-fake-forge`. Artifact
+  Keeper refuses remote upstreams on private addresses except `AK_SSRF_ALLOW_PRIVATE_CIDRS`,
+  which this stack sets to `172.31.40.200/32` (the gate's fake upstream):
+  `HTTP 400 Upstream URL IP '172.31.40.151' is not allowed (private/internal network)`. Widening
+  it needs a backend recreate with a changed `.env`. Scenarios that need different content on
+  that host patch its `repodata.json`/`.zst` for the run and restore them (`fu_patch`).
+  `scn-fake-forge` serves the same content to Nexus.
+- **The CI solve uses an unfiltered twin** (`scn-virtual-ci`) through a pixi mirror, not "turn the
+  allowlist off, lock, turn it on": `conda-virtual` is shared. Because AK's `info.base_url` is
+  host-relative (#4580), the twin's name lands in `pixi.lock`; `allowlist-ci.sh` rewrites it to
+  `conda-virtual` (same files, same sha256) and its check step refuses any other URL.
+- **Nexus group caches are invalidated and warmed** before S4 uses them: during this work the
+  group `merged` answered `linux-64/repodata.json.bz2` with `{"packages":{}}` (54 bytes) from a
+  stale group cache, and pixi said `No candidates were found for python 3.12.*`. An
+  `invalidate-cache` on the group rebuilt it (75 s, 790,808 records).
+
+The spike notes follow.
+
 ## What ran
 
 | Piece | Version |

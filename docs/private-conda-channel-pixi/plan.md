@@ -29,6 +29,7 @@ public (registry and client issue trackers, published internal tooling), not fro
 | R12 | Registry-only builds: the build network has no internet, the lockfile is portable across mirrors, offline install works from the lock | internal podman network, mirrors config, `pixi install --frozen --offline` |
 | R13 | Everything runs in containers with a bare hostname and TLS from an internal CA | `ak.internal` on the compose network, Caddy internal CA, `tls-root-certs` |
 | R14 | Only approved public packages reach consumers: the virtual channel admits an allowlist of conda-forge packages, enforced in the index (the solver reports "not found") and on download; the project's `pixi.lock` is the allowlist | allowlist on `conda-virtual` from `pixi.lock` (#4576), negative test with a package outside the lock |
+| R15 | The channel keeps its guarantees behind the company's existing artifact manager and through outages: the allowlist and the name guard reach clients behind a caching proxy within a known delay, cached packages keep installs working when the public source or the registry is down, and the failure modes of merging in the artifact manager are shown | Nexus Community Edition in front of `conda-virtual`, scenario suite S1-S7 (`scenarios/`) |
 
 ## Environment
 
@@ -135,6 +136,7 @@ JLAP patches (#4175), and the full scale epic (#4172).
 | G12 | Offline: `pixi install --frozen --offline` from a pre-filled cache succeeds with the network removed; a package with a flipped byte fails the sha256 check | output |
 | G13 | Image: the application image builds from the registry only, is signed, and runs | podman output, cosign verify |
 | G14 | Allowlist: with the allowlist set from `pixi.lock`, `conda-virtual` repodata (json, zst, bz2) lists exactly the lock's conda-forge packages plus every hosted record; channeldata lists no other name; a conda-forge package outside the lock is 404 and `pixi add` reports it not found; `pixi install --locked` still succeeds; turning the allowlist off restores the full merge | repodata and channeldata diff against the lock, HTTP codes, pixi output |
+| G15 | Scenarios: S1-S7 each end in PASS, or BLOCKED naming the unlanded fix: behind Nexus (install, lock unchanged, name guard, allowlist propagation delay), public source down, registry down, merged in Nexus (counter-example and fix), CVE on proxy, the allowlist CI loop, index size and a malformed public record | `make scenarios` verdicts, evidence blocks, logs |
 
 
 ## UI track: what the screenshots must show

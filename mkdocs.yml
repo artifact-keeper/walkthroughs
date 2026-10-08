@@ -114,6 +114,7 @@ nav:
       - 8. SBOM and blast radius: private-conda-channel-pixi/8-sbom-and-blast-radius.md
       - 9. Prove it fails safely: private-conda-channel-pixi/9-prove-it-fails-safely.md
       - 10. Allowlist what comes from conda-forge: private-conda-channel-pixi/10-allowlist-the-lockfile.md
+      - "Scenarios: behind Nexus, outages, merges (draft)": private-conda-channel-pixi/scenarios.md
       - Results: private-conda-channel-pixi/results.md
       - Next steps: private-conda-channel-pixi/next-steps.md
       - Reference:

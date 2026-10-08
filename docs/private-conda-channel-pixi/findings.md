@@ -606,6 +606,16 @@ Each has the exact symptom above. Where each one was filed: [Filed upstream](#fi
 | C25 | Artifact Keeper (design) | The virtual channel's allowlist does not bind a consumer who can also read the remote repository: `GET /conda/conda-forge/...` serves anything. The consumer token here can read `conda-forge`, and the client config mirrors `conda-forge` to it | doc note (step 10); narrow the consumer's repositories to the virtual channel |
 | C26 | Artifact Keeper | `{subdir}/current_repodata.json` is 200 with no packages on the `conda-forge` proxy and on `conda-virtual`, allowlist on or off (upstream's is not empty). pixi does not read it; conda's classic solver does, then retries with `repodata.json` | new, minor |
 | C27 | Artifact Keeper | `PUT .../allowlist` with an unchanged list writes a `REPOSITORY_ALLOWLIST_CHANGED` audit event with `previous` equal to `current` | new, minor |
+| C28 | Artifact Keeper | A remote whose upstream is unreachable keeps serving its cached index for TTL + 3600 s (`STALE_IF_ERROR_GRACE_SECS`, not configurable) through the virtual channel, with nothing on the response that marks it stale (no `Age`, no `Warning`, same ETag); only a backend `WARN revalidation failed; serving stale within stale-if-error grace`. Seen in S2 at 315 s with TTL 300 s | new (R6: no silent staleness) |
+| C29 | Artifact Keeper | Host-relative `info.base_url` (`/conda/<repo>/<subdir>/`) puts the serving repository's name into `pixi.lock` when a pixi mirror points one channel at another Artifact Keeper repository (`scn-virtual-ci` URLs in a lock for `conda-virtual`); and a client whose channel is a Nexus group resolves package URLs to `http://scn-nexus:8081/conda/conda-virtual/...` (404) | [#4580](https://github.com/artifact-keeper/artifact-keeper/issues/4580) |
+| C30 | Artifact Keeper | The security dashboard's `policy_violations_blocked` counts a proxied conda file with a vulnerable verdict as blocked, while conda's proxy path (`scan_on_proxy: accepted`) still serves it 200 (S5: 0 -> 1, certifi 2022.12.7 still downloads) | new (#4380 follow-up) |
+| C31 | Artifact Keeper | Scan-on-proxy is `accepted`, not `enforced`, for `conda` and `conda_native`: the setting is stored, proxied downloads are served without the gate, no `X-AK-Scan` header | [#4097](https://github.com/artifact-keeper/artifact-keeper/issues/4097) |
+| C32 | Artifact Keeper | No CEP-16 shards through a virtual channel (404 `Sharded repodata (CEP-16) is only available for local/hosted conda repositories`); every solve through `conda-virtual` reads the full index (S7: 109 MB of `.zst` per linux-64 solve) | [#4577](https://github.com/artifact-keeper/artifact-keeper/issues/4577) |
+| C33 | Artifact Keeper | Package downloads ignore `If-None-Match`: a matching ETag still gets 200 and the full body (Nexus revalidating 43 packages re-downloaded 101.2 MB) | [#4579](https://github.com/artifact-keeper/artifact-keeper/issues/4579) |
+| C34 | Artifact Keeper | Remote upstreams on private addresses are refused (`Upstream URL IP '172.31.40.151' is not allowed (private/internal network)`) unless listed in `AK_SSRF_ALLOW_PRIVATE_CIDRS`, an environment variable (backend recreate to change) | doc note |
+| C35 | Artifact Keeper | A remote record with `track_features` as a JSON list is merged and served unchanged in json, zst and bz2 (neither rejected nor normalised to a string) | doc note; pixi 0.81 accepts it |
+| C36 | Nexus CE 3.96.4 | A conda group served `linux-64/repodata.json.bz2` as `{"packages":{}}` (54 bytes) from its cached merge; `invalidate-cache` on the group rebuilt it (790,808 records). Group merges also have no name ownership and mix record and bytes on a file name clash (S4) | upstream (Sonatype); doc note |
+| C37 | pixi 0.81.0 | In one of two cold-cache solves through `conda-virtual`, pixi downloaded `linux-64` as both `repodata.json.zst` (74.3 MB) and `.bz2` (61.5 MB); it also reads `channeldata.json` (23.7 MB) | not investigated |
 
 ## What the fixes changed
 
@@ -794,6 +804,37 @@ meant for an empty registry. The registry was not wiped for this step. The rest 
 `make lock image push scan`, exits 0 on the new backend with both lockfiles unchanged, and
 `make gates` (G1-G14) is above.
 
+### Scenario suite: Nexus CE in front of Artifact Keeper (S1-S7)
+
+2026-10-08. Same backend (`localhost/ak-backend:allowlist-1.11`), Nexus CE 3.96.4 (`scn-nexus`,
+8 GB heap) and `scn-fake-forge` as a compose overlay (`make scenarios-up`), pixi 0.81.0. The
+spike notes are in `scenarios/README.md`; the page is [Scenarios](scenarios.md).
+`make scenarios`, 2026-10-08T20:51Z-21:21Z (1799 s): 46 PASS, 2 BLOCKED(#4097), 0 FAIL.
+
+| Scenario | Result | What it showed |
+|---|---|---|
+| S1 behind Nexus | 9 PASS | cold install 2.2 s (AK -> Nexus 101.2 MB), warm 1.5 s (0 bytes from AK), lock unchanged, name guard holds through a proxy; **allowlist propagation 120 s with `metadataMaxAge` 2 minutes** |
+| S2 public source down | 11 PASS | Nexus and AK keep serving cached metadata and packages; AK's virtual index stays 200 past the 300 s TTL (C28) |
+| S3 curated channel down | 5 PASS | backend stopped 92 s: install 1.2 s and a fresh solve from stale metadata through Nexus; never-fetched files `404 Remote Auto Blocked`; the PyPI wheel (fetched from ak.internal) 502 |
+| S4 merged in the artifact manager | 5 PASS | a Nexus group undoes the allowlist, locks `acme-core 99.0.0`, and breaks on a file name clash (hash mismatch); as a member of AK's virtual the same source is dropped by the name guard |
+| S5 CVE on proxy | 3 PASS, 2 BLOCKED(#4097) | certifi 2022.12.7 installs with scan-on-proxy blocking on; a rescan records CVE-2023-37920 (high) and CVE-2024-39689 (low); the dashboard counts it as blocked (C30, C31) |
+| S6 allowlist from a pull request | 6 PASS | `scenarios/allowlist-ci.sh` (lock against an unfiltered twin, check, apply, verify); through Nexus each change took about 2 minutes; Nexus keeps a removed package's cached file |
+| S7 big and malformed index | 7 PASS | 109.2 MB of `.zst` per linux-64 solve for a monolithic client, 133-194.5 MB for pixi, no shards through the virtual (C32); a list-shaped `track_features` is passed through by AK and Nexus and accepted by pixi |
+
+Decisions and deviations:
+
+- Nexus `metadataMaxAge` and negative cache 2 minutes on the proxies of Artifact Keeper (was
+  1440 in the spike): the TTL is the propagation delay, and revalidation is a 304.
+- The hostile member on the Artifact Keeper side is G4's fake upstream (`conda-fake-upstream`), not
+  `scn-fake-forge` (C34). S4 and S7 patch its `repodata.json` and `.zst` for the run and restore
+  them.
+- CI solves go to an unfiltered twin of `conda-virtual` through a pixi mirror; the twin's URLs in
+  the lock are rewritten to `conda-virtual` (C29).
+- S5 restores `conda-forge`'s scan configuration by `PUT` (there is no `DELETE`): before the first
+  run it had no configuration row; now it has one with every switch off (`scan_enabled`,
+  `scan_on_proxy`, `block_on_policy_violation` false, `fail_open`; `severity_threshold` stays
+  `high`, unused while `block_on_policy_violation` is false).
+
 ## Timings
 
 | Step | Time |
@@ -839,3 +880,8 @@ The Artifact Keeper items above, filed against the 1.11.0 milestone on 2026-10-0
 | C23 | promotion `gate_results` omit passed predicates | [#4556](https://github.com/artifact-keeper/artifact-keeper/issues/4556) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
 | F18 | bulk promotion returns empty `gate_results` | [#4557](https://github.com/artifact-keeper/artifact-keeper/issues/4557) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
 | F19 | staging uploads recorded with a `virtual` origin | [#4557](https://github.com/artifact-keeper/artifact-keeper/issues/4557) (related [#4152](https://github.com/artifact-keeper/artifact-keeper/issues/4152)) | [#4561](https://github.com/artifact-keeper/artifact-keeper/pull/4561) |
+| C29 | host-relative `info.base_url` | [#4580](https://github.com/artifact-keeper/artifact-keeper/issues/4580) |  |
+| C31 | scan-on-proxy for conda | [#4097](https://github.com/artifact-keeper/artifact-keeper/issues/4097) |  |
+| C32 | no shards through a virtual channel | [#4577](https://github.com/artifact-keeper/artifact-keeper/issues/4577) |  |
+| C33 | `If-None-Match` ignored on package downloads | [#4579](https://github.com/artifact-keeper/artifact-keeper/issues/4579) |  |
+| C28, C30 | stale-if-error without a client signal; dashboard counts unenforced conda verdicts as blocked | not filed yet |  |
