@@ -28,7 +28,7 @@ lock_packages() { # -> name version subdir file channel (TSV)
 if ((list)); then lock_packages; exit 0; fi
 entries=$(lock_packages | cut -f1-3 | sort -u | jq -R -s -c '
   split("\n") | map(select(length > 0) | split("\t")) | group_by(.[0], .[1])
-  | map({name: .[0][0], version: ("==" + .[0][1]), subdirs: (map(.[2]) | unique)})')
+  | map({name: .[0][0], version: .[0][1], subdirs: (map(.[2]) | unique)})')
 n=$(jq length <<<"$entries")
 (( n > 0 )) || { echo "from-lock.sh: no conda packages in $LOCK" >&2; exit 1; }
 body=$(jq -c '{enabled: true, entries: .}' <<<"$entries")
