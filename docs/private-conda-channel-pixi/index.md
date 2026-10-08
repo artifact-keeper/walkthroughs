@@ -43,6 +43,7 @@ they have open-sourced. No single company is behind them.
 | R11 | SBOM, PURLs, vulnerability and license scanning; a PURL-to-environments lookup | [Step 8](8-sbom-and-blast-radius.md) |
 | R12 | Registry-only builds on a network with no internet; portable lockfiles; offline install | [Step 6](6-build-the-container.md), [Step 9](9-prove-it-fails-safely.md) |
 | R13 | Everything in containers, TLS from an internal CA, a bare hostname | [Step 1](1-stand-up-the-registry.md) |
+| R14 | Only approved conda-forge packages reach consumers; the project's lockfile is the allowlist | [Step 10](10-allowlist-the-lockfile.md) |
 
 ## The shape of it
 
@@ -89,7 +90,7 @@ nothing but the registry reachable.
     git clone https://github.com/artifact-keeper/walkthroughs
     cd walkthroughs/private-conda-channel-pixi
     make all          # registry, keys, packages, publish, attest, promote, lock, image, scans
-    make gates        # the thirteen checks, including the ones that must fail
+    make gates        # the fourteen checks, including the ones that must fail
     make screens-ready   # prints the UI address and where the admin password is
     ```
     `make all` takes about 14 minutes from an empty registry on a 24-core host, most of it pulling
@@ -106,6 +107,7 @@ nothing but the registry reachable.
 7. [Verify attestations](7-verify-attestations.md): CEP-50 sidecars, the trust policy, what the registry checks and what the client checks.
 8. [SBOM and blast radius](8-sbom-and-blast-radius.md): Syft and Grype, the registry's lockfile SBOM, the PURL lookup, the download audit.
 9. [Prove it fails safely](9-prove-it-fails-safely.md): the dependency-confusion attempt, overwrite, tampering, wrong key, offline, withdrawal.
+10. [Allowlist what comes from conda-forge](10-allowlist-the-lockfile.md): the lockfile is the allowlist; anything outside it is not found.
 
 Then [Results](results.md) and [Next steps](next-steps.md). The [lab notes](findings.md) are the
 unedited record every page is written from, and the [plan](plan.md) is the design we started with.

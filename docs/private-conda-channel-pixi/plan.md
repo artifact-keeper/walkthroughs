@@ -28,6 +28,7 @@ public (registry and client issue trackers, published internal tooling), not fro
 | R11 | SBOM, PURLs, vulnerability and license scanning for what is served and what is installed; blast-radius lookup from a PURL to environments | hosted scanning, environment SBOM from `pixi.lock`, reverse lookup |
 | R12 | Registry-only builds: the build network has no internet, the lockfile is portable across mirrors, offline install works from the lock | internal podman network, mirrors config, `pixi install --frozen --offline` |
 | R13 | Everything runs in containers with a bare hostname and TLS from an internal CA | `ak.internal` on the compose network, Caddy internal CA, `tls-root-certs` |
+| R14 | Only approved public packages reach consumers: the virtual channel admits an allowlist of conda-forge packages, enforced in the index (the solver reports "not found") and on download; the project's `pixi.lock` is the allowlist | allowlist on `conda-virtual` from `pixi.lock` (#4576), negative test with a package outside the lock |
 
 ## Environment
 
@@ -111,6 +112,7 @@ Brandon's approval before any PR is opened.
 | F10 | `indexed_timestamp` set by the server on every repodata record (CEP-47) | new | G10 |
 | F11 | Accept rattler's `/t/<token>/` URL layout (`/t/{token}/conda/{repo}/...`) | new | G1 |
 | F12 | Site docs: a conda and pixi page with the real upload API, `conda` versus `conda_native`, auth, mirrors | site, new | docs |
+| F20 | Virtual channel package allowlist (name and conda version spec, optional subdirs), applied to remote members' records in repodata (json, zst, bz2) and channeldata and on download; hosted members not filtered | [#4576](https://github.com/artifact-keeper/artifact-keeper/issues/4576) | G14 |
 
 Out of scope for this walkthrough, noted in the docs: scan-on-proxy for conda (#4097), quotas (#4422),
 JLAP patches (#4175), and the full scale epic (#4172).
@@ -132,6 +134,7 @@ JLAP patches (#4175), and the full scale epic (#4172).
 | G11 | SBOM and blast radius: SBOM from `pixi.lock` via the registry; Syft plus Grype on the built image; a PURL lookup returns the environments that contain it | API responses, scan output |
 | G12 | Offline: `pixi install --frozen --offline` from a pre-filled cache succeeds with the network removed; a package with a flipped byte fails the sha256 check | output |
 | G13 | Image: the application image builds from the registry only, is signed, and runs | podman output, cosign verify |
+| G14 | Allowlist: with the allowlist set from `pixi.lock`, `conda-virtual` repodata (json, zst, bz2) lists exactly the lock's conda-forge packages plus every hosted record; channeldata lists no other name; a conda-forge package outside the lock is 404 and `pixi add` reports it not found; `pixi install --locked` still succeeds; turning the allowlist off restores the full merge | repodata and channeldata diff against the lock, HTTP codes, pixi output |
 
 
 ## UI track: what the screenshots must show
@@ -167,4 +170,5 @@ stored under `docs/private-conda-channel-pixi/images/`.
 8. Build the application container on an isolated network; verify attestations before linking; sign the image.
 9. SBOM, scanning and blast radius.
 10. The negative tests: confusion, overwrite, tampering, wrong key, offline.
-11. What changed in Artifact Keeper for this (1.11.0) and what is next.
+11. Allowlist what comes from conda-forge: the lockfile is the allowlist.
+12. What changed in Artifact Keeper for this (1.11.0) and what is next.

@@ -98,4 +98,4 @@ stays.
   uses it; pixi will follow.
 - Proxy downloads are not yet in the download audit ([Step 8](8-sbom-and-blast-radius.md)).
 
-Now the [results](results.md).
+Next: [Step 10, allowlist what comes from conda-forge](10-allowlist-the-lockfile.md).
