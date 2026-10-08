@@ -20,7 +20,9 @@ backend does not have. Results accumulate in `../out/gates/results.tsv`, logs in
 | G11 SBOM and blast radius | `g11-sbom.sh` |
 | G12 offline, second mirror, flipped byte | `g12-offline.sh` |
 | G13 image from the registry only, signed, runs | `g13-image.sh` |
+| G14 the lockfile is the allowlist: only locked conda-forge packages through `conda-virtual` | `g14-allowlist.sh` (+ `../allowlist/`) |
 
 `token-matrix.sh` prints which credential can read which repository.
 Gates create scratch repositories (`conda-gate-*`, `conda-fake-upstream`, ...) and leave the demo
-channels alone, except G7 which publishes negative-test packages to `conda-staging`.
+channels alone, except G7 which publishes negative-test packages to `conda-staging`, and G14
+which sets the allowlist on `conda-virtual` and always turns it off again.

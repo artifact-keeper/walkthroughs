@@ -6,7 +6,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/lib.sh"
 start=$(date -u +%FT%TZ)
-sel=("$@"); ((${#sel[@]})) || sel=(g01 g02 g03 g04 g05 g06 g07 g08 g09 g10 g11 g12 g13)
+sel=("$@"); ((${#sel[@]})) || sel=(g01 g02 g03 g04 g05 g06 g07 g08 g09 g10 g11 g12 g13 g14)
 for g in "${sel[@]}"; do
   s=$(ls "$HERE/$g"-*.sh 2>/dev/null | head -1); [[ -n "$s" ]] || { echo "no gate $g"; continue; }
   echo "=== $(basename "$s")"
