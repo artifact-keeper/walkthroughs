@@ -13,11 +13,14 @@ PROJECT ?= project
 CLIENT_SHARDS ?= on
 # enforce | warn (warn only where the registry cannot store attestations yet)
 ATTESTATION_GATE ?= enforce
+AM ?= nexus
+# the scenario script for $(1)=<sN-name> under AM=nexus, or its -proget variant
+scn = scenarios/$(1)$(if $(filter proget,$(AM)),-proget).sh
 SCRATCH ?= $(abspath ../../conda-walkthrough)
 
 .PHONY: help registry-up registry-down bootstrap keys publish-keys client packages publish attest seed-internal-main \
         scan-hosted promote lock install image push scan allowlist allowlist-off gates screens-ready all all-main clean \
-        scenarios-up scenarios-down scenarios scenario-S1 scenario-S2 scenario-S3 scenario-S4 scenario-S5 scenario-S6 scenario-S7
+        scenarios-up scenarios-down scenarios-up-proget scenarios-down-proget scenarios-restore scenarios scenario-S1 scenario-S2 scenario-S3 scenario-S4 scenario-S5 scenario-S6 scenario-S7
 
 help: ## list targets
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -90,21 +93,30 @@ scenarios-up: ## Nexus CE + scn-fake-forge beside the stack (compose overlay), A
 scenarios-down: ## stop scn-nexus and scn-fake-forge (Nexus volume kept)
 	scenarios/down.sh
 
-scenarios: ## run S1-S7 (PASS / FAIL / BLOCKED per check), logs in ~/.cache/ak-scenarios/
-	scenarios/run-all.sh
+scenarios-up-proget: ## ProGet Free beside the stack: compose, AK scn-* repos, fake-forge, ProGet config (needs the licence key once, see scenarios/proget/bootstrap.sh)
+	scenarios/proget/up.sh
 
-scenario-S1: ## behind Nexus: install cold/warm, name guard, allowlist propagation delay
-	scenarios/s1-behind-nexus.sh
-scenario-S2: ## conda-forge unreachable from AK, Nexus warm
-	scenarios/s2-public-source-down.sh
-scenario-S3: ## AK backend stopped for 90 s, Nexus in front
-	scenarios/s3-curated-channel-down.sh
-scenario-S4: ## counter-example: Nexus group merges conda-virtual with a public source
-	scenarios/s4-merged-in-the-artifact-manager.sh
+scenarios-down-proget: ## stop scn-proget (volumes, licence included, kept)
+	podman compose -p ak-scn-proget -f scenarios/compose.proget.yml down
+
+scenarios-restore: ## replay the restore of a scenario run that was killed before its trap (SIGKILL)
+	scenarios/restore-pending.sh
+
+scenarios: ## run S1-S7 (AM=proget: S1-S4, S6 through ProGet), PASS / FAIL / BLOCKED per check, logs in ~/.cache/ak-scenarios/
+	AM=$(AM) scenarios/run-all.sh
+
+scenario-S1: ## behind the artifact manager (AM=nexus|proget): install cold/warm, name guard, allowlist propagation delay
+	scenarios/s1-behind-$(AM).sh
+scenario-S2: ## conda-forge unreachable from AK, the artifact manager warm
+	$(call scn,s2-public-source-down)
+scenario-S3: ## AK backend stopped for 90 s, the artifact manager in front
+	$(call scn,s3-curated-channel-down)
+scenario-S4: ## counter-example: the artifact manager merges conda-virtual with a public source
+	$(call scn,s4-merged-in-the-artifact-manager)
 scenario-S5: ## a package with a known CVE through conda-forge with scan-on-proxy blocking
 	scenarios/s5-cve-on-proxy.sh
 scenario-S6: ## the allowlist CI loop (scenarios/allowlist-ci.sh) for two pull requests
-	scenarios/s6-allowlist-from-a-pull-request.sh
+	$(call scn,s6-allowlist-from-a-pull-request)
 scenario-S7: ## merged index size per solve, shards, a malformed public record
 	scenarios/s7-big-and-malformed-index.sh
 

@@ -7,7 +7,7 @@
 #       repodata with its own sha256 and the marker "scn_fake": true
 # Built from the gate's fake upstream (out/fake-upstream; gates/fake-upstream.sh
 # builds it). linux-64 has an empty repodata. Plain repodata.json only (no .zst,
-# no shards), like most simple channels.
+# no shards) plus channeldata.json, like most simple channels.
 # Usage: scenarios/fake-forge.sh build|up|down
 #   build  write the channel files only
 #   up     build, then start the fake-forge service of compose.nexus.yml
@@ -27,6 +27,10 @@ jq --arg f99 "$f99" --arg f10 "$f10" '
                          ($f10): (.["packages.conda"][$f99] + {version: "1.0.0", scn_fake: true})}
   | .packages = {}' "$SRC/repodata.json" > "$CH/noarch/repodata.json"
 echo '{"info":{"subdir":"linux-64"},"packages":{},"packages.conda":{},"repodata_version":1}' > "$CH/linux-64/repodata.json"
+# channeldata.json: ProGet's conda connector reads it first (the subdir list) and fails the
+# whole feed with "The remote server returned an error: (404) Not Found." without it.
+jq -n '{channeldata_version: 1, subdirs: ["linux-64", "noarch"],
+        packages: {"acme-core": {subdirs: ["noarch"], version: "99.0.0"}}}' > "$CH/channeldata.json"
 [[ ${1:-up} == build ]] && { log "channel files in $CH"; exit 0; }
 # a container from before the compose service existed (podman run) is replaced
 [[ -n $(podman inspect scn-fake-forge --format '{{index .Config.Labels "com.docker.compose.service"}}' 2>/dev/null) ]] || podman rm -f scn-fake-forge >/dev/null 2>&1 || true

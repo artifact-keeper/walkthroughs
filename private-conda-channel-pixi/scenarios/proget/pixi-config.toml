@@ -1,10 +1,15 @@
-# /etc/pixi/config.toml for a client whose only conda source is scn-proget
-# (NOT VERIFIED: ProGet was not licensed during the spike; see proget/bootstrap.sh).
+# /etc/pixi/config.toml for a client whose only conda source is scn-proget.
+# The lockfile keeps the canonical ak.internal URLs; the mirrors send every
+# conda request for those channels to the ProGet feeds instead. ProGet's
+# Anonymous user has "View & Download Packages" (proget/secure.py), so the
+# client needs no credential for ProGet.
 tls-root-certs = "system"
 
 [mirrors]
 "https://ak.internal/conda/conda-virtual" = ["http://scn-proget/conda/ak-virtual"]
 "https://ak.internal/conda/conda-internal" = ["http://scn-proget/conda/ak-internal"]
+"https://ak.internal/conda/scn-virtual" = ["http://scn-proget/conda/ak-scn-virtual"]
+"https://conda.anaconda.org/conda-forge" = ["http://scn-proget/conda/cf-direct"]
 
 [pypi-config]
 index-url = "https://ak.internal/pypi/pypi-remote/simple"

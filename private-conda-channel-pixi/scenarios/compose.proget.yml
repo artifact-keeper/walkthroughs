@@ -1,7 +1,7 @@
 # Scenario fragment: Inedo ProGet (Free edition) on ak-conda-net, in front of
 # Artifact Keeper.
 # Start: scenarios/proget/up.sh   (compose project ak-scn-proget; never touches ak-conda)
-# Configure: scenarios/proget/bootstrap.sh (HTTP API, idempotent)
+# Configure: scenarios/proget/bootstrap.sh (HTTP API + one Playwright step, idempotent)
 #
 # - ProGet 2025+ ships an embedded PostgreSQL inside the same container
 #   (/var/proget/database); no separate database container is needed.
@@ -21,6 +21,9 @@ services:
       - scn-proget-packages:/var/proget/packages
       - scn-proget-database:/var/proget/database
       - scn-proget-backups:/var/proget/backups
+      # Connector indexes (Connectors/C<n>/index.sqlite3, 1.6 GB for conda-virtual) live
+      # here, outside /var/proget; without a volume a recreate rebuilds them from scratch.
+      - scn-proget-localstorage:/usr/share/ProGet/LocalStorage
       - ./.work/proget-ca-bundle.crt:/etc/ssl/certs/ca-certificates.crt:ro,z
     ports:
       - "127.0.0.1:${PROGET_PORT:-30482}:80"
@@ -40,6 +43,8 @@ volumes:
     name: scn-proget-database
   scn-proget-backups:
     name: scn-proget-backups
+  scn-proget-localstorage:
+    name: scn-proget-localstorage
 
 networks:
   ak-conda-net:

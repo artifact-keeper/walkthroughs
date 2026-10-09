@@ -8,3 +8,4 @@ packages/out/
 .pixi/
 image/.work/
 *.sigstore.json
+__pycache__/
