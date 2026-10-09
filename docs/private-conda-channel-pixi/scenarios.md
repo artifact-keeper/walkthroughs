@@ -1,22 +1,44 @@
 # Scenarios: behind Nexus or ProGet, outages, merges
 
-<!-- DRAFT: commands and outputs are exact (make scenarios, 2026-10-08T20:51Z-21:21Z, backend
-localhost/ak-backend:allowlist-1.11, Nexus Community Edition 3.96.4, pixi 0.81.0); the prose is
-plain on purpose and will be rewritten. -->
+The nine steps and the allowlist have pixi talking to Artifact Keeper directly. That is the
+cleanest shape, and it is not the shape most of the companies this walkthrough is for can
+choose. They already pay for an artifact manager (Artifactory, Nexus, ProGet: the server every
+build goes through and every audit asks about), it is mandated, and the question they ask is
+whether any of this survives being put behind it. We did not want to answer that with a diagram.
 
-The steps so far have pixi talk to Artifact Keeper directly. Most companies that would run this
-already have an artifact manager that every build goes through. These scenarios put Sonatype
-Nexus Repository Community Edition (the free edition) between pixi and Artifact Keeper and
-check what still holds: the lock, the name guard, the allowlist, and installs when something is
-down. One scenario does the opposite on purpose: it merges the channels in Nexus instead of in
-Artifact Keeper, to show what breaks. The same scenarios then run with Inedo ProGet Free in
-front instead (`AM=proget`, [below](#through-proget-free-amproget)).
+So these scenarios put a real artifact manager between pixi and Artifact Keeper and check what
+still holds: the lock, the name guard, the allowlist, and installs when something is down. We
+used Sonatype Nexus Repository Community Edition and Inedo ProGet Free because both are free and
+both support conda, so anyone can rerun this. Artifactory's conda support is a paid feature, so
+it is named here as the category and not tested. One scenario does the opposite of what we
+recommend on purpose: it merges the channels in the artifact manager instead of in Artifact
+Keeper, to show what that costs. Two more take things away, first conda-forge, then Artifact
+Keeper itself, and watch what the developer sees. The point of all of it is that "does it hold
+up" is answered by a script that prints pass or fail, not by us.
 
 Each scenario is one script under
 [`scenarios/`](https://github.com/artifact-keeper/walkthroughs/blob/main/private-conda-channel-pixi/scenarios/).
-It prints one `PASS`, `FAIL` or `BLOCKED(<issue>)` line per check, the same format as the
-[gates](results.md), then an evidence block. It puts back everything it changed on the registry
-before it exits, also when a check fails. Logs go to `~/.cache/ak-scenarios/`.
+It prints one `PASS`, `FAIL` or `BLOCKED(<issue>)` line per check, in the same format as the
+[gates](results.md), then an evidence block with the status codes, timings and client messages
+behind each line. Every change it makes to the registry is written to a journal first and put
+back before it exits, also when a check fails or the run is killed (`make scenarios-restore`
+replays a journal by hand). Logs go to `~/.cache/ak-scenarios/`.
+
+The short version of what we learned, before the detail:
+
+- **Merge in Artifact Keeper, not in the artifact manager.** Through a plain proxy everything
+  holds. Through a merge in Nexus or ProGet, the allowlist and the name guard are gone, a
+  squatted package name wins, and a file name clash either breaks the install or installs the
+  wrong bytes silently, depending on the product.
+- **Behind a cache, policy is as fresh as the cache.** An allowlist change reaches Nexus clients
+  after its metadata TTL (120 seconds at the two minutes we set) and ProGet clients after about
+  ten minutes, with no setting to change. Files the cache already holds are never revoked.
+- **Outages are survivable on cached content.** With Artifact Keeper stopped, locked installs
+  through either product still work. With conda-forge unreachable, Artifact Keeper keeps serving
+  its own cache for an hour past its TTL, so nobody behind it notices.
+- **The real client refuses a vulnerable package.** With scan-on-proxy on, pixi gets a 403 on a
+  package with a known CVE, the registry's dashboard and per-repository view show why, and a clean
+  package next to it still installs.
 
 ```console
 $ make scenarios-up      # Nexus and a fake public channel beside the stack, configured by API
@@ -51,10 +73,10 @@ cheap. The negative cache (remembered 404s) uses 2 minutes too; package files ke
 | S2 public source down | 11 | 0 | 0 | 450 s |
 | S3 curated channel down | 5 | 0 | 0 | 138 s |
 | S4 merged in the artifact manager | 5 | 0 | 0 | 387 s |
-| S5 CVE on proxy (scan-1.11 backend, 2026-10-09) | 4 | 1 (#4594) | 0 | 65 s |
+| S5 CVE on proxy (1.11.0 backend, 2026-10-09) | 5 | 0 | 0 | 71 s |
 | S6 allowlist from a pull request | 6 | 0 | 0 | 257 s |
 | S7 big and malformed index | 7 | 0 | 0 | 305 s |
-| **Total** | **47** | **1** | **0** | **1796 s** |
+| **Total** | **48** | **0** | **0** | **1802 s** |
 
 ## S1: behind Nexus
 
@@ -250,10 +272,13 @@ Notes:
 
 ## S5: CVE on proxy
 
-What it proves: what happens today when a package with a known CVE is pulled through the
+What it proves: what a developer sees when a package with a known CVE is pulled through the
 governed channel with scan-on-proxy blocking turned on for `conda-forge` (`scan_on_proxy`,
 `fail_closed`, block at `high` and above). The package is `certifi 2022.12.7` (CVE-2023-37920,
-high; CVE-2024-39689, low): 150 KB, and it depends only on Python.
+high; CVE-2024-39689, low): 150 KB, and it depends only on Python, so the refusal cannot be
+blamed on anything else. This scenario is also the one that found two backend bugs while we
+wrote it, which is the reason scenarios exist; both are fixed in 1.11.0 and the notes say what
+they were.
 
 ```console
 $ make scenario-S5
@@ -264,11 +289,11 @@ PASS         S5   pixi refuses to install certifi 2022.12.7: "HTTP status client
 PASS         S5   the conda-forge proxy-scans view lists noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda as vulnerable with its CVEs (CVE-2023-37920 CVE-2024-39689)
 PASS         S5   the security dashboard's policy_violations_blocked goes up (0 -> 1; #4380 counts proxied content with a blocking verdict)
 PASS         S5   with the verdict stored, the next pull is refused: HTTP 403 ; pixi: "HTTP status client error (403 Forbidden) for url (https://ak.internal/conda/conda-virtual/noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda)"
-BLOCKED(#4594) S5   a clean package that shares nothing with it (tzdata) installs through the same channel: HTTP status client error (423 Locked) for url (https://ak.internal/conda/conda-virtual/noarch/tzdata-2026c-h151e31d_0.conda): under fail_closed a completed scan that catalogs nothing is treated as inconclusive
+PASS         S5   a clean package that shares nothing with it (tzdata) installs through the same channel
 ```
 
-Evidence (trimmed; backend `localhost/ak-backend:scan-1.11`, main with the allowlist and the conda
-scan-on-proxy gate, 2026-10-09):
+Evidence (trimmed; 1.11.0 backend with the allowlist, the conda scan-on-proxy gate and the
+contents-only grading, 2026-10-09):
 
 ```text
 GET /api/v1/formats: conda scan_on_proxy = enforced
@@ -279,7 +304,7 @@ POST proxy-scans/rescan noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda: HTTP 200 {"
     low	CVE-2024-39689	certifi	2022.12.7	2024.7.4
 dashboard policy_violations_blocked: 0 -> 1
 after the verdict: GET certifi-2022.12.7-pyhd8ed1ab_0.conda: conda-virtual: HTTP 403 ; conda-forge: HTTP 403 
-pixi install tzdata (no dependencies, cold cache): exit 1: HTTP status client error (423 Locked) for url (https://ak.internal/conda/conda-virtual/noarch/tzdata-2026c-h151e31d_0.conda); lock: 1 package(s)
+pixi install tzdata (no dependencies, cold cache): exit 0: The default environment has been installed.
 ```
 
 Notes:
@@ -290,10 +315,16 @@ Notes:
   is refused at once.
 - The scanner's verdict and CVEs are in the per-repository proxy-scans view; the dashboard's
   `policy_violations_blocked` goes up.
-- `fail_closed` is the design: a package whose scan is inconclusive is refused (423). Today a
-  completed scan that catalogs nothing (tzdata ships data files only) counts as inconclusive, so
-  a clean package is locked too: `BLOCKED(#4594)`
-  ([artifact-keeper#4594](https://github.com/artifact-keeper/artifact-keeper/issues/4594)).
+- `fail_closed` is the design: a package whose scan could not run is refused (423) rather than
+  served. The first time we ran this, scan-on-proxy for conda was stored but never enforced
+  (certifi installed, and the dashboard counted it as blocked anyway); that is
+  [artifact-keeper#4585](https://github.com/artifact-keeper/artifact-keeper/issues/4585), fixed
+  in 1.11.0. The second run refused certifi and also locked `tzdata`, because a completed scan
+  that catalogs nothing (tzdata ships data files only) counted as inconclusive, and for conda
+  that describes most of the channel; that is
+  [artifact-keeper#4594](https://github.com/artifact-keeper/artifact-keeper/issues/4594), also
+  fixed in 1.11.0: a scan that ran to completion with no findings is `clean`, with a
+  `components_cataloged` count in the proxy-scans view so you can see what the grade rests on.
 - Hosted packages are scanned on upload and gated at promotion ([Step 4](4-promote-with-gates.md)); that is unaffected.
 
 ## S6: allowlist from a pull request
@@ -434,10 +465,9 @@ Notes:
 
 ## Through ProGet Free (AM=proget)
 
-<!-- DRAFT: S1, S2, S4: make scenarios AM=proget, 2026-10-09T01:00Z-02:20Z, backend
-localhost/ak-backend:allowlist-1.11. S3, S6: re-run 2026-10-09T13:38Z-15:00Z, backend
-localhost/ak-backend:scan-1.11 (the first run was cut off by a session restart; S3's checks were
-recast after the first run, see S3). ProGet 26.0.12.24 (Free edition, licensed), pixi 0.81.0. -->
+Run details: S1, S2 and S4 on 2026-10-09 (01:00 to 02:20 UTC) against the allowlist build of
+the 1.11.0 backend; S3 and S6 re-run the same day (13:38 to 15:00 UTC) against the build with the
+conda scan-on-proxy gate. ProGet 26.0.12.24, Free edition, licensed; pixi 0.81.0.
 
 The same scenarios with Inedo ProGet Free in front instead of Nexus. ProGet's free edition needs
 a licence key (requested from Inedo with a name and an e-mail address, entered once in the UI);
@@ -725,7 +755,8 @@ and the scenarios above.
   Artifactory is checked only for Artifact Keeper, Nexus CE and pixi.
 - **Shards through the virtual channel** (artifact-keeper#4577) and **shards or `.zst` through
   Nexus**: neither exists today, so the cost of a solve through the merged channel is the full index.
-- **Scan-on-proxy enforcement for conda** (artifact-keeper#4097): S5 shows the setting, the
-  scanner's verdict and the dashboard, not a refused download.
+- **A compiled conda package the scanner catalogs under its upstream name** (for example a
+  `libzlib` package cataloged as `zlib`) is still inconclusive under `fail_closed`
+  (artifact-keeper#4600). S5 uses a Python package and a data package; neither hits this.
 - **Scale.** One client, one host; nothing near Nexus CE's daily limits.
 - **Revoking a cached file in Nexus** is a manual delete; no scenario automates it.
