@@ -1,4 +1,4 @@
-# Scenarios: behind Nexus, outages, merges
+# Scenarios: behind Nexus or ProGet, outages, merges
 
 <!-- DRAFT: commands and outputs are exact (make scenarios, 2026-10-08T20:51Z-21:21Z, backend
 localhost/ak-backend:allowlist-1.11, Nexus Community Edition 3.96.4, pixi 0.81.0); the prose is
@@ -9,7 +9,8 @@ already have an artifact manager that every build goes through. These scenarios 
 Nexus Repository Community Edition (the free edition) between pixi and Artifact Keeper and
 check what still holds: the lock, the name guard, the allowlist, and installs when something is
 down. One scenario does the opposite on purpose: it merges the channels in Nexus instead of in
-Artifact Keeper, to show what breaks.
+Artifact Keeper, to show what breaks. The same scenarios then run with Inedo ProGet Free in
+front instead (`AM=proget`, [below](#through-proget-free-amproget)).
 
 Each scenario is one script under
 [`scenarios/`](https://github.com/artifact-keeper/walkthroughs/blob/main/private-conda-channel-pixi/scenarios/).
@@ -50,10 +51,10 @@ cheap. The negative cache (remembered 404s) uses 2 minutes too; package files ke
 | S2 public source down | 11 | 0 | 0 | 450 s |
 | S3 curated channel down | 5 | 0 | 0 | 138 s |
 | S4 merged in the artifact manager | 5 | 0 | 0 | 387 s |
-| S5 CVE on proxy | 3 | 2 (#4097) | 0 | 68 s |
+| S5 CVE on proxy (scan-1.11 backend, 2026-10-09) | 4 | 1 (#4594) | 0 | 65 s |
 | S6 allowlist from a pull request | 6 | 0 | 0 | 257 s |
 | S7 big and malformed index | 7 | 0 | 0 | 305 s |
-| **Total** | **46** | **2** | **0** | **1799 s** |
+| **Total** | **47** | **1** | **0** | **1796 s** |
 
 ## S1: behind Nexus
 
@@ -259,36 +260,40 @@ $ make scenario-S5
 ```
 
 ```text
-BLOCKED(#4097) S5   pixi install of certifi 2022.12.7 is refused on download: installed; conda scan_on_proxy is "accepted" (setting stored, proxied downloads served unscanned), no X-AK-Scan header
+PASS         S5   pixi refuses to install certifi 2022.12.7: "HTTP status client error (403 Forbidden) for url (https://ak.internal/conda/conda-virtual/noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda)"
 PASS         S5   the conda-forge proxy-scans view lists noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda as vulnerable with its CVEs (CVE-2023-37920 CVE-2024-39689)
 PASS         S5   the security dashboard's policy_violations_blocked goes up (0 -> 1; #4380 counts proxied content with a blocking verdict)
-BLOCKED(#4097) S5   with a stored vulnerable verdict the next pull is refused: HTTP 200  and pixi installs: the conda download path does not consult the verdict, while the dashboard counts it as blocked
-PASS         S5   a clean package that shares nothing with it (tzdata) installs through the same channel
+PASS         S5   with the verdict stored, the next pull is refused: HTTP 403 ; pixi: "HTTP status client error (403 Forbidden) for url (https://ak.internal/conda/conda-virtual/noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda)"
+BLOCKED(#4594) S5   a clean package that shares nothing with it (tzdata) installs through the same channel: HTTP status client error (423 Locked) for url (https://ak.internal/conda/conda-virtual/noarch/tzdata-2026c-h151e31d_0.conda): under fail_closed a completed scan that catalogs nothing is treated as inconclusive
 ```
 
-Evidence (trimmed):
+Evidence (trimmed; backend `localhost/ak-backend:scan-1.11`, main with the allowlist and the conda
+scan-on-proxy gate, 2026-10-09):
 
 ```text
-GET /api/v1/formats: conda scan_on_proxy = accepted
+GET /api/v1/formats: conda scan_on_proxy = enforced
 PUT conda-forge security (scan_on_proxy, fail_closed, block >= high): HTTP 200 {"scan_on_proxy":true,"proxy_scan_action":"fail_closed","block_on_policy_violation":true,"severity_threshold":"high"}
-pixi install (certifi ==2022.12.7, cold cache, conda-virtual): exit 0, 30.3 s: The default environment has been installed.
+pixi install (certifi ==2022.12.7, cold cache, conda-virtual): exit 1, 30.1 s: HTTP status client error (403 Forbidden) for url (https://ak.internal/conda/conda-virtual/noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda)
 POST proxy-scans/rescan noarch/certifi-2022.12.7-pyhd8ed1ab_0.conda: HTTP 200 {"state":"vulnerable","findings_count":2,"critical_count":0,"high_count":1,"max_severity":"high","package_count":1}
     high	CVE-2023-37920	certifi	2022.12.7	2023.7.22
     low	CVE-2024-39689	certifi	2022.12.7	2024.7.4
 dashboard policy_violations_blocked: 0 -> 1
-after the verdict: GET certifi-2022.12.7-pyhd8ed1ab_0.conda: conda-virtual: HTTP 200 ; conda-forge: HTTP 200
+after the verdict: GET certifi-2022.12.7-pyhd8ed1ab_0.conda: conda-virtual: HTTP 403 ; conda-forge: HTTP 403 
+pixi install tzdata (no dependencies, cold cache): exit 1: HTTP status client error (423 Locked) for url (https://ak.internal/conda/conda-virtual/noarch/tzdata-2026c-h151e31d_0.conda); lock: 1 package(s)
 ```
 
 Notes:
 
-- On this backend scan-on-proxy is `accepted` for conda, not `enforced`: the setting is stored, and
-  proxied conda downloads are served without the gate (artifact-keeper#4097, out of scope for this
-  walkthrough). There is no pixi error to show yet.
-- The scanner does flag the package: a rescan of the cached bytes
-  (`POST /api/v1/repositories/conda-forge/security/proxy-scans/rescan`) records the verdict and the
-  CVEs, and the per-repository proxy-scans view lists them.
-- The dashboard then counts the package in `policy_violations_blocked`, although the next pull is
-  still served. For conda, that number says what the policy would block, not what was blocked.
+- With the scan-on-proxy gate for conda (`scan_on_proxy: enforced`), the vulnerable package is
+  refused on download: 403 through `conda-virtual` and through `conda-forge`, and pixi stops with
+  `HTTP status client error (403 Forbidden)`. The verdict is stored per digest, so the next pull
+  is refused at once.
+- The scanner's verdict and CVEs are in the per-repository proxy-scans view; the dashboard's
+  `policy_violations_blocked` goes up.
+- `fail_closed` is the design: a package whose scan is inconclusive is refused (423). Today a
+  completed scan that catalogs nothing (tzdata ships data files only) counts as inconclusive, so
+  a clean package is locked too: `BLOCKED(#4594)`
+  ([artifact-keeper#4594](https://github.com/artifact-keeper/artifact-keeper/issues/4594)).
 - Hosted packages are scanned on upload and gated at promotion ([Step 4](4-promote-with-gates.md)); that is unaffected.
 
 ## S6: allowlist from a pull request
@@ -427,6 +432,230 @@ Notes:
   `scn-fake-forge`: Artifact Keeper refuses remote upstreams on private addresses except
   `AK_SSRF_ALLOW_PRIVATE_CIDRS` (here the gate's host only). `scn-fake-forge` serves it to Nexus.
 
+## Through ProGet Free (AM=proget)
+
+<!-- DRAFT: S1, S2, S4: make scenarios AM=proget, 2026-10-09T01:00Z-02:20Z, backend
+localhost/ak-backend:allowlist-1.11. S3, S6: re-run 2026-10-09T13:38Z-15:00Z, backend
+localhost/ak-backend:scan-1.11 (the first run was cut off by a session restart; S3's checks were
+recast after the first run, see S3). ProGet 26.0.12.24 (Free edition, licensed), pixi 0.81.0. -->
+
+The same scenarios with Inedo ProGet Free in front instead of Nexus. ProGet's free edition needs
+a licence key (requested from Inedo with a name and an e-mail address, entered once in the UI);
+everything else is set up by `make scenarios-up-proget`.
+
+```console
+$ make scenarios-up-proget     # ProGet beside the stack, configured by API (plus two UI clicks by Playwright)
+$ make scenarios AM=proget     # S1 S2 S3 S4 S6 through ProGet
+$ make scenario-S4 AM=proget
+$ make scenarios-down-proget
+```
+
+What `scenarios-up-proget` sets up:
+
+| Piece | What |
+|---|---|
+| `scn-proget` | ProGet 26.0.12 (Free), one container with an embedded PostgreSQL, on `ak-conda-net`. Connectors `ak-virtual` (of `conda-virtual`), `ak-internal`, `ak-scn-virtual` (of `scn-virtual`), `cf-direct` (conda.anaconda.org), `scn-fake` (of `scn-fake-forge`); one feed per connector, and feeds `merged` = [ak-virtual, cf-direct] and `merged-fake` = [ak-virtual, scn-fake]. Upstream credential: basic auth, `consumer` and the consumer token as password. |
+| Lock-down | Out of the box the Anonymous user is an administrator. `proget/bootstrap.sh` creates the API key while that is still true, then `proget/secure.py` changes the Admin password and clicks "Remove Anonymous Access" (Free has no API for either). Anonymous keeps read access, so pixi needs no credential for ProGet. |
+| pixi config | [`proget/pixi-config.toml`](https://github.com/artifact-keeper/walkthroughs/blob/main/private-conda-channel-pixi/scenarios/proget/pixi-config.toml): mirrors send every `https://ak.internal/conda/...` request to a ProGet feed; the lockfile keeps the `ak.internal` URLs |
+
+**ProGet does not proxy repodata; it keeps its own index of the channel.** The first metadata
+request for a feed makes ProGet download `channeldata.json` and the `repodata.json.bz2` of every
+subdirectory (12 for `conda-virtual`, about 322 MB) into a local index (1.6 GB). It updates that
+index on a client request once the index is about 10 minutes old, and each update downloads
+everything again. There is no setting for this in the free edition. Every `repodata.json` and
+`.bz2` a client gets is generated from that index for that request.
+
+### Results, ProGet
+
+| Scenario | PASS | FAIL | Time |
+|---|---|---|---|
+| S1 behind ProGet | 13 | 0 | 2116 s |
+| S2 public source down | 5 | 0 | 376 s |
+| S3 curated channel down | 7 | 0 | 1173 s |
+| S4 merged in the artifact manager | 6 | 0 | 1112 s |
+| S6 allowlist from a pull request | 6 | 0 | 1261 s |
+| **Total** | **37** | **0** | **6038 s** |
+
+"(bad)" marks a check that passes when the bad behaviour is seen, as in S4 above.
+
+### S1 through ProGet
+
+```text
+PASS         S1   [proget] (bad) 0: install --locked through a connector whose index was never built fails with 404 ("HTTP status client error (404 Not Found) for url (http://scn-proget/ conda/s1-cold/linux-64/openssl-3.6.4-h781a0a9_0.conda)"); package requests do not build it
+PASS         S1   [proget] 0: after one metadata request built the index (448 s), the same install --locked works
+PASS         S1   [proget] 1 cold: pixi install --locked through ProGet (16.6 s; AK -> ProGet 101.2 MB, ProGet -> pixi 101.2 MB)
+PASS         S1   [proget] 1 warm: pixi install --locked through ProGet (11.6 s; AK -> ProGet 0 MB, ProGet -> pixi 101.2 MB)
+PASS         S1   [proget] 2: pixi.lock unchanged by install --locked through ProGet (keeps the https://ak.internal URLs)
+PASS         S1   [proget] 3: scn-virtual through ProGet offers only the hosted acme-core ["1.0.0","1.0.1","1.0.1791387539","1.0.1791387567","1.0.1791483478"] (99.0.0 dropped by AK's name guard)
+PASS         S1   [proget] 3: unpinned 'acme-core = "*"' solved through ProGet locks the hosted 1.0.1791483478, not 99.0.0
+PASS         S1   [proget] 4: a fresh solve through ProGet works (144.6 s) and installs, though ProGet drops 'noarch' from every record (12 lock entries say noarch: false; rattler links them as noarch from the package itself)
+PASS         S1   [proget] 5: the allowlist reaches ProGet clients 462 s after it is set, with nobody touching ProGet (index refreshed on a request once ~10 min old, then rebuilt)
+PASS         S1   [proget] 5: inside the window, pixi add colorama through ProGet still succeeds from the old index ("Added colorama >=0.4.6,<0.5")
+PASS         S1   [proget] 5: after propagation, pixi add colorama through ProGet fails: "No candidates were found for colorama *"
+PASS         S1   [proget] 5: download of colorama through a feed that never cached it is 404
+PASS         S1   [proget] 5 caveat: a feed that cached colorama before the allowlist keeps listing it (1 records) and serving it, so pixi add still works there ("Added colorama >=0.4.6,<0.5"): ProGet merges cached packages into the feed's index
+```
+
+Evidence (trimmed):
+
+```text
+0. index built by metadata requests: 448 s, 382470 noarch records, index 1597 MB; ProGet -> AK: ProGet  x68 0.0MB; ProGet 200 x102 653.0MB; total 170 req 653.0 MB
+cold install --locked: ak.internal -> clients: pixi 200 x1 0.1MB; ProGet 200 x43 101.2MB; total 44 req 101.4 MB
+warm install --locked: ak.internal -> clients: pixi 200 x1 0.1MB; total 1 req 0.1 MB
+4. noarch/repodata.json AK vs ProGet: 382485 records from AK, 5 missing through ProGet (ps2ff-v1.4-py_0.tar.bz2, pysbol3-v1.0.1-pyhd8ed1ab_0.tar.bz2, universal_pathlib-v0.0.2-pyhf1ccde4_0.tar.bz2, vounwarp-v1.0-py_0.tar.bz2, rubin-scheduler-3.0.0rc0-pyhd8ed1ab_0.conda); fields dropped: noarch x382473, license_family x361777, track_features x525
+4. fresh solve (conda-only copy, cold client): exit 0, 144.6 s; ProGet served: linux-64/repodata_shards.msgpack.zst 404 0.0 MB 0.0 s; noarch/repodata_shards.msgpack.zst 404 0.0 MB 0.0 s; noarch/repodata.json.bz2 200 28.9 MB 31.0 s; linux-64/repodata.json.bz2 200 60.9 MB 73.6 s; 
+4. the ProGet-solved lock: 12 records say 'noarch: false' (an AK-solved lock has none); install exit 0; import typing_extensions (noarch: python): ok
+5. t=0- fresh feed: colorama records 8; index age 176 s
+5. t=+145s pixi add colorama through ProGet: exit 0: Added colorama >=0.4.6,<0.5
+5. t=+462s the fresh feed lists colorama x0 (polled every 30 s with a plain GET of noarch/repodata.json); index written 01:38:23
+```
+
+Notes:
+
+- **A fresh ProGet cannot serve `install --locked`.** Package requests do not build the index, so
+  every package is 404 until something asks for metadata; then the build takes minutes (448 s
+  here, and two overlapping builds fetched 653 MB from Artifact Keeper).
+- **Propagation: 462 s with nobody touching ProGet.** The index was 176 s old when the allowlist
+  went on; ProGet updated it on a request at about 10 minutes and the rebuild took a few more.
+  The worst case is about 10 minutes plus the rebuild. There is no TTL to set.
+- **A feed that cached a package keeps it, listed.** Unlike Nexus (which keeps serving the file
+  but drops it from the index), ProGet merges cached packages into the feed's index, so `pixi
+  add colorama` still works through that feed after the allowlist removed it.
+- **ProGet rewrites the records.** `noarch` is gone from every record, so a lock solved through
+  ProGet says `noarch: false` for `noarch: python` packages; they still install and import
+  (rattler reads the package's own `info/index.json`), but the lock differs from one solved
+  against Artifact Keeper. `track_features` (525 records) and `license_family` are dropped too,
+  and five records with versions like `v1.4` or `3.0.0rc0` are missing.
+- A fresh solve took 140-210 s through ProGet: it compresses `linux-64/repodata.json.bz2` for each
+  request (74-96 s). Through Nexus: 10-26 s; straight to Artifact Keeper: 29 s.
+- ProGet cannot proxy `scn-virtual` as it is: its connector needs `channeldata.json`, and
+  Artifact Keeper answers that with 502 for a virtual channel whose member has none (here the
+  gate's fake upstream). The scenario gives the fake upstream one for the length of the run.
+
+### S2 through ProGet
+
+```text
+PASS         S2   [proget] 1: install --locked through ProGet succeeds with conda-forge unreachable from AK (4.0 s)
+PASS         S2   [proget] 2: ProGet rebuilds its index from AK during the block (218 s, 382480 noarch records): AK serves the virtual's repodata from its own conda-forge cache
+PASS         S2   [proget] 3: a fresh solve through ProGet succeeds during the block (148.6 s)
+PASS         S2   [proget] 4: a package nobody has cached fails through ProGet (HTTP 404: Package file noarch/parsl-with-visualization-2025.10.20-pyhd8ed1ab_0.conda was not found in storage.)
+PASS         S2   [proget] 5: restored: upstream_url is https://conda.anaconda.org/conda-forge again and the never-cached package pulls through ProGet (HTTP 200, 0 s)
+```
+
+Notes:
+
+- Artifact Keeper keeps serving the virtual channel's repodata from its own conda-forge cache, so
+  ProGet sees no failure: even a full index rebuild during the block worked (218 s).
+- The never-cached package: ProGet `404 Package file noarch/parsl-with-visualization-2025.10.20-pyhd8ed1ab_0.conda was not found in storage.`, Artifact Keeper `404 {"code":"NOT_FOUND","message":"Artifact not found in any member repository"}`.
+
+### S3 through ProGet
+
+```text
+PASS         S3   [proget] 1: install --locked through ProGet succeeds while Artifact Keeper is down (1.1 s, packages from the feed's cache)
+PASS         S3   [proget] 1: project/ as is fails only on its PyPI wheel, which is fetched from ak.internal, not through ProGet: "HTTP status server error (502 Bad Gateway) for url (https://ak.internal/pypi/pypi-remote/simple/humanize/humanize-4.16.0-py3-none-any.whl)"
+PASS         S3   [proget] 2a: a fresh solve through ProGet succeeds while AK is down and ProGet's index is younger than ~10 min (started at 442 s, 140.2 s)
+PASS         S3   [proget] 2b (bad): once its index is ~10 min old, ProGet answers metadata with HTTP 500 ("The remote server returned an error: (502) Bad Gateway.") while AK is down instead of serving the old index; the solve fails: "HTTP status server error (500 Internal Server Error) for url (http://scn-proget/conda/ak-virtual/noarch/repodata.json)"
+PASS         S3   [proget] 3: a package ProGet never fetched is refused while AK is down (HTTP 404: Package noarch/types-click-default-group-1.2.0.20250322-pyh29332c3_0.conda not found.)
+PASS         S3   [proget] 4 (bad): after a forced index update while AK is down, ProGet answers metadata with HTTP 500 until AK is back and the solve fails: "HTTP status server error (500 Internal Server Error) for url (http://scn-proget/conda/ak-virtual/noarch/repodata.json)"
+PASS         S3   [proget] 5: after restart: backend healthy, ProGet's index rebuilt (229 s) and a fresh pull through ProGet works again
+```
+
+Evidence (trimmed):
+
+```text
+ak-conda-backend stopped at 14:48:41 (exited); ProGet's ak-virtual index is 421 s old
+AK direct during the outage: GET conda-virtual/noarch/repodata.json: HTTP 502 0 2.509438
+2a. ProGet: fresh solve (cold client, AK down) started at index age 442 s: exit 0, 140.2 s
+2b. index 642 s old; GET ak-virtual noarch/repodata.json: HTTP 500 55 2.518786: The remote server returned an error: (502) Bad Gateway.
+2b. ProGet: fresh solve (cold client, AK down): exit 1, 20.2 s: HTTP status server error (500 Internal Server Error) for url (http://scn-proget/conda/ak-virtual/noarch/repodata.json)
+2b. ProGet's update attempts while AK is down (Caddy): conda-virtual/channeldata.json 502 IMS x32; 
+3. ProGet: GET noarch/types-click-default-group-1.2.0.20250322-pyh29332c3_0.conda: HTTP 404 85 1.139258: Package noarch/types-click-default-group-1.2.0.20250322-pyh29332c3_0.conda not found.
+4. after Local Index > delete, AK down: GET ak-virtual noarch/repodata.json: HTTP 500 55 2.529506: The remote server returned an error: (502) Bad Gateway.; UI: The local index does not yet exist; try browsing to a connector.
+4. fresh solve after the forced update: exit 1, 19.7 s: HTTP status server error (500 Internal Server Error) for url (http://scn-proget/conda/ak-virtual/noarch/repodata.json)
+5. backend started after 278 s down; healthy after 31 s (healthy)
+5. ProGet ak-virtual index back: 229 s, 382671 noarch records, index 1598 MB
+5. ProGet: GET noarch/types-click-default-group-1.2.0.20250322-pyh29332c3_0.conda: HTTP 200 (260 s after the backend was started)
+```
+
+Notes:
+
+- **Packages yes, metadata for at most about 10 minutes.** ProGet serves what it has cached, and
+  solves from its index while the index is younger than ~10 minutes. After that each metadata
+  request tries to update the index, fails, and the client gets HTTP 500, not the old index. Nexus
+  in the same position served stale metadata.
+- The outage is timed on purpose: Artifact Keeper is stopped when ProGet's index is 7 minutes old,
+  so both sides of the edge fall inside one outage. A first run that stopped it at 9 minutes saw
+  the solve's first request arrive at about 605 s and get 500.
+- After the backend is back, ProGet needs a full index rebuild (229 s here) before the forced-update
+  feed serves again.
+
+### S4 through ProGet
+
+```text
+PASS         S4   [proget] (bad) the allowlist is undone by the merge: with it ON, colorama has 0 records through ak-virtual and 8 through the merged feed, downloads (HTTP 200) and "Added colorama >=0.4.6,<0.5"
+PASS         S4   [proget] (bad) dependency confusion: an unpinned acme-core through the merged feed locks fake-forge's 99.0.0 (no name ownership in the merge)
+PASS         S4   [proget] 3a: the clash resolves to one connector for record and bytes (ours, eb370de69a76...; ak-virtual sorts before scn-fake), the install works
+PASS         S4   [proget] (bad) 3b: a squatter connector whose name sorts first wins the clash although listed second: the fake acme-core-1.0.0-pyh4616a5c_0.conda (9ac9a20fc882...) locks and installs without any error
+PASS         S4   [proget] (good) as a member of AK's virtual the hostile source is dropped by the name guard: acme-core ["1.0.0","1.0.1","1.0.1791387539","1.0.1791387567","1.0.1791483478"], unpinned lock 1.0.1791483478
+PASS         S4   [proget] (good) the clash file name installs: record and bytes are both conda-internal's
+```
+
+Evidence (trimmed):
+
+```text
+colorama records: through a feed on ak-virtual alone 0 (HTTP 200), through the merged feed 8 (HTTP 200)
+download noarch/colorama-0.4.6-pyhd8ed1ab_1.conda: through ak-virtual alone HTTP 404, through merged HTTP 200
+pixi add colorama, channel = the merged feed: exit 0, 259.1 s: Added colorama >=0.4.6,<0.5
+merged-fake offers acme-core ["1.0.0","1.0.1","1.0.1791387539","1.0.1791387567","1.0.1791483478","99.0.0"] (noarch/repodata.json HTTP 200); unpinned lock: exit 0, 0.4 s, acme-core 99.0.0
+acme-core-1.0.0-pyh4616a5c_0.conda: conda-internal sha256 eb370de69a7640c3, fake-forge 9ac9a20fc882a5e2
+3a merged-fake [ak-virtual, scn-fake]: record eb370de69a7640c3, bytes eb370de69a7640c3, lock eb370de69a7640c3; install --locked exit 0: The default environment has been installed. 
+feed s4-clash connectors (as stored): ["ak-virtual","aaa-fake"]
+3b s4-clash [ak-virtual, aaa-fake]: record 9ac9a20fc882a5e2, bytes 9ac9a20fc882a5e2, lock 9ac9a20fc882a5e2; install --locked exit 0: The default environment has been installed. 
+scn-virtual through ProGet: acme-core ["1.0.0","1.0.1","1.0.1791387539","1.0.1791387567","1.0.1791483478"]; record for acme-core-1.0.0-pyh4616a5c_0.conda sha256 eb370de69a7640c3 (ours eb370de69a7640c3)
+```
+
+Notes:
+
+- The merge undoes the allowlist and takes the squatted name, as with Nexus.
+- On a file name clash ProGet takes record and bytes from the same connector, so the install does
+  not fail the way it does through a Nexus group. **Which connector wins is decided by the
+  connectors' names, alphabetically, not by their order in the feed**: `[ak-virtual, scn-fake]`
+  installs ours; `[ak-virtual, aaa-fake]` (the same fake channel under a name that sorts first)
+  installs the squatter's bytes, and pixi has nothing to complain about because the record matches.
+- One failing connector fails the whole feed: before `scn-fake-forge` had a `channeldata.json`,
+  `merged-fake` answered every metadata request with 500.
+- Steps 2 and 3 ran while ProGet still held the `ak-virtual` index it built with the allowlist on
+  in step 1 (13 noarch records), so those solves were small (0.4 s); the squatted name won anyway.
+
+### S6 through ProGet
+
+```text
+PASS         S6   [proget] PR 1: allowlist-ci.sh locks colorama against the unfiltered twin, sets the allowlist, and install --locked through conda-virtual passes
+PASS         S6   [proget] PR 1: through ProGet, once ProGet updated its index (623 s after the job started), the new lock installs including colorama
+PASS         S6   [proget] PR 2: allowlist-ci.sh drops colorama from the lock and the allowlist, adds toolz, and the project installs through conda-virtual
+PASS         S6   [proget] PR 2: through ProGet, after its update (621 s), colorama is "No candidates were found for colorama *"
+PASS         S6   [proget] PR 2: the new lock (toolz) installs through ProGet
+PASS         S6   [proget] PR 2 caveat: the feed that cached colorama in PR 1 still lists (1) and serves it (HTTP 200): ProGet does not revoke cached packages, and lists them
+```
+
+Evidence (trimmed):
+
+```text
+ProGet lists colorama 581 s after the wait began (618 s after allowlist-ci.sh started); ProGet's index 0 s old
+ProGet (fresh feed) drops colorama 585 s after the wait began (620 s after allowlist-ci.sh started)
+through ProGet after its update: pixi add colorama: exit 1: No candidates were found for colorama *
+the PR 1 feed (cached colorama): lists it x1, GET noarch/colorama-0.4.6-pyhd8ed1ab_1.conda HTTP 200
+```
+
+Notes:
+
+- **About 620 s from the CI job to ProGet's clients**, for each pull request, with nobody touching
+  ProGet: the job itself takes about 35 s, then ProGet updates its index on the next request once
+  it is about 10 minutes old. There is no setting to shorten it in the free edition; the UI's
+  Local Index > delete forces it.
+- As with Nexus, a file already cached stays served. ProGet also keeps listing it in the feed that
+  cached it, so `pixi add colorama` keeps working through that feed.
+
 ## Nexus Community Edition in front of Artifact Keeper
 
 From the [spike](https://github.com/artifact-keeper/walkthroughs/blob/main/private-conda-channel-pixi/scenarios/README.md)
@@ -449,12 +678,49 @@ and the scenarios above.
 | 404 body | Nexus's HTML page | not Artifact Keeper's message |
 | First proxy to a private host | blocked until the SSRF allow list, the truststore and the EULA are set | all three by API in `nexus/bootstrap.sh` |
 
+## Nexus, ProGet, or no artifact manager
+
+The two free editions side by side, and what the walkthrough does without an artifact manager
+(pixi talks to Artifact Keeper directly). From the
+[spike notes](https://github.com/artifact-keeper/walkthroughs/blob/main/private-conda-channel-pixi/scenarios/README.md)
+and the scenarios above.
+
+| | Nexus CE 3.96.4 | ProGet Free 26.0.12 | No artifact manager (pixi -> AK) |
+|---|---|---|---|
+| Runs rootless with podman compose | yes, 1 container, embedded H2; 23-27 s to writable | yes, 1 container, embedded PostgreSQL 17; 7 s to the UI; 2 s to healthy on a recreate | (the walkthrough stack) |
+| Licence key for the free edition | no; accept the EULA (API) | **yes**, from Inedo against a name and e-mail address (UI, once) | none |
+| Default security | anonymous read only after `bootstrap.sh`; admin password generated | **Anonymous holds Administer** until "Remove Anonymous Access" (UI only on Free); `Admin`/`Admin` | token per consumer |
+| Configuration by API | everything (repositories, truststore, SSRF list, EULA) | feeds, connectors, API keys (the first one anonymously); users and privileges UI only | `make` targets |
+| Conda proxy (remote) | yes | yes (a feed with a connector), also to a private authenticated AK: the "public repositories only" rule is not enforced | AK's `conda-forge` remote |
+| Conda hosted | yes since 3.92 | yes (`PUT` of a `.conda` with `api:<key>`) | `conda-internal` |
+| Conda group / merge | yes since 3.92 | yes (a feed with several connectors) | the virtual channel, with the name guard and allowlist |
+| What it asks AK for | `repodata.json`, `.bz2`, `channeldata.json`, on client demand | its own index build: `channeldata.json` + `.bz2` of all 12 subdirs (~322 MB) | (pixi: `.zst` or shards, per solve) |
+| `repodata.json` to clients | yes (passed through) | yes, regenerated per request (8-11 s noarch) | yes |
+| `repodata.json.zst` | **no** (404 from Nexus) | **no** (404 from ProGet) | yes |
+| `repodata.json.bz2` | yes (proxy passes AK's; a group compresses itself, 52 s) | yes, compressed per request (60-95 s linux-64) | yes |
+| CEP-16 shards | **no** | **no** | hosted members only (#4577) |
+| `channeldata.json` | yes | yes (its own); **required upstream** (a member without one fails the feed) | yes; a virtual with a member without one answers 502 (C38) |
+| `current_repodata.json` | no | no | 200, empty (C26) |
+| Records as AK sent them | yes | **no**: `noarch`, `track_features`, `license_family` dropped; 5 records with unparsed versions gone | yes |
+| `info.base_url` | passed through (#4580 bites groups) | removed | host-relative (#4580) |
+| Upstream auth | basic; 401 challenge first (2 requests per fetch); bearer stored but never sent | basic, pre-emptive; no bearer field | bearer token |
+| Conditional GET upstream | `If-None-Match` + `If-Modified-Since`; AK 304 for repodata | `If-Modified-Since` only; AK always 200 (no `Last-Modified`, C39) | pixi: `If-None-Match`, 304 |
+| Conditional GET from clients | yes (ETag, `Last-Modified`) | `If-Modified-Since` -> 304; no ETag | yes |
+| Metadata freshness | `metadataMaxAge` (set: 2 min) | index update on request once ~10 min old, plus a 4-8 min rebuild; no setting | immediate |
+| Allowlist propagation | `metadataMaxAge` (S1: 120 s) | S1: 462 s untouched (index 176 s old when the allowlist went on); S6: about 620 s per pull request (CI job to ProGet clients) | immediate (G14) |
+| Cached package after the allowlist removes it | still served, not listed | **still listed and served** by the feed that cached it | 404 at once |
+| `install --locked` on a fresh instance | works (fetches on demand) | **404** until a metadata request built the index | works |
+| Fresh solve time (conda-only manifest, cold client) | 10-26 s | 140-210 s | 29 s |
+| Name guard | holds through a plain proxy | holds through a plain feed (S1) | holds |
+| Merge precedence on a file name clash | record from the last member, bytes from the first: hash mismatch | record and bytes from the connector whose name sorts first: a squatter named to sort first installs silently | name guard: hosted wins |
+| Serves from cache when AK is down | metadata and packages, also stale | packages yes; metadata only while its index is younger than ~10 min, then HTTP 500 (S3) | nothing (502) |
+| Serves when AK's conda-forge egress is blocked | yes (AK itself keeps serving its cache) | yes: installs (4.0 s), an index rebuild (218 s) and a fresh solve (149 s) work, AK serves its cache; never-cached packages 404 (S2) | yes, AK's cache (S2) |
+| Free-edition limits that matter | 40,000 components or 100,000 requests a day | 10 API deletes an hour; no metadata-cache setting; connector filters ignored; UI-only security | none |
+
 ## What this does not show
 
-- **ProGet.** ProGet Free needs a licence key registered against a person's name and e-mail
-  address before it serves anything; the spike stopped there. Its documentation also says Free
-  caches no metadata (no fresh solves when Artifact Keeper is down) and connects only to public
-  repositories.
+- **ProGet's paid editions.** Metadata caching settings, connector filters and feed-level
+  security are paid features; only ProGet Free was run.
 - **Artifactory and Nexus Pro.** Not tested: no licence. The `track_features` case that broke
   Artifactory is checked only for Artifact Keeper, Nexus CE and pixi.
 - **Shards through the virtual channel** (artifact-keeper#4577) and **shards or `.zst` through
