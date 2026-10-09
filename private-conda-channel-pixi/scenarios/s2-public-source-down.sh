@@ -18,7 +18,7 @@ orig=$(akapi GET /repositories/conda-forge | jq -r .upstream_url)
 [[ -n $orig && $orig != null && $orig != "$BLACKHOLE" ]] || { fail "setup" "conda-forge upstream_url is '$orig'"; exit 1; }
 ev "conda-forge upstream_url before: $orig"
 setu() { akapi PATCH /repositories/conda-forge -o /dev/null -w '%{http_code}' -d "$(jq -nc --arg u "$1" '{upstream_url:$u}')"; }
-on_exit 'echo "   PATCH upstream_url back: HTTP $(setu "$orig"), now $(akapi GET /repositories/conda-forge | jq -r .upstream_url)"'
+guard conda-forge-upstream "forge_upstream_restore '$orig'"
 D="$WORK/s2/project"; C="$WORK/s2/conda-only"
 NEVER=$(pick_uncached) || { fail "setup" "no uncached package found"; exit 1; }
 CACHED=$(grep -m1 -oE '^- conda: https://ak.internal/conda/conda-virtual/noarch/[^ ]+' "$ROOT/project/pixi.lock" | sed -E 's|.*/conda-virtual/||')

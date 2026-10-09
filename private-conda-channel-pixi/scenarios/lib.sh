@@ -44,10 +44,12 @@ OUTSIDE="${OUTSIDE:-colorama}"                   # on conda-forge, not in projec
 OUTSIDE_FILE="${OUTSIDE_FILE:-noarch/colorama-0.4.6-pyhd8ed1ab_1.conda}"
 EVIDENCE=(); RESTORE=(); SID=""
 
+AM=${AM:-nexus}                                  # the artifact manager in front: nexus | proget
+AM_TAG=$([[ $AM == nexus ]] || echo "[$AM] ")    # prefixed to every check of a non-Nexus run
 verdict() { # STATUS CHECK [WHY]
-  local line; line=$(printf '%s\t%s\t%s\t%s\t%s' "$(date -u +%FT%TZ)" "$1" "$SID" "$2" "${3:-}")
+  local line; line=$(printf '%s\t%s\t%s\t%s\t%s' "$(date -u +%FT%TZ)" "$1" "$SID" "$AM_TAG$2" "${3:-}")
   echo "$line" >> "$SCN_RESULTS"
-  printf '%-12s %-4s %s%s\n' "$1" "$SID" "$2" "${3:+: $3}"
+  printf '%-12s %-4s %s%s\n' "$1" "$SID" "$AM_TAG$2" "${3:+: $3}"
 }
 pass()    { verdict PASS "$@"; }
 fail()    { verdict FAIL "$@"; SCN_FAILED=1; }
@@ -56,6 +58,20 @@ check()   { # COND-EXIT-CODE CHECK [WHY-IF-FAIL]: pass if $1 == 0
   if [[ $1 == 0 ]]; then pass "$2"; else fail "$2" "${3:-}"; fi; }
 ev() { EVIDENCE+=("$*"); echo "  > $*"; }
 on_exit() { RESTORE+=("$1"); }
+# Restore journal for the changes to ak-conda that must never outlive a run (allowlist, the
+# conda-forge upstream URL and scan config, a stopped backend). The EXIT trap covers normal
+# exits, failures, INT, TERM and HUP; SIGKILL (a killed session) cannot be trapped, so guard
+# also writes the restore command to $WORK/pending/<key>.sh before the change. The next
+# scenario (scn_begin) or `make scenarios-restore` replays what a killed run left there.
+# The command runs in a fresh shell with lib.sh loaded: literal values only, no script variables.
+PENDING="$WORK/pending"; mkdir -p "$PENDING"
+guard() { # KEY COMMAND: on_exit COMMAND, journalled until it has run
+  [[ -f "$PENDING/$1.sh" ]] || printf '# %s %s %s\n%s\n' "$(date -u +%FT%TZ)" "$SID" "$1" "$2" > "$PENDING/$1.sh"
+  on_exit "$2; rm -f '$PENDING/$1.sh'"; }
+replay_pending() {
+  local f; for f in "$PENDING"/*.sh; do [[ -f $f ]] || continue
+    echo "-- replaying the restore of a run that was killed before its trap ($(head -1 "$f" | cut -c3-)):"
+    ( set +e; eval "$(tail -n +2 "$f")" ) && rm -f "$f"; done; }
 note() { echo "-- $*"; }
 
 scn_begin() { # ID NAME DESCRIPTION
@@ -63,10 +79,11 @@ scn_begin() { # ID NAME DESCRIPTION
   exec 3>&1 4>&2
   exec > >(tee "$SLOG") 2>&1; TEE_PID=$!
   trap scn_exit EXIT
-  trap 'exit 130' INT TERM
+  trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+  replay_pending
   echo "=== $SID $SNAME: $3"
   echo "    $(date -u +%FT%TZ); backend $(podman inspect ak-conda-backend --format '{{.ImageName}}' 2>/dev/null);" \
-       "nexus $(podman inspect scn-nexus --format '{{.ImageName}}' 2>/dev/null); log $SLOG"
+       "$AM $(podman inspect "scn-$AM" --format '{{.ImageName}}' 2>/dev/null); log $SLOG"
   SCN_T0=$SECONDS
 }
 scn_exit() {
@@ -114,14 +131,24 @@ al_save() {
   local c; c=$(akcurl -sS -o "$WORK/allowlist.$SID.json" -w '%{http_code}' -H "$(adm)" "$U/api/v1/repositories/conda-virtual/allowlist")
   [[ $c == 200 ]] || echo '{"absent":true}' > "$WORK/allowlist.$SID.json"
   ev "allowlist before: $(jq -c '{enabled, entry_count, absent}' "$WORK/allowlist.$SID.json")"
-  on_exit al_restore
+  [[ -f "$PENDING/allowlist.sh" ]] || cp "$WORK/allowlist.$SID.json" "$PENDING/allowlist.json"
+  guard allowlist "al_restore '$PENDING/allowlist.json'"
 }
-al_restore() {
-  local f="$WORK/allowlist.$SID.json" c
+al_restore() { # [SAVED-FILE]
+  local f="${1:-$WORK/allowlist.$SID.json}" c
   if jq -e .absent "$f" >/dev/null 2>&1; then c=$(akapi DELETE /repositories/conda-virtual/allowlist -o /dev/null -w '%{http_code}')
   else c=$(akapi PUT /repositories/conda-virtual/allowlist -o /dev/null -w '%{http_code}' -d "$(jq -c '{enabled, entries: (.entries // [])}' "$f")"); fi
   echo "   allowlist restored: HTTP $c, now $(akapi GET /repositories/conda-virtual/allowlist | jq -c '{enabled, entry_count}')"
 }
+# conda-forge remote upstream URL back to URL (S2's restore)
+forge_upstream_restore() { # URL
+  echo "   PATCH upstream_url back: HTTP $(akapi PATCH /repositories/conda-forge -o /dev/null -w '%{http_code}' -d "$(jq -nc --arg u "$1" '{upstream_url:$u}')"), now $(akapi GET /repositories/conda-forge | jq -r .upstream_url)"; }
+# conda-forge scan configuration back to the JSON config read before (S5's restore; "null": all off)
+scan_cfg_restore() { # CONFIG-JSON
+  local body
+  if [[ $1 == null ]]; then body='{"scan_enabled":false,"scan_on_upload":false,"scan_on_proxy":false,"block_on_policy_violation":false,"proxy_scan_action":"fail_open"}'
+  else body=$(jq -c '{scan_enabled, scan_on_upload, scan_on_proxy, block_on_policy_violation, severity_threshold, proxy_scan_action} | with_entries(select(.value != null))' <<<"$1"); fi
+  echo "   conda-forge scan config restored: HTTP $(akapi PUT /repositories/conda-forge/security -o /dev/null -w '%{http_code}' -d "$body"), now $(akapi GET /repositories/conda-forge/security | jq -c '.config | {scan_enabled, scan_on_proxy, proxy_scan_action, block_on_policy_violation}'); dashboard policy_violations_blocked $(akapi GET /security/dashboard | jq .policy_violations_blocked)"; }
 al_on_from_lock() { "$ROOT/allowlist/from-lock.sh" "${1:-$ROOT/project/pixi.lock}" | tail -1; }
 al_off() { "$ROOT/allowlist/off.sh" | tail -1; }
 
@@ -150,6 +177,104 @@ nx_served_since() { # MARK -> what Nexus served to clients under /repository/
 }
 nx_bytes_since() { podman exec scn-nexus tail -n +$(($1 + 1)) /nexus-data/log/request.log | awk '$7 ~ /^\/repository\// {b+=($11 == "-" ? 0 : $11)} END {print b+0}'; }
 
+# --- ProGet -----------------------------------------------------------------
+PG="http://127.0.0.1:${PROGET_PORT:-30482}"; PGF="$PG/conda"
+PG_IN=http://scn-proget                          # ProGet as clients on ak-conda-net see it
+PG_PY=${PROGET_PY:-python3}                      # a python with playwright (proget/ui.py)
+pgapi() { curl -sS -H "X-ApiKey: $PROGET_API_KEY" -H 'Content-Type: application/json' -X "$1" "$PG/api/management$2" "${@:3}"; }
+# pgget FEED PATH [curl args] -> "<code> <bytes> <seconds>", body in $WORK/last.body
+pgget() { local f=$1 p=$2; shift 2; curl -sS --max-time 900 -o "$WORK/last.body" -w '%{http_code} %{size_download} %{time_total}' "$@" "$PGF/$f/$p"; }
+pgui() { PROGET_URL=$PG "$PG_PY" "$SCN_DIR/proget/ui.py" "$@"; }
+# A feed over existing connectors (a fresh feed has an empty package cache; the connector's
+# index is shared). Removed at exit.
+pg_feed() { # NAME CONNECTOR...
+  local n=$1; shift
+  pgapi DELETE "/feeds/delete/$n" -o /dev/null 2>&1
+  local c; c=$(pgapi POST /feeds/create -o /dev/null -w '%{http_code}' -d "$(jq -nc --arg n "$n" '{name:$n, feedType:"conda", active:true, connectors:$ARGS.positional}' --args "$@")")
+  [[ $c == 201 ]] || { echo "pg_feed $n: HTTP $c" >&2; return 1; }
+  on_exit "pg_feed_rm $n"
+}
+pg_feed_rm() { echo "   feed $1 deleted: HTTP $(pgapi DELETE "/feeds/delete/$1" -o /dev/null -w '%{http_code}')"; }
+# A connector (and its own, empty, local index). Removed at exit.
+pg_connector() { # NAME URL [TOKEN-FILE]
+  pgapi POST "/connectors/delete/$1" -o /dev/null 2>&1
+  local c; c=$(pgapi POST /connectors/create -o /dev/null -w '%{http_code}' -d "$(jq -nc --arg n "$1" --arg u "$2" --arg t "$([[ -n ${3:-} ]] && cat "$3")" \
+    '{name:$n, url:$u, feedType:"conda", timeout:600} + (if $t != "" then {username:"consumer", password:$t} else {} end)')")
+  [[ $c == 201 ]] || { echo "pg_connector $1: HTTP $c" >&2; return 1; }
+  on_exit "pg_connector_rm $1"
+}
+# Deleting a connector leaves its index directory (1.6 GB for an AK-sized channel); remove it too.
+pg_connector_rm() {
+  local id; id=$(pg_id "$1"); rm -f "$WORK/proget-connector-ids.tsv"
+  echo "   connector $1 deleted: HTTP $(pgapi POST "/connectors/delete/$1" -o /dev/null -w '%{http_code}')$([[ -n $id ]] && podman exec scn-proget rm -rf "/usr/share/ProGet/LocalStorage/Connectors/C$id" && echo ", index directory C$id removed")"; }
+# Connector name -> id (C<id> is its local index directory); the API does not return ids, the UI does.
+pg_id() { # CONNECTOR
+  local f="$WORK/proget-connector-ids.tsv" id
+  id=$(awk -F'\t' -v n="$1" '$1 == n {print $2}' "$f" 2>/dev/null)
+  [[ -n $id ]] || { pgui ids > "$f"; id=$(awk -F'\t' -v n="$1" '$1 == n {print $2}' "$f"); }
+  echo "$id"; }
+pg_index_file() { echo "/usr/share/ProGet/LocalStorage/Connectors/C$(pg_id "$1")/index.sqlite3"; }
+# The connector's local index file: "<bytes> <mtime unix>" (0 0 when absent)
+pg_index() { podman exec scn-proget sh -c "stat -c '%s %Y' $(pg_index_file "$1") 2>/dev/null || echo '0 0'"; }
+# Seconds since the connector's index file was last written (ProGet starts an update on a client
+# request once its own record of the last update is about 10 minutes old; see README)
+pg_index_age() { echo $(( $(date +%s) - $(pg_index "$1" | cut -d' ' -f2) )); }
+# What ProGet fetched from ak.internal since a unix time (Caddy log, user agent ProGet/...)
+pg_upstream_since() { # UNIX_T [URI_REGEX]
+  podman logs --since "$(date -u -d "@$1" +%FT%TZ)" ak-conda-caddy 2>&1 | grep '"uri"' |
+    jq -r --argjson t "$1" --arg re "${2:-.}" 'select(.ts >= $t and ((.request.headers["User-Agent"] // [""])[0] | startswith("ProGet")) and (.request.uri | test($re)))
+      | "\(.request.uri | sub("^/conda/"; "") | sub("/[^/]*\\.(conda|tar\\.bz2)$"; "/<pkg>")) \(.status)\((.request.headers["If-Modified-Since"] // [])[0] | if . then " IMS" else "" end)"' |
+    sort | uniq -c | awk '{printf "%s %s%s x%d; ", $2, $3, ($4 ? " " $4 : ""), $1}'; echo; }
+# What scn-proget served under /conda/ since a unix time (its request log): "HTTP <code> x<n> <MB>; ..."
+pg_served_since() { # UNIX_T
+  podman logs --since "$(date -u -d "@$1" +%FT%TZ)" scn-proget 2>&1 | grep -E 'Request finished HTTP/1.1 GET http://[^ ]*/conda/' |
+    awk '{ for (i = 1; i <= NF; i++) if ($i == "-") { c = $(i + 1); b = $(i + 2); break }
+           n[c]++; s[c] += (b ~ /^[0-9]+$/ ? b : 0); tn++; tb += (b ~ /^[0-9]+$/ ? b : 0) }
+         END { for (k in n) printf "HTTP %s x%d %.1fMB; ", k, n[k], s[k] / 1e6; printf "total %d req %.1f MB\n", tn, tb / 1e6 }'; }
+pg_bytes_since() { podman logs --since "$(date -u -d "@$1" +%FT%TZ)" scn-proget 2>&1 | grep -E 'Request finished HTTP/1.1 GET http://[^ ]*/conda/' |
+    awk '{ for (i = 1; i <= NF; i++) if ($i == "-") { b = $(i + 2); break } t += (b ~ /^[0-9]+$/ ? b : 0) } END { print t + 0 }'; }
+# A pixi config whose conda channels go to the given ProGet feeds
+pg_config() { # VIRTUAL-FEED [INTERNAL-FEED] -> path
+  local f="$WORK/pixi-config-pg-$1.toml"
+  printf 'tls-root-certs = "system"\n\n[mirrors]\n"https://ak.internal/conda/conda-virtual" = ["%s/conda/%s"]\n"https://ak.internal/conda/conda-internal" = ["%s/conda/%s"]\n"https://ak.internal/conda/scn-virtual" = ["%s/conda/ak-scn-virtual"]\n\n[pypi-config]\nindex-url = "https://ak.internal/pypi/pypi-remote/simple"\n' \
+    "$PG_IN" "$1" "$PG_IN" "${2:-ak-internal}" "$PG_IN" > "$f"
+  echo "$f"; }
+# Force a connector's index update the way ProGet's UI offers it (Local Index > delete), then
+# wait until FEED serves a non-empty noarch index built after the delete. Prints
+# "<seconds> s, <records> noarch records, upstream: <what ProGet fetched>"; rc 1 on timeout.
+# While the index is rebuilt ProGet answers metadata requests with an EMPTY index (HTTP 200).
+pg_reindex() { # CONNECTOR FEED [TIMEOUT_S]
+  local t0=$SECONDS tu n=0 r empty=""; tu=$(date +%s)
+  pgui delete-index "$1" >/dev/null
+  while (( SECONDS - t0 < ${3:-1500} )); do
+    r=$(pgget "$2" noarch/repodata.json); n=$(recs_all < "$WORK/last.body" 2>/dev/null)
+    [[ ${r%% *} == 200 && ${n:-0} == 0 && -z $empty ]] && empty="first answer after the delete: HTTP ${r%% *} with 0 records ($(awk '{print $2}' <<<"$r") bytes); "
+    (( ${n:-0} > 0 && $(pg_index "$1" | cut -d' ' -f2) >= tu )) && { echo "$((SECONDS - t0)) s, $n noarch records; ${empty}upstream: $(pg_upstream_since "$tu" 'json')"; return 0; }
+    sleep 10
+  done; echo "timeout after $((SECONDS - t0)) s; ${empty}"; return 1; }
+# Wait until CONNECTOR has a local index and FEED serves records (the first metadata request
+# starts the index build; until it is done ProGet answers with an empty index).
+pg_warm() { # CONNECTOR FEED [TIMEOUT_S] -> "<seconds> s, <records> records, index <MB>"
+  local t0=$SECONDS r n=0
+  while (( SECONDS - t0 < ${3:-1800} )); do
+    r=$(pgget "$2" noarch/repodata.json); n=$(recs_all < "$WORK/last.body" 2>/dev/null)
+    (( ${n:-0} > 0 )) && { echo "$((SECONDS - t0)) s, $n noarch records, index $(pg_index "$1" | awk '{printf "%.0f MB", $1/1e6}')"; return 0; }
+    sleep 15
+  done; echo "timeout after $((SECONDS - t0)) s"; return 1; }
+# Poll FEED's noarch index (an ordinary client GET every 30 s, which is also what makes ProGet
+# start its update) until NAME is present/absent. Prints seconds; rc 1 after MAX_S.
+pg_wait_listing() { # FEED NAME present|absent [MAX_S]
+  local t0=$SECONDS n
+  while (( SECONDS - t0 < ${4:-${PG_PROPAGATION_MAX_S:-2400}} )); do
+    pgget "$1" noarch/repodata.json >/dev/null; n=$(recs "$2" < "$WORK/last.body" 2>/dev/null)
+    if [[ -n $n ]] && { [[ $3 == present && $n -gt 0 ]] || [[ $3 == absent && $n == 0 && $(recs_all < "$WORK/last.body") -gt 0 ]]; }; then
+      echo $((SECONDS - t0)); return 0; fi
+    sleep 30
+  done; echo $((SECONDS - t0)); return 1; }
+recs_all() { jq '(.["packages.conda"] // {} | length) + (.packages // {} | length)'; }
+# Records of NAME in a repodata.json on stdin
+recs() { jq --arg n "$1" '[(.["packages.conda"] // {}), (.packages // {}) | .[] | select(.name == $n)] | length'; }
+
 # --- pixi -------------------------------------------------------------------
 # px VIA DIR VOLUME pixi-args...   VIA: ak (image config: straight to ak.internal),
 #   nexus (scenarios/nexus/pixi-config.toml), or a path to a pixi config.toml.
@@ -157,7 +282,7 @@ nx_bytes_since() { podman exec scn-nexus tail -n +$(($1 + 1)) /nexus-data/log/re
 px() {
   local via=$1 dir; dir=$(cd "$2" && pwd); local vol=$3; shift 3
   local cfg=() auth="${PX_AUTH:-$TOKENS/consumer-auth.json}"
-  case $via in ak) ;; nexus) cfg=(-v "$SCN_DIR/nexus/pixi-config.toml:/etc/pixi/config.toml:ro,z") ;;
+  case $via in ak) ;; nexus|proget) cfg=(-v "$SCN_DIR/$via/pixi-config.toml:/etc/pixi/config.toml:ro,z") ;;
     *) cfg=(-v "$via:/etc/pixi/config.toml:ro,z") ;; esac
   [[ $vol == new:* ]] && { vol=${vol#new:}; podman volume rm -f "$vol" >/dev/null 2>&1; }
   PX_OUT="$SCN_OUT/$SID-px-$(date +%s%N).out"
@@ -205,7 +330,7 @@ pick_uncached() {
   fi
   for f in $(shuf -n 40 "$list"); do
     [[ $(akapi GET "/repositories/conda-forge/security/proxy-scans?path=noarch/$f" -o /dev/null -w '%{http_code}') == 404 ]] || continue
-    [[ $(nx_has ak-virtual "${f%%-[0-9]*}" "/noarch/$f") == 0 ]] || continue
+    [[ $AM != nexus || $(nx_has ak-virtual "${f%%-[0-9]*}" "/noarch/$f") == 0 ]] || continue   # ProGet fetches only through AK
     echo "noarch/$f"; return 0
   done; return 1
 }
@@ -228,6 +353,18 @@ fu_restore() {
   ((${#FU_ADDED[@]})) && rm -f "${FU_ADDED[@]}"
   echo "   fake upstream $1/repodata.json restored ($(sha256sum < "$d/repodata.json" | cut -c1-12))"
 }
+# ProGet's conda connector reads channeldata.json first, and Artifact Keeper's virtual channel
+# answers channeldata.json with 502 when any member has none ("member 'conda-fake-upstream'
+# failed: no candidate document available upstream"); the gate's fake upstream has none. For
+# a ProGet run over scn-virtual, give it one (removed at exit) and wait until scn-virtual serves.
+# Call it directly, not in $(...): the removal is registered with on_exit.
+fu_channeldata() {
+  local f="$FU/channeldata.json" t0=$SECONDS
+  [[ -f $f ]] || { jq -n '{channeldata_version: 1, subdirs: ["linux-64", "noarch"], packages: {"acme-core": {subdirs: ["noarch"], version: "99.0.0"}}}' > "$f"
+    on_exit "rm -f '$f'; echo '   fake upstream channeldata.json removed'"; }
+  while (( SECONDS - t0 < 180 )); do
+    [[ $(akget "$SCN_TOKENS/scn-reader.token" conda/scn-virtual/channeldata.json | cut -d' ' -f1) == 200 ]] && { echo "scn-virtual channeldata.json 200 after $((SECONDS - t0)) s"; return 0; }
+    sleep 5; done; echo "scn-virtual channeldata.json still $(head -c 160 "$WORK/last.body")"; return 1; }
 # Wait until Artifact Keeper's conda-fake-upstream remote serves what the predicate (jq -e) says.
 fu_wait() { # SUBDIR JQ_PREDICATE TIMEOUT_S -> seconds waited, rc 1 on timeout
   local t0=$SECONDS

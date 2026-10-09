@@ -22,7 +22,7 @@ note "warm-up: Nexus metadata and packages"
 project_copy "$C" conda-only; rm -f "$C/pixi.lock"; px nexus "$C" new:scn-s3-warm lock; ev "warm solve through Nexus: exit $PX_RC, ${PX_S} s"
 project_copy "$C" conda-only; px nexus "$C" new:scn-s3-warm install --locked; ev "warm install --locked through Nexus: exit $PX_RC"
 
-on_exit '[[ $(backend_health) == healthy ]] || { compose start backend >/dev/null 2>&1; echo "   backend started by the trap, healthy after $(wait_backend_healthy 240) s"; }'
+guard backend '[[ $(backend_health) == healthy ]] || { compose start backend >/dev/null 2>&1; echo "   backend started by the trap, healthy after $(wait_backend_healthy 240) s"; }'
 t_stop=$SECONDS; compose stop backend >/dev/null 2>&1; ev "ak-conda-backend stopped at $(date -u +%T) ($(podman inspect ak-conda-backend --format '{{.State.Status}}'))"
 r=$(akget "$(consumer_tok)" conda/conda-virtual/noarch/repodata.json); ev "AK direct during the outage: GET conda-virtual/noarch/repodata.json: HTTP $r"
 
