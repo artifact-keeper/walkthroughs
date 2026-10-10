@@ -33,6 +33,14 @@ make screens-ready   # UI URL and credentials
 Requirements: rootless podman with `podman compose`, cosign 3, skopeo, jq, zstd, curl, openssl
 on the host. About 6 GB of images.
 
+The committed `project/pixi.lock` and `project-direct/pixi.lock` pin the build hashes of the
+instance that produced them, and every fresh registry rebuilds the internal packages with new
+hashes, so `make lock` deletes them and re-solves instead of letting `pixi lock` report the stale
+lock as up to date. If you run the steps by hand, delete both locks before locking on a fresh
+instance, or the image build fails with `hash mismatch when extracting`. On a re-run against a
+populated registry, `make publish` answers 409 by design (packages are immutable); resume with
+`make lock image push scan gates`.
+
 The only host port is `127.0.0.1:30444` (Caddy 443). Browse `https://127.0.0.1:30444` (the
 certificate is from the stack's own CA, `registry/out/ak-internal-ca.crt`); log in as `admin` with
 `ADMIN_PASSWORD` from `registry/.env`. From scripts on the host, reach the registry by its real

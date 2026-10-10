@@ -61,7 +61,8 @@ promote: ## promote staging -> conda-internal through the release gate
 seed-internal-main: ## WORKAROUND for main only: put the packages into conda-internal directly
 	packages/seed-internal-main.sh
 
-lock: ## pixi lock for project/ and project-direct/ inside a client container on ak-conda-net
+lock: ## pixi lock for project/ and project-direct/ inside a client container on ak-conda-net (re-solves from scratch: the committed locks pin another instance's build hashes)
+	rm -f project/pixi.lock project-direct/pixi.lock
 	project/pixi-run.sh lock
 	project-direct/pixi-run.sh lock
 
