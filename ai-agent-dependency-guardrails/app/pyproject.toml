@@ -1,0 +1,13 @@
+[project]
+name = "acme-agent"
+version = "0.1.0"
+description = "Demo agent service: talks to the internal tickets MCP server (walkthrough fixture)"
+requires-python = ">=3.12"
+dependencies = [
+  "anthropic>=1.12",
+  "mcp>=1.20",
+  "acme-agent-tools==1.0.0",
+]
+
+[tool.uv]
+package = false

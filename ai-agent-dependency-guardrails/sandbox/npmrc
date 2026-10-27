@@ -1,0 +1,7 @@
+# Global npm configuration for the agent sandbox (/usr/local/etc/npmrc).
+registry=https://ak.internal/npm/npm-virtual/
+//ak.internal/npm/npm-virtual/:_authToken=${AK_TOKEN}
+fund=false
+audit=false
+# The lab virtual (deterministic tests only); same token.
+//ak.internal/npm/npm-lab-virtual/:_authToken=${AK_TOKEN}

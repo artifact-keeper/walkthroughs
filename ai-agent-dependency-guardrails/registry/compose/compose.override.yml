@@ -1,0 +1,88 @@
+# Local overrides on top of the stock upstream docker-compose.yml (artifact-keeper v1.11.7).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here. Compose project name: ak-agent (see ../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE from .env (the 1.11.7 / 1.11.1 releases).
+#   - container_name: every upstream name is prefixed ak-agent- so this stack can run
+#     next to other Artifact Keeper stacks on the same host.
+#   - networks: the default network is ak-agent-net (pinned subnet, NOT internal: the
+#     backend needs the internet to proxy PyPI, npm and Docker Hub). A second network,
+#     agent-net, is internal (no route out). Only Caddy joins both, so the agent
+#     sandbox on agent-net can reach https://ak.internal and nothing else.
+#   - Caddy answers as ak.internal with TLS from its internal CA. The only host port is
+#     127.0.0.1:30445 -> 443. Postgres, OpenSearch and Trivy publish nothing.
+#   - openscap is disabled (profile "scanners"): this walkthrough scans packages, not images.
+#   - The negative tests run a fake "public" PyPI index and npm registry at one fixed
+#     address on ak-agent-net (gates/fake-upstream/). Remote upstreams on private
+#     networks are refused by default (SSRF guard); AK_SSRF_ALLOW_PRIVATE_CIDRS allows
+#     exactly that host.
+services:
+  pg-certs:
+    container_name: ak-agent-pg-certs
+  scan-workspace-init:
+    container_name: ak-agent-scan-ws-init
+  dtrack-init:
+    container_name: ak-agent-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-agent-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-agent-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    container_name: ak-agent-db
+    ports: !reset []
+  opensearch:
+    container_name: ak-agent-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-agent-trivy
+    ports: !reset []
+  openscap:
+    container_name: ak-agent-openscap
+    profiles: ["scanners"]
+    ports: !reset []
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:1.11.7}
+    container_name: ak-agent-backend
+    environment:
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.31.50.0/24
+      AK_SSRF_ALLOW_PRIVATE_CIDRS: ${AK_SSRF_ALLOW_PRIVATE_CIDRS:-172.31.50.200/32}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:30445,https://localhost:30445
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:1.11.1}
+    container_name: ak-agent-web
+
+  caddy:
+    container_name: ak-agent-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30445}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+      agent-net:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-agent-net
+    ipam:
+      config:
+        - subnet: 172.31.50.0/24
+  agent-net:
+    name: agent-net
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.31.51.0/24

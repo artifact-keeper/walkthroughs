@@ -1,5 +1,11 @@
 # Private conda channel for pixi, with supply-chain controls
 
+> **An example, not a complete defense.** This shows one way to use Artifact Keeper as a private
+> conda channel with supply-chain controls. The configuration is an example, built and tested in a
+> lab. It does not cover every edge case or attack, and it is not a hardened production setup;
+> known gaps are in the [findings](../docs/private-conda-channel-pixi/findings.md). Review and
+> adapt it for your environment, and use it alongside your other controls, not instead of them.
+
 Code for the walkthrough planned in
 [`docs/private-conda-channel-pixi/plan.md`](../docs/private-conda-channel-pixi/plan.md); lab notes
 and gate results in [`findings.md`](../docs/private-conda-channel-pixi/findings.md).

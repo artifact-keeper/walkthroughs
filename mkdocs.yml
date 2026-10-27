@@ -126,6 +126,22 @@ nav:
           - Findings: private-conda-channel-pixi/findings.md
           - Original plan: private-conda-channel-pixi/plan.md
 
+  - AI coding agents through one registry:
+      - ai-agent-dependency-guardrails/index.md
+      - 1. Stand up the registry: ai-agent-dependency-guardrails/1-stand-up-the-registry.md
+      - 2. Put the agent in a sandbox: ai-agent-dependency-guardrails/2-sandbox-the-agent.md
+      - 3. Publish internal packages and lock the app: ai-agent-dependency-guardrails/3-publish-and-lock.md
+      - 4. Approve names, not just versions: ai-agent-dependency-guardrails/4-approve-names.md
+      - 5. Hold fresh releases: ai-agent-dependency-guardrails/5-hold-fresh-releases.md
+      - 6. Own your internal names: ai-agent-dependency-guardrails/6-own-your-names.md
+      - 7. Refuse known-vulnerable versions: ai-agent-dependency-guardrails/7-refuse-known-vulnerable.md
+      - 8. Replay an agent session: ai-agent-dependency-guardrails/8-replay-an-agent-session.md
+      - Results: ai-agent-dependency-guardrails/results.md
+      - Next steps: ai-agent-dependency-guardrails/next-steps.md
+      - Lab notes:
+          - Findings: ai-agent-dependency-guardrails/findings.md
+          - Original plan: ai-agent-dependency-guardrails/plan.md
+
 validation:
   links:
     anchors: warn

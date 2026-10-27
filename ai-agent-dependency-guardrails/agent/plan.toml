@@ -1,0 +1,111 @@
+# A scripted coding-agent session: the installs an agent might attempt while working on
+# acme-agent, including ones modelled on real incidents. agent/agent.py replays it in the
+# sandbox (a scratch copy of app/) and records each command, the registry's answer and a
+# verdict in agent/out/.
+#
+# expect = "ok"       the command must succeed
+# expect = "refused"  the command must fail; `match` must appear in the command output or in
+#                     the probe (a direct HTTP request for the same thing, to show the
+#                     registry's own response body)
+# setup  = a host-side command run first (for example a platform-team approval)
+
+[[step]]
+id = "approved"
+title = "Add an approved package"
+why = "The everyday case: a package already reviewed in the lockfiles."
+cmd = "uv add pydantic"
+expect = "ok"
+
+[[step]]
+id = "invented-name"
+title = "A package name the model invented"
+why = "LLMs suggest packages that do not exist; attackers register them (slopsquatting). huggingface-cli is the name Lasso Security found models inventing."
+cmd = "uv add huggingface-cli"
+expect = "refused"
+match = "curation_blocked"
+probe = "pypi-virtual/simple/huggingface-cli/"
+
+[[step]]
+id = "look-alike"
+title = "A look-alike of a popular name"
+why = "One transposed letter away from the SDK the agent meant."
+cmd = "uv add anthorpic"
+expect = "refused"
+match = "curation_blocked"
+probe = "pypi-virtual/simple/anthorpic/"
+
+[[step]]
+id = "unreviewed-mcp"
+title = "npx -y an MCP server nobody reviewed"
+why = "`npx -y <server>` downloads and runs whatever is newest, every time."
+cmd = "npx -y @modelcontextprotocol/server-filesystem /tmp"
+expect = "refused"
+match = "curation_blocked"
+probe = "npm-virtual/@modelcontextprotocol/server-filesystem/-/server-filesystem-0.6.2.tgz"
+
+[[step]]
+id = "fresh-pinned"
+title = "Pin a release published 10 minutes ago"
+why = "Compromised releases are usually caught within days; a cooldown keeps them out meanwhile."
+cmd = "uv --config-file /etc/uv/lab.toml pip install --system --dry-run lab-agent-sdk==1.1.0"
+expect = "refused"
+match = "age_gate_blocked"
+probe = "pypi-lab-virtual/simple/lab-agent-sdk/lab_agent_sdk-1.1.0-py3-none-any.whl"
+
+[[step]]
+id = "fresh-unpinned"
+title = "Ask for the newest without pinning"
+why = "The index leaves the young release out, so the resolver quietly picks the newest one that is old enough."
+cmd = "uv --config-file /etc/uv/lab.toml pip install --system --dry-run lab-agent-sdk"
+expect = "ok"
+match = "lab-agent-sdk==1.0.0"
+
+[[step]]
+id = "fresh-npm"
+title = "npm install of a package whose latest is 10 minutes old"
+why = "The same cooldown, for npm: `latest` resolves to the newest release old enough."
+cmd = "npm install --registry https://ak.internal/npm/npm-lab-virtual/ lab-mcp-weather && npm ls lab-mcp-weather"
+expect = "ok"
+match = "lab-mcp-weather@2.0.0"
+
+[[step]]
+id = "squat-pypi"
+title = "A public package reuses an internal name at version 99"
+why = "Dependency confusion: the highest version wins unless the registry owns the name."
+cmd = "uv --config-file /etc/uv/lab.toml pip install --system --dry-run acme-agent-tools"
+expect = "ok"
+match = "acme-agent-tools==1.0.0"
+
+[[step]]
+id = "squat-npm"
+title = "The same for npm: a public @acme/tickets-mcp 99.0.0"
+why = "MCP servers are packages; an internal one can be squatted like any other."
+cmd = "npm install --registry https://ak.internal/npm/npm-lab-virtual/ @acme/tickets-mcp && npm ls @acme/tickets-mcp"
+expect = "ok"
+match = "@acme/tickets-mcp@1.0.0"
+
+[[step]]
+id = "old-tutorial-pin"
+title = "A pin copied from an old tutorial"
+why = "Models learned from old code; langchain 0.0.141 has critical advisories (arbitrary code execution)."
+setup = "policies/approve.sh pypi langchain 'approved name; versions still scanned'"
+cmd = "uv pip install --target /tmp/site --no-deps langchain==0.0.141"
+expect = "refused"
+match = "scan_blocked"
+probe = "pypi-virtual/simple/langchain/langchain-0.0.141-py3-none-any.whl"
+
+[[step]]
+id = "change-the-index"
+title = "The agent edits its config to go around the registry"
+why = "Malware has driven coding agents with their safety checks off (the Nx incident). Configuration is not the control; the network is."
+cmd = "uv pip install --system --dry-run --default-index https://pypi.org/simple/ requests"
+expect = "refused"
+match = "pypi.org"
+
+[[step]]
+id = "publish"
+title = "The agent tries to publish"
+why = "The agent's token reads the virtual repositories and nothing else; it cannot publish."
+cmd = "mkdir -p /tmp/pkg && cd /tmp/pkg && npm init -y >/dev/null && printf '%s\\n' '//ak.internal/npm/npm-internal/:_authToken=${AK_TOKEN}' > .npmrc && npm publish --registry https://ak.internal/npm/npm-internal/"
+expect = "refused"
+match = "E403"

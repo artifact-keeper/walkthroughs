@@ -1,5 +1,11 @@
 # Rocky Linux image mode on bare metal, with Artifact Keeper as the source of truth
 
+> **An example, not a complete defense.** This shows one way to use Artifact Keeper as the source
+> of truth for an image-mode fleet. The configuration is an example, built and tested in a lab. It
+> does not cover every edge case or attack, and it is not a hardened production setup; known gaps
+> are in the [findings](../docs/rocky-linux-image-mode-bare-metal/findings.md). Review and adapt
+> it for your environment, and use it alongside your other controls, not instead of them.
+
 Code for the walkthrough
 [Rocky Linux image mode on bare metal](https://artifact-keeper.github.io/walkthroughs/rocky-linux-image-mode-bare-metal/):
 the narrated, step-by-step guide with screenshots, plus reference pages for setup,

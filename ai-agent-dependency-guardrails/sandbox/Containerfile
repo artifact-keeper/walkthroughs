@@ -1,0 +1,30 @@
+# The agent sandbox: uv + Node/npm, configured system-wide to use Artifact Keeper only.
+# Both base images are pulled through the registry's image proxies (see build.sh).
+# No credentials in the image: the agent's token arrives at run time as AK_TOKEN.
+ARG REG=localhost:30445
+FROM ${REG}/oci-dockerhub/library/node:22-trixie-slim AS node
+FROM ${REG}/oci-ghcr/astral-sh/uv:0.13.6-python3.12-trixie-slim
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Trust the registry's internal CA (system store for uv and Python, NODE_EXTRA_CA_CERTS for npm).
+COPY ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN update-ca-certificates >/dev/null
+
+# The only package sources the agent has. uv reads /etc/uv/uv.toml; npm reads the global npmrc.
+COPY uv.toml /etc/uv/uv.toml
+COPY uv-lab.toml /etc/uv/lab.toml
+COPY npmrc /usr/local/etc/npmrc
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ak-internal-ca.crt \
+    UV_INDEX_AK_USERNAME=agent \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+RUN useradd --create-home --uid 1000 agent
+USER agent
+WORKDIR /home/agent/work
