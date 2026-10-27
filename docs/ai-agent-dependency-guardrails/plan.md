@@ -182,3 +182,98 @@ ai-agent-dependency-guardrails/
 docs/ai-agent-dependency-guardrails/
   index.md, 1-…md to 7-…md, results.md, findings.md, next-steps.md, plan.md, images/
 ```
+
+## Revision 2: review findings and the fix plan
+
+Four independent reviews (an attacker, a fact-checker, a newcomer reproducing it, a skeptical
+security engineer) read the first version, probed the running stack and checked every claim
+against the code, the run output and the Artifact Keeper source. This section is the plan that
+came out of them. Status: **W** = fixed in this walkthrough, **AK** = needs an Artifact Keeper
+change (issue or fix branch, listed for approval before anything is filed).
+
+### Scope and wording (W)
+
+- Add a "What this covers / what it does not" box under the warning on the overview page, and a
+  short version in the blog. Covers: which third-party package files the package managers can
+  fetch. Does not cover: code the agent writes, exfiltration over the model API, secrets in the
+  sandbox, what an MCP server does at runtime, install-time and import-time code of approved
+  packages, a malicious release of an approved name that nobody detects within seven days,
+  internal publishes.
+- Tagline: "Let the registry decide which packages reach disk" wherever the claim is made in
+  prose; the shorter line stays only as a title.
+- "Refused before anything is fetched upstream" becomes "before any package file is downloaded";
+  on npm the package metadata is still fetched (F8).
+- "30 young versions of 21 packages" becomes the app-only count (26 versions of 16 packages,
+  plus the approved body-parser 2.4.0), dated 2026-10-27, everywhere it appears.
+- The scripted session is called a scripted session (no model in the loop) in the blog and the
+  short video; "twelve actions", not "twelve installs"; "seven refusals of five kinds".
+- Commands on the pages match what ran (`--config-file /etc/uv/lab.toml`, `--system`,
+  `--dry-run`, `--target`, `--registry`), or are marked abridged. Step 8 gets a column for the
+  index used and whether the step was a dry run.
+- "Fail closed" is defined precisely: the request is refused when Grype cannot complete; other
+  scanners that error are skipped. Trivy is wired correctly or disabled, and the page says which.
+- External sources: LiteLLM exposure window per the cited source (about five hours; three hours
+  is Snyk's figure), arXiv 2406.10279 percentages as per-model-group lower bounds, Lasso
+  "reported in March 2024".
+- Smaller accuracy fixes from the fact-check: token covers four virtuals; `trust` is public;
+  upstream filter pattern `%2[Ff]`; "approval is permanent" qualified; "older copy is served"
+  corrected; PEP 700 applies to the index only; priorities default as documented.
+- Costs section in `results.md`: reviewer workload (129 names to start, every new transitive
+  name), upgrades blocked by an unapproved transitive name, every security fix delayed seven days
+  by default, scanner coverage uneven (Grype missed what OSV found). Curation here is a plain
+  approved list.
+- Short glossary: hosted, remote and virtual repository; packument; cooldown; 451.
+
+### Sandbox hardening (W)
+
+- `ignore-scripts=true` in the sandbox `npmrc`; `no-build = true` (wheels only) in `uv.toml`, with
+  the exception documented if a dependency has no wheel.
+- Caddy: no listener on port 80 from the sandbox network, and expose only the registry
+  endpoints the clients use, with a gate that checks it.
+- G1 also proves an IP literal is unreachable, not only that DNS fails.
+- Catch-all block rules for the `_` and `.` spellings of approved npm names until AK matches npm
+  names exactly.
+
+### Reproducibility (W)
+
+- Re-running `make all` without `make clean` works: build backends (`hatchling` and its
+  dependencies) are on the approved list. G10 runs `make all && make all && make gates` as well
+  as two clean runs, and checks both.
+- SELinux hosts: no `:z` relabel of `/tmp`; scratch directories from `mktemp -d`.
+- The lab upstream computes package ages per request, and `make gates` restarts it, so a stack
+  that has been up for a week still shows a ten-minute-old release.
+- Admin token lifetime matches the others, and `policies/lib.sh` says "run make bootstrap" on 401.
+- Wait for the scanner databases before the first install.
+- Images pinned by digest in `.env.example` and the override; subnets in one `.env` variable.
+- `make clean` removes containers, volumes, networks and the proxied base images; the README warns
+  that `make reproduce` wipes the stack.
+- `approve.sh` is idempotent; `exceptions.sh` and the install step explain a `scan_blocked` and
+  how to re-lock; "known good as of 2026-10-27" in "Before you start", plus how to refresh the
+  lockfiles; prerequisites list docker-compose 2.24+ as the `podman compose` provider, the user
+  podman socket, `column`, bash 4, host UID assumptions.
+- Help text fixes: `plan.toml`, `lab-upstream/`.
+
+### Artifact Keeper (AK)
+
+Checked against `main` at 3d1c1f36; nothing below is in a release yet (1.11.7 is the newest).
+
+| # | Status on main | Tracking | Plan |
+|---|---|---|---|
+| F1 audit rows for refusals | partly fixed: scan-on-proxy blocks audited (#4969, unreleased); curation blocks and age-gate holds still write nothing | #4288 open | fix branch: audit curation blocks and `AGE_GATE_QUEUED` |
+| F2 npm provenance | present | #3232 open (waits on sigstore-rs) | no new work |
+| F3 PEP 740 on publish/promote | present | none | issue |
+| F4 OCI age gate | present | none | issue |
+| F5 cached before scan verdict | present | #4514 open | no new work |
+| F6 uv / npx / MCP docs | present | none | site docs PR from `sandbox/` |
+| F7 typosquat and popularity rules on proxy downloads; `review` does not stop a pull | present | none | issue and fix branch |
+| F8 npm curation ignores the version; packument unfiltered | present | none | issue and fix branch |
+| F9 curation fails open on errors | present | none | fix branch: opt-in fail-closed setting |
+| F10 virtual with two age-gated remotes | present (Maven fixed in #4997, PyPI and npm not) | #5001 open (npm only) | fix branch: skip a member that does not list the version, fall through like Maven; treat upstream errors as block |
+| F11 a new file on an old PyPI release inherits the release's age | present | none | issue: gate per file upload time |
+| F12 npm names matched with PyPI normalisation (`-`, `_`, `.` folded) | present | none | issue and fix branch |
+| F13 any request can create an age-gate review for a version that does not exist | present | none | issue |
+| F14 an artifact-read token can create and revoke tokens | present | none | issue |
+| F15 only a Grype failure fails closed; OSV and Trivy errors are skipped | present | none | issue |
+
+When a fix ships, the walkthrough moves to that release and the row moves from Findings to
+"fixed in".
