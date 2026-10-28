@@ -12,6 +12,7 @@ Standard library only. Usage: python3 server.py [port]   (default 8080)
 
 import base64
 import hashlib
+import gzip
 import io
 import json
 import sys
@@ -74,13 +75,14 @@ def npm_tarball(name: str, version: str) -> bytes:
         "package/index.js": f'console.log("{name} {version} from the lab upstream");\n',
     }
     buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as t:
+    with tarfile.open(fileobj=buf, mode="w") as t:
         for path, text in files.items():
             data = text.encode()
             info = tarfile.TarInfo(path)
             info.size, info.mtime, info.mode = len(data), 1767225600, 0o644
             t.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
+    # mtime=0: the same bytes on every lab start, so a cached checksum stays valid.
+    return gzip.compress(buf.getvalue(), mtime=0)
 
 
 FILES: dict[str, bytes] = {}

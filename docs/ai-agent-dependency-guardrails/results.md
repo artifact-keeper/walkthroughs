@@ -21,9 +21,9 @@ then `make all && make gates` again on the running stack, then once more from em
 | G11 Exposed endpoints | npm `/-/` endpoints the clients do not use answer 404; nothing listens on port 80 | PASS |
 
 ```text
-run 1 (from empty):        PASS in 4 min 51 s
-run 2 (without cleaning):  PASS in 1 min 40 s
-run 3 (from empty):        PASS in 4 min 52 s
+run 1 (from empty):        PASS in 4 min 52 s
+run 2 (without cleaning):  PASS in 1 min 39 s
+run 3 (from empty):        PASS in 4 min 54 s
 gates: 10 PASS, 1 BLOCKED, 0 FAIL
 ```
 
