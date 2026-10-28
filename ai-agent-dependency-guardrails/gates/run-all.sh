@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# The walkthrough's gates G1-G10 (plan.md). Each prints PASS, FAIL or BLOCKED(Fn) with its
+# The walkthrough's gates G1-G11 (plan.md). Each prints PASS, FAIL or BLOCKED(Fn) with its
 # evidence; results go to out/gates/<gate>.txt and out/gates/summary.txt.
 # Needs the full pipeline first (make all): the agent transcripts in agent/out are evidence.
 # BLOCKED(Fn) = the check depends on an Artifact Keeper gap listed in plan.md; it is reported,
 # not counted as a failure. Exit status 1 if any gate FAILs.
+# Restarts the lab upstream first (a stack that has been up for days still has a fresh release).
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$ROOT/policies/lib.sh"
+source "$ROOT/policies/lib.sh" || exit 1
 G="$ROOT/out/gates"; rm -rf "$G"; mkdir -p "$G"
 AGENT="$(cat "$TOKENS/agent.token")"
 RUN="$ROOT/sandbox/run.sh"
+SCRATCH="$(mktemp -d)"; trap 'rm -rf "$SCRATCH"' EXIT   # sandbox working dir for the probes
 fails=0
+"$ROOT/lab-upstream/up.sh" >/dev/null || { echo "gates: lab upstream did not start" >&2; exit 1; }
 
 gate() { # gate ID "title" status evidence...
   local id=$1 title=$2 status=$3; shift 3
@@ -25,17 +28,25 @@ http() { # http TOKEN URL -> "code body"
 }
 
 # G1 sandbox network ----------------------------------------------------------------
-out=$("$RUN" -w /tmp -- python3 - <<'EOF'
-import urllib.request
+# By name (DNS) and by address: Fastly's PyPI/npm front (151.101.0.223), a public resolver.
+out=$("$RUN" -w "$SCRATCH" -- python3 - <<'EOF'
+import socket, urllib.request
 for url in ["https://ak.internal/readyz", "https://pypi.org/simple/", "https://registry.npmjs.org/", "https://github.com/"]:
     try:
         print("reached", url, urllib.request.urlopen(url, timeout=5).status)
     except Exception as e:
         print("no route", url, type(e).__name__)
+for host, port in [("151.101.0.223", 443), ("8.8.8.8", 53), ("1.1.1.1", 443)]:
+    try:
+        socket.create_connection((host, port), timeout=5).close()
+        print("reached", f"{host}:{port}")
+    except OSError as e:
+        print("no route", f"{host}:{port}", e.strerror or type(e).__name__)
 EOF
 )
-[[ $(grep -c '^reached' <<<"$out") == 1 && $out == *"reached https://ak.internal/readyz 200"* ]] && s=PASS || s=FAIL
-gate G1 "sandbox reaches the registry and nothing else" $s "$out"
+[[ $(grep -c '^reached' <<<"$out") == 1 && $out == *"reached https://ak.internal/readyz 200"* && $(grep -c '^no route' <<<"$out") == 6 ]] \
+  && s=PASS || s=FAIL
+gate G1 "sandbox reaches the registry and nothing else (by name or by address)" $s "$out"
 
 # G2 happy path, no credentials in project files -------------------------------------
 out=$("$RUN" -- sh -c 'uv sync --locked -q && npm ci --ignore-scripts --silent && .venv/bin/python main.py' 2>&1)
@@ -49,10 +60,16 @@ gate G2 "uv sync + npm ci in the sandbox, app runs, lockfiles name only the regi
 # G3 invented and look-alike names --------------------------------------------------
 probe=$(http "$AGENT" "$U/pypi/pypi-virtual/simple/huggingface-cli/")
 "$ROOT/policies/approve.sh" pypi humanize "G3: approved after review" >/dev/null
-after=$("$RUN" -w /tmp -- uv pip install -q --target /tmp/site --no-deps humanize 2>&1 && echo installed)
-steps_pass invented-name look-alike unreviewed-mcp && [[ $probe == 403*curation_blocked* && $after == *installed* ]] && s=PASS || s=FAIL
+after=$("$RUN" -w "$SCRATCH" -- uv pip install -q --target /tmp/site --no-deps humanize 2>&1 && echo installed)
+# npm names are compared folded (F12): another spelling of an approved name must still be refused.
+sp=$(http "$AGENT" "$U/npm/npm-virtual/side_channel_list" | cut -c1-3)
+spl=$(http "$AGENT" "$U/npm/npm-lab-virtual/lab_mcp_weather" | cut -c1-3)
+spok=$(http "$AGENT" "$U/npm/npm-virtual/side-channel-list" | cut -c1-3)
+steps_pass invented-name look-alike unreviewed-mcp && [[ $probe == 403*curation_blocked* && $after == *installed* ]] \
+  && [[ $sp != 200 && $spl != 200 && $spok == 200 ]] && s=PASS || s=FAIL
 gate G3 "unknown names refused (curation_blocked) before any fetch; one approval makes a name installable" $s \
   "huggingface-cli: $probe" "humanize after policies/approve.sh: $after" \
+  "other spellings of approved npm names: side_channel_list $sp, lab_mcp_weather (served by the lab upstream) $spl; side-channel-list $spok" \
   "look-alike detection on the proxy path (typosquat rules): F7, not used"
 
 # G4 cooldown -----------------------------------------------------------------------
@@ -98,12 +115,34 @@ gate G9 "refusals can be listed: scan blocks and held versions yes; curation blo
   "scan-on-proxy refusals:" "$scans" "held versions (age-gate reviews):" "$held" "audit log actions about refusals: ${audit:-none}"
 
 # G10 reproducible ------------------------------------------------------------------
+t10="make clean all gates; make all gates again without clean; make clean all gates"
 if [[ -s "$ROOT/out/reproduce.txt" ]]; then
-  grep -q '^run 2: PASS' "$ROOT/out/reproduce.txt" && s=PASS || s=FAIL
-  gate G10 "make clean all gates, twice, from an empty registry" $s "$(cat "$ROOT/out/reproduce.txt")"
+  [[ $(grep -c '^run [123]: PASS' "$ROOT/out/reproduce.txt") == 3 ]] && s=PASS || s=FAIL
+  gate G10 "$t10" $s "$(cat "$ROOT/out/reproduce.txt")"
 else
-  gate G10 "make clean all gates, twice, from an empty registry" "NOT RUN" "run gates/reproduce.sh"
+  gate G10 "$t10" "NOT RUN" "run make reproduce"
 fi
+
+# G11 exposed endpoints -------------------------------------------------------------
+out=$("$RUN" -w "$SCRATCH" -- python3 - <<'EOF'
+import os, urllib.request
+auth = {"Authorization": "Bearer " + os.environ["AK_TOKEN"]}
+for path in ["/npm/npm-virtual/-/v1/login", "/npm/npm-virtual/-/user/org.couchdb.user:agent",
+             "/npm/npm-virtual/-/npm/v1/tokens", "/npm/npm-virtual/-/ping"]:
+    try:
+        print(urllib.request.urlopen(urllib.request.Request("https://ak.internal" + path, headers=auth), timeout=30).status, path)
+    except urllib.error.HTTPError as e:
+        print(e.code, path)
+try:
+    print(urllib.request.urlopen("http://ak.internal/", timeout=5).status, "http://ak.internal/ (port 80)")
+except urllib.error.HTTPError as e:
+    print(e.code, "http://ak.internal/ (port 80)")
+except OSError as e:
+    print("refused", "http://ak.internal/ (port 80):", getattr(e, "reason", e))
+EOF
+)
+[[ $(grep -c '^200 ' <<<"$out") == 1 && $out == *"200 /npm/npm-virtual/-/ping"* && $out == *"refused http://ak.internal/"* ]] && s=PASS || s=FAIL
+gate G11 "only the endpoints the clients use are exposed" $s "$out"
 
 echo "gates: $(grep -c ' PASS ' "$G/summary.txt") PASS, $(grep -c 'BLOCKED' "$G/summary.txt") BLOCKED, $fails FAIL; evidence in $G"
 exit $(( fails > 0 ))

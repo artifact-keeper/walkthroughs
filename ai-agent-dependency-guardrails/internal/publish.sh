@@ -2,7 +2,8 @@
 # Build and publish the internal packages, as CI would, from the sandbox image:
 #   acme-agent-tools 1.0.0 -> pypi-internal   (uv build, uv publish; ci-pypi token)
 #   @acme/tickets-mcp 1.0.0 -> npm-internal   (npm publish; ci-npm token)
-# Build dependencies (hatchling) resolve through pypi-virtual with the agent token.
+# The build backend (hatchling and its dependencies) comes through pypi-virtual with the
+# agent token, pinned with hashes by build-constraints.txt (approved by policies/curation.sh).
 # Re-running is safe: an existing version answers 409/403 and is left as is.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +13,7 @@ ci_pypi="$(cat "$TOKENS/ci-pypi.token")"; ci_npm="$(cat "$TOKENS/ci-npm.token")"
 
 echo "== acme-agent-tools -> pypi-internal"
 rm -rf "$here/acme-agent-tools/dist"
-run -w "$here/acme-agent-tools" -- uv build --quiet
+run -w "$here" -- uv build --quiet --build-constraint build-constraints.txt --require-hashes acme-agent-tools
 out=$(run -w "$here/acme-agent-tools" -- sh -c "uv publish --publish-url https://ak.internal/pypi/pypi-internal/ \
         --username ci --password '$ci_pypi' dist/* 2>&1" ) && echo "$out" | tail -2 || {
   echo "$out" | tail -3

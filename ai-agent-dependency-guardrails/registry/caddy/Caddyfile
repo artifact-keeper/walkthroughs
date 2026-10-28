@@ -5,12 +5,15 @@
 #     port 127.0.0.1:30445 used by humans, screenshots and host-side scripts),
 #   - `tls internal` (Caddy's local CA; the root is exported by up.sh to
 #     registry/out/ak-internal-ca.crt and trusted by the agent sandbox),
-#   - no plain-HTTP site: tokens are never sent over HTTP.
+#   - no plain-HTTP site and no HTTP-to-HTTPS redirect (nothing listens on :80):
+#     tokens are never sent over HTTP,
+#   - only the npm `/-/` endpoints the clients use are exposed.
 {
 	# Clients that connect by IP (the host port) send no SNI; give them the
 	# ak.internal certificate.
 	default_sni ak.internal
 	local_certs
+	auto_https disable_redirects
 }
 
 (backend_routes) {
@@ -33,6 +36,9 @@ ak.internal, localhost, 127.0.0.1 {
 		output stdout
 		format json
 	}
+	# Expose only the endpoints the clients use.
+	@not_exposed expression `{http.request.uri}.matches("(?i)^/npm/[^?]*/-/[^?]*(([.]|%2e)([.]|%2e)|%2f)") || ({http.request.uri}.matches("(?i)^/npm/[^/?]+/-/") && !{http.request.uri}.matches("(?i)^/npm/[^/?]+/-/(ping|whoami|v1/search|npm/v1/security/advisories/bulk|npm/v1/security/audits/quick)([?]|$)"))`
+	respond @not_exposed 404
 	import backend_routes
 	reverse_proxy web:3000
 }

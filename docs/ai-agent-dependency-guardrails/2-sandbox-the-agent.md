@@ -72,12 +72,24 @@ registry, which is exactly what an agent driven by malicious instructions would 
 it gets ([Step 8](8-replay-an-agent-session.md), step 11):
 
 ```console
-$ uv pip install --default-index https://pypi.org/simple/ requests
-error: Request failed after 3 retries in 5.1s
+$ uv pip install --system --dry-run --default-index https://pypi.org/simple/ requests
+error: Request failed after 3 retries in 7.0s
   cause: Failed to fetch: https://pypi.org/simple/requests/
   …
   cause: failed to lookup address information: Name does not resolve
 ```
+
+(Abridged: uv prints a few more `cause:` lines.) DNS failing is not the whole story: the sandbox
+network, `agent-net`, is `internal: true`, so it has no gateway at all, and the only other device
+on it is Caddy, the registry's front door. G1 also checks that connecting straight to a public IP
+address fails.
+
+!!! note "Approved packages still run code"
+    The registry decides which package files arrive. It does not stop an approved package from
+    running code when it is installed or imported. The sandbox reduces that: `npm` runs with
+    `ignore-scripts=true`, so no install scripts, and `uv` installs wheels only (`no-build`), so no
+    source package builds on install. What the package does when imported is the sandbox's
+    problem, not the registry's.
 
 The same container works with a real agent CLI inside it: give it the model API endpoint as the
 one extra route (through an egress proxy that allows only that host), and keep the package

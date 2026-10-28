@@ -20,7 +20,9 @@ in [`registry/compose/compose.override.yml`](https://github.com/artifact-keeper/
 - two networks: `ak-agent-net`, where the backend lives and which reaches the internet (it has to,
   to proxy PyPI and npm), and `agent-net`, which is `internal: true` and has no route out;
 - Caddy answers as `ak.internal` on both, with TLS from its own internal CA. It is the only
-  container on `agent-net` besides the agent. The only host port is `127.0.0.1:30445`.
+  container on `agent-net` besides the agent. The only host port is `127.0.0.1:30445`. Nothing
+  listens on port 80, and of npm's `/-/` endpoints only the ones the clients use are exposed (G11);
+- every image, including the sandbox's base images, is pinned by digest.
 
 `up.sh` generates the secrets into `registry/.env` on the first run, waits for `/readyz`, and
 exports Caddy's root certificate to `registry/out/ak-internal-ca.crt`.
@@ -46,7 +48,8 @@ backend f41fdd75... rev=65c16c4534d835a40118527b842e87a9edaaf2d9
 | `oci-dockerhub`, `oci-ghcr` | remote | the base images of the agent sandbox |
 | `trust` | generic, public | the internal CA certificate |
 
-Every repository has visibility `internal` (any signed-in user may read) and every token narrows
+Every repository except `trust` (public, so clients can fetch the CA) has visibility `internal`
+(any signed-in user may read) and every token narrows
 that to the repositories it needs. With `private`, a non-admin token is told the repository does
 not exist ([findings](findings.md#what-we-learned-building-it)).
 
@@ -83,7 +86,7 @@ one serves ([F10](findings.md#f10-in-detail)).
 | `agent.token` | user `agent` | `read:artifacts` on the four virtuals, nothing else |
 | `ci-pypi.token`, `ci-npm.token` | CI | read and write on `pypi-internal` or `npm-internal` only |
 | `builder.token` | user `builder` | `read:artifacts` on the two image proxies (sandbox base images) |
-| `admin.token` | admin | everything; used by the setup scripts only |
+| `admin.token` | admin | everything, 90 days; used by the setup scripts only (on a 401 they say `run make bootstrap`) |
 
 They are written to `registry/.tokens/` (mode 600, gitignored). The agent's token is minted by the
 `agent` user itself with a repository selector:

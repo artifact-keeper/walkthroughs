@@ -3,5 +3,7 @@ registry=https://ak.internal/npm/npm-virtual/
 //ak.internal/npm/npm-virtual/:_authToken=${AK_TOKEN}
 fund=false
 audit=false
+# No install scripts (preinstall, install, postinstall) from any package.
+ignore-scripts=true
 # The lab virtual (deterministic tests only); same token.
 //ak.internal/npm/npm-lab-virtual/:_authToken=${AK_TOKEN}

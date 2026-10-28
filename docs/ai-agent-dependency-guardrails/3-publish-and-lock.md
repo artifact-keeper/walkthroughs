@@ -20,10 +20,13 @@ builds and publishes them from the sandbox image, with CI tokens that can write 
 repository each:
 
 ```console
-$ uv build && uv publish --publish-url https://ak.internal/pypi/pypi-internal/ --username ci --password "$CI_TOKEN" dist/*
+$ uv build --build-constraint build-constraints.txt --require-hashes && uv publish --publish-url https://ak.internal/pypi/pypi-internal/ --username ci --password "$CI_TOKEN" dist/*
 $ npm publish --userconfig ci.npmrc          # registry=https://ak.internal/npm/npm-internal/
 + @acme/tickets-mcp@1.0.0
 ```
+
+The sandbox's uv installs wheels only, so the build backend (`hatchling`) comes from the
+registry too, pinned with hashes in `internal/build-constraints.txt` (`make lock` regenerates it).
 
 A second run is refused, and the script treats that as done: published versions are immutable.
 

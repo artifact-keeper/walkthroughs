@@ -1,5 +1,6 @@
 # Shared helpers for the ak-agent scripts. Source it; do not run it.
-# Defines: REG_DIR, ENV_FILE, OUT, CA, AK_HOST, AK_URL, compose(), akcurl()
+# Defines: REG_DIR, ENV_FILE, OUT, CA, AK_HOST, AK_URL, compose(), akcurl(); load_env() also
+# sets AK_NET_SUBNET, AGENT_NET_SUBNET and LAB_IP.
 REG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$REG_DIR/.env"
 OUT="$REG_DIR/out"
@@ -17,6 +18,10 @@ load_env() {
   source "$ENV_FILE"
   set +a
   HTTPS_PORT="${HTTPS_PORT:-30445}"
+  # The two networks (/24 each); the lab upstream sits at .200 on the first.
+  AK_NET_SUBNET="${AK_NET_SUBNET:-172.31.50.0/24}" AGENT_NET_SUBNET="${AGENT_NET_SUBNET:-172.31.51.0/24}"
+  LAB_IP="${AK_NET_SUBNET%.*}.200"
+  export AK_NET_SUBNET AGENT_NET_SUBNET LAB_IP
 }
 
 compose() {
@@ -35,4 +40,7 @@ AK_HOST_URL() { echo "https://$AK_HOST:${HTTPS_PORT:-30445}"; }
 
 # Admin API token (minted by bootstrap.sh into .tokens/admin.token) so scripts
 # do not log in on every run (the login endpoint is rate limited).
-admin_token() { cat "$TOKENS/admin.token"; }
+admin_token() {
+  [[ -s "$TOKENS/admin.token" ]] || { echo "$TOKENS/admin.token missing: run make bootstrap" >&2; return 1; }
+  cat "$TOKENS/admin.token"
+}

@@ -2,8 +2,8 @@
 
 A language model asked for a package will sometimes name one that does not exist, or one a
 letter away from the one it meant. If an attacker has registered that name, an install fetches
-their code. This page makes the registry refuse every name nobody has reviewed, before anything
-is fetched from upstream.
+their code. This page makes the registry refuse every name nobody has reviewed, before any package file is
+downloaded (on npm, the registry still fetches the package's metadata to resolve it).
 
 **Make target:** `make curation`, which runs
 [`policies/curation.sh`](https://github.com/artifact-keeper/walkthroughs/blob/main/ai-agent-dependency-guardrails/policies/curation.sh).
@@ -19,13 +19,19 @@ the walkthrough runs curation as an approved list:
   names and the two lab test packages;
 - one catch-all `block` rule (priority 1000), with the reason the client will see.
 
+The PyPI list also holds the build backends (`hatchling` and its dependencies) that
+`internal/build-constraints.txt` pins for building the internal package.
+
 ```text
-policies: curation pypi-virtual: 36 approved names, catch-all block (37 rules added)
+policies: curation pypi-virtual: 42 approved names, catch-all block (43 rules added)
 policies: curation npm-virtual: 93 approved names, catch-all block (94 rules added)
+policies: npm-remote fetches only the exact spellings of 93 approved names (3 include patterns)
 ```
 
-The rules go on every remote and virtual of each format: a PyPI virtual evaluates its members'
-rules, an npm virtual its own. Versions of an approved name still pass through the cooldown and
+The rules go on every remote and virtual of each format. The refusal the client sees comes from
+the virtual's own rules; on a PyPI virtual, a member whose rules block the name is also skipped.
+Curation here is a plain approved list: allow rules for the reviewed names, then a catch-all
+block. Approving a name approves every version of it that is old enough and has no known advisory. Versions of an approved name still pass through the cooldown and
 the scan; this list is about names only.
 
 ## What the agent gets
@@ -43,7 +49,7 @@ GET https://ak.internal/pypi/pypi-virtual/simple/huggingface-cli/
 {"error":"curation_blocked","package":"huggingface-cli","reason":"not on the approved list; ask the platform team to review it"}
 ```
 
-`huggingface-cli` is the name Lasso Security found models inventing in 2024; a placeholder
+`huggingface-cli` is the name Lasso Security reported models inventing, in March 2024; a placeholder
 registered under it was downloaded more than 30,000 times in three months. A look-alike, `anthorpic`, gets the same
 answer, and so does an MCP server started with `npx -y` that nobody reviewed:
 
@@ -79,6 +85,17 @@ cannot configure, not on proxy downloads ([F7](findings.md)). So `anthorpic` is 
 because it is unknown, not because it was recognised as a look-alike. With F7, a team could run
 "allow unless suspicious" instead of an approved list. npm curation also checks only the tarball,
 so npm resolves a version before the download is refused ([F8](findings.md)).
+
+Curation rules also fold npm names the way PyPI does (`-`, `_` and `.` are the same), so
+approving `side-channel-list` would also approve the different npm package `side_channel_list`
+([F12](findings.md)), and a block rule for one spelling blocks all of them. The walkthrough works
+around it at the npm remotes: `policies/curation.sh` sets their upstream filter to the exact,
+case-sensitive spellings on the approved list, so a remote never fetches another spelling. That
+refusal is a `404`, not a `403 curation_blocked`:
+
+```text
+other spellings of approved npm names: side_channel_list 404, lab_mcp_weather (served by the lab upstream) 404; side-channel-list 200
+```
 
 **Gate:** G3.
 

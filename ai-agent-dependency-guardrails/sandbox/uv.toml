@@ -2,6 +2,9 @@
 # One index: the registry's PyPI virtual. first-index: a name found on this index is never
 # looked up anywhere else (uv's default, stated explicitly).
 index-strategy = "first-index"
+# Wheels only: never build a source distribution (that would run its build code).
+# Every package in app/uv.lock and internal/build-constraints.txt has a wheel.
+no-build = true
 
 [[index]]
 name = "ak"

@@ -18,7 +18,7 @@ registry-up: ## start the ak-agent stack (generates .env and secrets, exports th
 registry-down: ## stop the stack (volumes kept)
 	registry/down.sh
 
-lab-up: ## (re)start the lab upstream (fresh releases become fresh again)
+lab-up: ## (re)start the lab upstream (a PyPI index and npm registry with publish times we control)
 	lab-upstream/up.sh
 
 lab-down: ## stop the lab upstream
@@ -39,34 +39,36 @@ sandbox: ## build the agent sandbox image (uv + npm, registry-only config, inter
 internal: ## build and publish acme-agent-tools and @acme/tickets-mcp, as CI would
 	internal/publish.sh
 
-lock: ## re-resolve app/uv.lock and app/package-lock.json through the registry (review the diff!)
+lock: ## re-resolve app/uv.lock, app/package-lock.json, internal/build-constraints.txt through the registry (review the diff!)
 	rm -f app/uv.lock app/package-lock.json
 	sandbox/run.sh -- sh -c 'uv lock && npm install --package-lock-only --ignore-scripts'
+	sandbox/run.sh -w internal -- uv pip compile -q --universal --generate-hashes -p 3.12 build-requirements.in -o build-constraints.txt
 
 curation: ## approved list: the names in the reviewed lockfiles, everything else blocked
 	policies/curation.sh
 
 install: ## uv sync --locked and npm ci in the sandbox, then run the app
-	sandbox/run.sh -- sh -c 'uv sync --locked && npm ci --ignore-scripts && .venv/bin/python main.py'
+	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; \
+	echo "sandbox/run.sh -- sh -c 'uv sync --locked && npm ci --ignore-scripts && .venv/bin/python main.py'"; \
+	if ! sandbox/run.sh -- sh -c 'uv sync --locked && npm ci --ignore-scripts && .venv/bin/python main.py' 2>&1 | tee "$$log"; then \
+	  if grep -qE 'scan_blocked|403 Forbidden|E403' "$$log"; then \
+	    echo "install: a locked version was refused (403; gates/probe.sh shows why, e.g. scan_blocked: a new advisory):" \
+	         "re-lock with make lock or add an exception (policies/exceptions.txt)" >&2; fi; \
+	  exit 1; fi
 
-agent: ## replay the scripted agent session (agent/plan.yaml); transcripts in agent/out/
+agent: ## replay the scripted agent session (agent/plan.toml); transcripts in agent/out/
 	agent/agent.sh
 
-gates: ## run G1-G10 (PASS / FAIL / BLOCKED per gate), results in out/gates/
+gates: ## restart the lab upstream, run G1-G11 (PASS / FAIL / BLOCKED per gate), results in out/gates/
 	gates/run-all.sh
 
-reproduce: ## G10: make clean all gates twice from an empty registry (out/reproduce.txt)
+reproduce: ## G10, WIPES THE STACK: make clean all gates; make all gates; make clean all gates (out/reproduce.txt)
 	gates/reproduce.sh
 
 all: registry-up lab-up bootstrap policies exceptions sandbox internal curation install agent ## everything, from an empty registry
 
-clean: ## stop everything and delete all state (volumes, tokens, venvs, sandbox image)
-	-lab-upstream/down.sh
-	-registry/down.sh --volumes
-	-podman volume ls -q --filter name=ak-agent_ | xargs -r podman volume rm -f >/dev/null
-	-podman network rm -f agent-net ak-agent-net >/dev/null 2>&1
-	rm -rf registry/.env registry/.tokens registry/out out/gates agent/out app/.venv app/node_modules internal/acme-agent-tools/dist
-	-podman rmi -f localhost/ak-agent/sandbox:1 >/dev/null 2>&1
+clean: ## delete the stack and all state: containers, volumes, networks, tokens, sandbox and proxied base images
+	registry/clean.sh
 
 screens-ready: ## print the UI URL and where the admin credentials are
 	@echo "UI:        https://127.0.0.1:$${HTTPS_PORT:-30445}  (certificate from the stack's internal CA)"

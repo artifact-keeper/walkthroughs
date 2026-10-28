@@ -19,6 +19,11 @@ rootless podman 5.7, Artifact Keeper 1.11.7, web 1.11.1).
 | F8 | npm curation checks only the tarball, without the version: a version-limited rule is skipped, and the packument is served unfiltered, so a client sees versions it cannot download. | the npm error is a 403 on the tarball, after resolution | G3 |
 | F9 | Curation fails open when rule evaluation errors (`proxy_helpers.rs`, the evaluation error branch serves the request). | noted | |
 | F10 | **A virtual with two age-gated remotes refuses a package that only the second one serves.** For a download, the virtual runs each remote member's age gate before checking that the member has the file; the first gated member that does not list the package has no publish time, treats the version as too young, and the 451 ends the request. Both PyPI (`pypi.rs`, the member loop calling `enforce_pypi_download_age_gate`) and npm are affected. | the lab upstream lives in its own virtuals (`pypi-lab-virtual`, `npm-lab-virtual`) | G4, G5 |
+| F11 | On PyPI the cooldown uses a release's earliest file time, so a file added later to an old release (for example a new wheel uploaded with a stolen token) is not held. | noted in Step 5 | |
+| F12 | npm names are matched with PyPI's normalisation (`-`, `_` and `.` folded), so approving `side-channel-list` also approves the different npm packages `side_channel_list` and `side.channel.list`. | block rules fold the same way, so `policies/curation.sh` limits the npm remotes' upstream filter to the exact approved spellings (refused with 404) | G3 |
+| F13 | Any read request for a young or non-existent version creates a pending age-gate review, so a client can fill the review queue with entries that look real. | noted in Step 5 | |
+| F14 | A token scoped to read artifacts can create and revoke API tokens (new tokens are capped to its own scope, so this is not an escalation). | the docs say "read-only for artifacts" | |
+| F15 | Only a Grype failure, or no scanner finishing, refuses a proxied file under `fail_closed`; an OSV or Trivy error is skipped. The OSV scan is the one that found the body-parser advisory here. | noted in Step 7 | G6 |
 
 ### F10 in detail
 
@@ -37,7 +42,21 @@ could be asked about is refused when one of them returns 404: with `npm-lab`'s g
 Real setups hit this with any second upstream: PyPI plus the PyTorch index, npmjs plus GitHub
 Packages. Proposed fix: in the virtual's member loop, skip a remote member whose upstream metadata
 does not list the requested version (it does not serve the file) instead of applying its gate;
-keep fail-closed for a member that does list the version but has no usable publish time.
+keep fail-closed for a member that does list the version but has no usable publish time. Decide
+"lists the version" from the simple index, not the JSON API (a mirror without the JSON API would
+otherwise skip the gate), and treat upstream errors and timeouts as a block.
+
+### Status on Artifact Keeper main
+
+Checked against `main` at 3d1c1f36 (2026-10-27); none of this is in a release yet, 1.11.7 is the
+newest.
+
+- **F1** is partly fixed: scan-on-proxy refusals now write a `PROXY_SCAN_BLOCKED` audit row and
+  are listed at `GET /api/v1/security/proxy-blocked` (#4969). Curation blocks and age-gate holds
+  still write nothing.
+- **F2** is tracked in #3232 (waiting on sigstore-rs), **F5** in #4514. **F10** is tracked for
+  npm in #5001; Maven/Gradle already falls through to the next member (#4997), PyPI and npm do not.
+- The others are not tracked yet. The fix plan is the last section of the [plan](plan.md).
 
 ## What we learned building it
 

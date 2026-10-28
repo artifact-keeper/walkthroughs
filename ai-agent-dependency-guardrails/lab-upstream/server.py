@@ -3,9 +3,10 @@
 It stands in for "the public internet" in the tests that must be deterministic:
   - a package whose newest release was published minutes ago (cooldown, gate G4)
   - a public package that reuses an internal name at a higher version (name squat, gate G5)
+  - a public package under another spelling of an approved npm name (`_` for `-`, gate G3)
 
 Every package is generated here and is harmless: a module or index.js that prints a line.
-Publish times are relative to server start, so a restart makes the "fresh" release fresh again.
+Publish times are relative to each request, so the "fresh" release is always minutes old.
 Standard library only. Usage: python3 server.py [port]   (default 8080)
 """
 
@@ -21,10 +22,9 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
-START = time.time()
 DAY = 86400
 
-# (name, version, seconds before server start it was "published")
+# (name, version, seconds before the request it was "published")
 PYPI = [
     ("lab-agent-sdk", "1.0.0", 60 * DAY),
     ("lab-agent-sdk", "1.1.0", 10 * 60),  # fresh: inside any cooldown
@@ -34,11 +34,12 @@ NPM = [
     ("lab-mcp-weather", "2.0.0", 60 * DAY),
     ("lab-mcp-weather", "2.1.0", 10 * 60),  # fresh
     ("@acme/tickets-mcp", "99.0.0", 400 * DAY),  # reuses the internal name
+    ("lab_mcp_weather", "2.0.0", 60 * DAY),  # another spelling of the approved lab-mcp-weather
 ]
 
 
 def iso(age: float) -> str:
-    return datetime.fromtimestamp(START - age, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return datetime.fromtimestamp(time.time() - age, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def norm(name: str) -> str:
@@ -92,12 +93,14 @@ for name, version, age in PYPI:
     )
 
 PACKUMENTS: dict[str, dict] = {}
+AGES: dict[str, dict[str, float]] = {}  # npm name -> version -> age
 for name, version, age in NPM:
     data = npm_tarball(name, version)
     base = name.split("/")[-1]
     path = f"/{name}/-/{base}-{version}.tgz"
     FILES[path] = data
-    p = PACKUMENTS.setdefault(name, {"name": name, "versions": {}, "time": {}, "dist-tags": {}})
+    AGES.setdefault(name, {})[version] = age
+    p = PACKUMENTS.setdefault(name, {"name": name, "versions": {}, "dist-tags": {}})
     p["versions"][version] = {
         "name": name,
         "version": version,
@@ -109,12 +112,16 @@ for name, version, age in NPM:
             "integrity": "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode(),
         },
     }
-    p["time"][version] = iso(age)
-for p in PACKUMENTS.values():
-    newest = max(p["time"], key=lambda v: p["time"][v])
-    p["dist-tags"]["latest"] = newest
-    p["time"]["created"] = min(p["time"].values())
-    p["time"]["modified"] = p["time"][newest]
+for name, p in PACKUMENTS.items():
+    p["dist-tags"]["latest"] = min(AGES[name], key=AGES[name].get)
+
+
+def packument(name: str, base: str) -> bytes:
+    """The packument with publish times computed now."""
+    ages = AGES[name]
+    t = {v: iso(a) for v, a in ages.items()}
+    t["created"], t["modified"] = iso(max(ages.values())), iso(min(ages.values()))
+    return json.dumps({**PACKUMENTS[name], "time": t}).replace("__BASE__", base).encode()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -174,7 +181,7 @@ class Handler(BaseHTTPRequestHandler):
         # npm registry: packument at /<name> or /@scope/<name>
         name = path.lstrip("/")
         if name in PACKUMENTS:
-            return self.send(200, json.dumps(PACKUMENTS[name]).replace("__BASE__", base).encode(), "application/json")
+            return self.send(200, packument(name, base), "application/json")
         return self.send(404, b'{"error":"not found"}', "application/json")
 
     def log_message(self, fmt: str, *args) -> None:

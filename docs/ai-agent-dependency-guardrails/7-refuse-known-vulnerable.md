@@ -17,8 +17,13 @@ $ curl … -X PUT https://ak.internal/api/v1/repositories/pypi-remote/security \
 
 On the remotes and the virtuals (a virtual applies the stricter of its own and its member's
 setting). Each file fetched from upstream is scanned (Grype, plus the registry's own
-OSV-based dependency scan) after it is downloaded and before it is served. `fail_closed` means an
-inconclusive scan refuses the file too (`423 scan_pending`) instead of letting it through.
+OSV-based dependency scan) after it is downloaded and before it is served. In 1.11.7,
+`fail_closed` refuses the file (`423 scan_pending`) when Grype cannot finish, or when no scanner
+finishes. A failure of any other scanner, the OSV scan included, is skipped, not refused. That
+matters: here it was the OSV scan, not Grype, that found the body-parser advisory below
+([findings](findings.md)). A clean scan means no known advisory at or above the threshold, not
+"not malware". Trivy is not used: in 1.11.7 it needs a `trivy` binary that the backend image
+does not ship, so the stack leaves it off rather than log an error for every file.
 
 ## What the agent gets
 
@@ -27,7 +32,7 @@ that the scan, not the approved list, is what answers:
 
 ```console
 $ policies/approve.sh pypi langchain "approved name; versions still scanned"
-$ uv pip install --no-deps langchain==0.0.141
+$ uv pip install --target /tmp/site --no-deps langchain==0.0.141
 ```
 
 ```text

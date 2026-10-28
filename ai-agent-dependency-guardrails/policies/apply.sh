@@ -21,3 +21,22 @@ for k in "${REMOTES[@]}" "${VIRTUALS[@]}"; do
   must "scan-on-proxy on $k" "$r"
   echo "policies: scan-on-proxy $k: $(body_of "$r" | jq -c '{scan_on_proxy,proxy_scan_action,severity_threshold}' 2>/dev/null || echo ok)"
 done
+
+# The first scans wait for the scanner's vulnerability database. Until it is ready a download
+# is refused (fail closed), so wait here, on a small file from the lockfile that has no
+# advisories, rather than fail the first install.
+url=$(python3 -I -c 'import sys, tomllib
+for p in tomllib.load(open(sys.argv[1], "rb"))["package"]:
+    if p["name"] == "sniffio": print(p["wheels"][0]["url"])' "$(dirname "${BASH_SOURCE[0]}")/../app/uv.lock")
+url="$U${url#https://ak.internal}"
+deadline=$((SECONDS + ${SCANNER_TIMEOUT:-900}))
+echo -n "policies: waiting for the scanner (${url##*/}) "
+while code=$(akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$url" || true); [[ $code != 200 ]]; do
+  if (( SECONDS > deadline )); then
+    echo; echo "policies: the scanner did not pass ${url##*/} within ${SCANNER_TIMEOUT:-900}s (last answer HTTP $code);" \
+      "check podman logs ak-agent-backend (vulnerability database download?)" >&2
+    exit 1
+  fi
+  echo -n "."; sleep 10
+done
+echo " ready"

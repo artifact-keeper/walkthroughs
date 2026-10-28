@@ -1,9 +1,10 @@
 # The agent sandbox: uv + Node/npm, configured system-wide to use Artifact Keeper only.
-# Both base images are pulled through the registry's image proxies (see build.sh).
+# Both base images are pulled through the registry's image proxies (see build.sh), pinned by
+# digest (multi-arch index, 2026-10-27).
 # No credentials in the image: the agent's token arrives at run time as AK_TOKEN.
 ARG REG=localhost:30445
-FROM ${REG}/oci-dockerhub/library/node:22-trixie-slim AS node
-FROM ${REG}/oci-ghcr/astral-sh/uv:0.13.6-python3.12-trixie-slim
+FROM ${REG}/oci-dockerhub/library/node:22-trixie-slim@sha256:8eb619e402eaede1748a3c8173bffab391592812e85136452f781741c7242ddf AS node
+FROM ${REG}/oci-ghcr/astral-sh/uv:0.13.6-python3.12-trixie-slim@sha256:bf889bda77474aa50c351caf1538b855ef2b7a30add45f26ca50dcb6ade06402
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules

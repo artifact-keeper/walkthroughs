@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 # Stop the lab upstream.
-podman rm -f ak-agent-lab-upstream >/dev/null 2>&1 || true
+set -euo pipefail
+podman rm -f -t 0 --ignore ak-agent-lab-upstream >/dev/null

@@ -26,7 +26,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_env
 command -v jq >/dev/null || { echo "bootstrap.sh: jq is required" >&2; exit 1; }
 U="$(AK_HOST_URL)"
-LAB_URL="${LAB_URL:-http://172.31.50.200:8080}"
+LAB_URL="${LAB_URL:-http://$LAB_IP:8080}"
 log() { echo "bootstrap: $*"; }
 mkdir -p "$TOKENS" "$OUT"; chmod 700 "$TOKENS"
 
@@ -42,9 +42,9 @@ else
   [[ -n "$JWT" && "$JWT" != null ]] || { echo "bootstrap.sh: admin login failed" >&2; exit 1; }
   log "logged in as admin"
   (umask 077; akcurl -fsS -X POST "$U/api/v1/auth/tokens" -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' \
-     -d '{"name":"walkthrough-admin","scopes":["*"],"expires_in_days":30}' | jq -r .token > "$TOKENS/admin.token")
+     -d '{"name":"walkthrough-admin","scopes":["*"],"expires_in_days":90}' | jq -r .token > "$TOKENS/admin.token")
   JWT=$(<"$TOKENS/admin.token")
-  log "minted admin.token (scopes *, 30 days) for the other scripts"
+  log "minted admin.token (scopes *, 90 days) for the other scripts"
 fi
 
 api() { # api METHOD PATH [curl args...]  -> body, then HTTP code on the last line
@@ -87,9 +87,17 @@ create_repo oci-ghcr '{"key":"oci-ghcr","name":"ghcr.io (proxy)","format":"docke
 create_repo trust '{"key":"trust","name":"Trust anchors: the internal CA certificate","format":"generic","repo_type":"local","visibility":"public"}'
 
 # npm-remote never fetches @acme/* from npmjs.org (there is no scope deny-list; the
-# upstream filter refuses the path with 404 before contacting the upstream).
-r=$(api PUT /repositories/npm-remote/upstream-filter -d '{"exclude_patterns":["^/?@acme(/|%2[Ff])"]}')
-must "upstream filter on npm-remote" "$r"; log "npm-remote upstream filter: $(body_of "$r" | jq -c . 2>/dev/null || true)"
+# upstream filter refuses the path with 404 before contacting the upstream). The include
+# list (exact approved spellings) belongs to policies/curation.sh and is kept.
+acme='^/?@acme(/|%2[Ff])'
+r=$(api GET /repositories/npm-remote/upstream-filter); must "reading the npm-remote upstream filter" "$r"
+if body_of "$r" | jq -e --arg p "$acme" '.exclude_patterns | index($p)' >/dev/null; then
+  log "npm-remote upstream filter: excludes @acme/* already"
+else
+  r=$(api PUT /repositories/npm-remote/upstream-filter -d "$(body_of "$r" | jq -c --arg p "$acme" \
+      '{include_patterns:(.include_patterns // []), exclude_patterns:((.exclude_patterns // []) + [$p])}')")
+  must "upstream filter on npm-remote" "$r"; log "npm-remote upstream filter: $(body_of "$r" | jq -c '{exclude_patterns}')"
+fi
 
 # --- users and tokens ---------------------------------------------------------
 works() { # token path -> 0 if GET path is 200 with the token

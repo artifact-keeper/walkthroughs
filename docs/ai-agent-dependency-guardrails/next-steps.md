@@ -14,7 +14,10 @@
   shows who approved what.
 - **A seven-day cooldown on every remote**, and a written exceptions file for security fixes.
   Expect to use it: the first run of this walkthrough did.
-- **Scan-on-proxy, fail closed**, with both Grype and the OSV-based dependency scan enabled.
+- **Scan-on-proxy, fail closed**, with both Grype and the OSV-based dependency scan enabled, and
+  a way to notice when one of them is not running (only a Grype failure refuses a file in 1.11.7).
+- **Turn off install-time code in the sandbox**: `ignore-scripts=true` for npm, wheels only
+  (`no-build`) for uv. Approved packages still run code when imported; that is the sandbox's job.
 - **Own your internal names**: hosted members first with explicit priorities, isolated hosted
   names on npm virtuals, an upstream filter for your scopes.
 - **MCP servers are dependencies**: hosted when internal, pinned, installed from the lockfile,

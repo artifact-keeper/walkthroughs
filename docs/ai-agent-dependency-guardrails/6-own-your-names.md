@@ -12,10 +12,10 @@ npm upstream filter).
 
 1. **Explicit priorities.** In each virtual the hosted member is priority 1 and the remote 2. A
    PyPI virtual hides a remote's files for a name the hosted member holds only when the hosted
-   member's number is lower; equal priorities (both default to 0) would serve both.
+   member's number is lower; equal priorities would serve both (members created with the repository default to 0).
 2. **Isolated hosted names on npm.** `npm_virtual_isolate_hosted_names: true` on the npm virtuals
    makes a name that a hosted member holds hosted-only: no version of it comes from a remote.
-3. **An upstream filter on `npm-remote`.** `^/?@acme(/|%2F)` is excluded, so a request for
+3. **An upstream filter on `npm-remote`.** `^/?@acme(/|%2[Ff])` is excluded, so a request for
    anything in the `@acme` scope never leaves the registry:
 
 ```console
@@ -27,13 +27,14 @@ $ curl … -X PUT https://ak.internal/api/v1/repositories/npm-remote/upstream-fi
 
 The lab upstream publishes `acme-agent-tools` 99.0.0 and `@acme/tickets-mcp` 99.0.0. The lab
 virtuals put it behind the internal repositories, exactly as `pypi-remote` and `npm-remote` sit
-in the main ones. An unpinned install (agent steps 8 and 9):
+in the main ones. An unpinned install through the lab virtuals (agent steps 8 and 9; the uv step
+resolves with `--dry-run`):
 
 ```console
-$ uv pip install acme-agent-tools
+$ uv --config-file /etc/uv/lab.toml pip install --system --dry-run acme-agent-tools
  + acme-agent-tools==1.0.0
 
-$ npm install @acme/tickets-mcp && npm ls @acme/tickets-mcp
+$ npm install --registry https://ak.internal/npm/npm-lab-virtual/ @acme/tickets-mcp && npm ls @acme/tickets-mcp
 └── @acme/tickets-mcp@1.0.0
 ```
 
