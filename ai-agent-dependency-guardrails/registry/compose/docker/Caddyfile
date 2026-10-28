@@ -1,0 +1,69 @@
+{
+	auto_https disable_redirects
+}
+
+(backend_routes) {
+	# API and health endpoints
+	reverse_proxy /api/* backend:8080
+	reverse_proxy /health backend:8080
+	reverse_proxy /livez backend:8080
+	reverse_proxy /readyz backend:8080
+	reverse_proxy /metrics backend:8080
+	reverse_proxy /swagger-ui* backend:8080
+	# OCI / Docker registry
+	reverse_proxy /v2 backend:8080
+	reverse_proxy /v2/* backend:8080
+	# Native package format handlers — route directly to backend
+	# so requests avoid the Next.js middleware proxy hop. Keep this list in
+	# step with `format_routes` in backend/src/api/routes.rs: a prefix that is
+	# missing here falls through to the web UI and gets its HTML 404 (#4482,
+	# #1772). scripts/ci/check-caddy-format-routes.sh enforces it.
+	reverse_proxy /general/* backend:8080
+	reverse_proxy /maven/* backend:8080
+	reverse_proxy /npm/* backend:8080
+	reverse_proxy /pypi/* backend:8080
+	reverse_proxy /nuget/* backend:8080
+	reverse_proxy /cargo/* backend:8080
+	reverse_proxy /gems/* backend:8080
+	reverse_proxy /go/* backend:8080
+	reverse_proxy /helm/* backend:8080
+	reverse_proxy /debian/* backend:8080
+	reverse_proxy /rpm/* backend:8080
+	reverse_proxy /alpine/* backend:8080
+	reverse_proxy /pacman/* backend:8080
+	reverse_proxy /composer/* backend:8080
+	reverse_proxy /conan/* backend:8080
+	reverse_proxy /conda/* backend:8080
+	# rattler's token-in-URL layout for conda: /t/<token>/conda/<repo>/... (#4555)
+	reverse_proxy /t/* backend:8080
+	reverse_proxy /swift/* backend:8080
+	reverse_proxy /terraform/* backend:8080
+	reverse_proxy /cocoapods/* backend:8080
+	reverse_proxy /hex/* backend:8080
+	reverse_proxy /pub/* backend:8080
+	reverse_proxy /lfs/* backend:8080
+	reverse_proxy /ivy/* backend:8080
+	reverse_proxy /chef/* backend:8080
+	reverse_proxy /puppet/* backend:8080
+	reverse_proxy /ansible/* backend:8080
+	reverse_proxy /cran/* backend:8080
+	reverse_proxy /bazel/* backend:8080
+	reverse_proxy /huggingface/* backend:8080
+	reverse_proxy /jetbrains/* backend:8080
+	reverse_proxy /vscode/* backend:8080
+	reverse_proxy /proto/* backend:8080
+	reverse_proxy /incus/* backend:8080
+	reverse_proxy /lxc/* backend:8080
+	reverse_proxy /ext/* backend:8080
+}
+
+{$SITE_ADDRESS:localhost} {
+	bind 0.0.0.0
+	import backend_routes
+	reverse_proxy web:3000
+}
+
+:80 {
+	import backend_routes
+	reverse_proxy web:3000
+}

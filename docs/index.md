@@ -1,5 +1,11 @@
 # Artifact Keeper Walkthroughs
 
+!!! warning "Examples, not complete defenses"
+    Each walkthrough shows one way to use Artifact Keeper in a real setup. The configurations
+    are examples, built and tested in a lab. They do not cover every edge case or attack, and they
+    are not hardened production setups. Review and adapt them for your own environment, and use
+    them alongside your other controls.
+
 Walkthroughs are step-by-step guides for real deployments built on
 [Artifact Keeper](https://github.com/artifact-keeper/artifact-keeper), the open-source
 universal artifact registry. Each one starts from an empty host, explains every decision as it
@@ -27,6 +33,16 @@ public repository you can clone and run with the same commands, so nothing here 
     a network with no internet, and answer "which environments contain this?" from the registry.
 
     [:octicons-arrow-right-24: Start the walkthrough](private-conda-channel-pixi/index.md)
+
+-   :material-robot-outline:{ .lg .middle } __AI coding agents through one registry__
+
+    ---
+
+    Let a coding agent run `uv add`, `npm install` and `npx` on its own, and let the registry
+    decide what reaches disk: one network route, approved names, a seven-day cooldown, internal
+    names nobody can shadow, and known-vulnerable versions refused, with the real refusals quoted.
+
+    [:octicons-arrow-right-24: Start the walkthrough](ai-agent-dependency-guardrails/index.md)
 
 </div>
 
