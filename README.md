@@ -1,5 +1,12 @@
 # Artifact Keeper Walkthroughs
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/artifact-keeper/.github/main/brand/logo-horizontal-dark.png">
+    <img alt="Artifact Keeper" src="https://raw.githubusercontent.com/artifact-keeper/.github/main/brand/logo-horizontal-light.png" width="360">
+  </picture>
+</p>
+
 Step-by-step walkthroughs for real deployments built on
 [Artifact Keeper](https://github.com/artifact-keeper/artifact-keeper). Each walkthrough is
 complete in this repository: the narrated guide and every script, Containerfile and config it
