@@ -65,10 +65,10 @@ in 2026, not the newest.
 
 ```console
 $ make baseline PHASE=record
-baseline go: exit 0 in 5s
+baseline go: exit 0 in 4s
 baseline cargo: exit 0 in 1s
-added 72 packages in 7s
-baseline npm: exit 0 in 8s
+added 72 packages in 8s
+baseline npm: exit 0 in 9s
 Get:1 https://ak.internal/debian/debian-proxy bookworm/main amd64 curl amd64 7.88.1-10+deb12u15 [316 kB]
 Get:2 https://ak.internal/debian/debian-proxy bookworm/main amd64 jq amd64 1.6-2.1+deb12u2 [64.0 kB]
 Get:3 https://ak.internal/debian/debian-proxy bookworm/main amd64 libxml2 amd64 2.9.14+dfsg-1.3~deb12u6 [689 kB]
@@ -99,16 +99,16 @@ way a build that pins an old version would. Nothing is installed or executed.
 
 ```console
 $ make known-bad PHASE=record
-# get https://ak.internal/go/go-proxy/golang.org/x/text/@v/v0.3.0.zip: 200 OK (1.138s)
-known-bad go: exit 0 in 3s
+# get https://ak.internal/go/go-proxy/golang.org/x/text/@v/v0.3.0.zip: 200 OK
+known-bad go: exit 0 in 2s
       Adding smallvec v1.6.0 (available: v1.16.4)
   Downloaded smallvec v1.6.0 (registry `ak`)
 known-bad cargo: exit 0 in 1s
-npm http fetch GET 200 https://ak.internal/npm/npm-proxy/lodash/-/lodash-4.17.15.tgz 198ms (cache miss)
+npm http fetch GET 200 https://ak.internal/npm/npm-proxy/lodash/-/lodash-4.17.15.tgz (cache miss)
 npm notice filename: lodash-4.17.15.tgz
 known-bad npm: exit 0 in 2s
 Get:1 https://ak.internal/debian/debian-proxy bookworm/main amd64 libxml2 amd64 2.9.14+dfsg-1.3~deb12u6 [689 kB]
-known-bad apt: exit 0 in 3s
+known-bad apt: exit 0 in 4s
 Downloading curl-8.14.1-r4
 known-bad apk: exit 0 in 1s
 ```
@@ -128,19 +128,21 @@ prints it for all five:
 ```console
 $ make preview
 THRESHOLD=high policy/preview.sh
-go-proxy: 3 clean, 2 vulnerable, 17 not scanned, 22 digests
-cargo-proxy: 5 clean, 2 vulnerable, 9 not scanned, 16 digests
-npm-proxy: 31 clean, 1 vulnerable, 71 not scanned, 103 digests
+go-proxy: 1 clean, 2 vulnerable, 12 not scanned, 15 digests
+cargo-proxy: 5 clean, 3 vulnerable, 9 not scanned, 17 digests
+npm-proxy: 16 clean, 0 vulnerable, 57 not scanned, 73 digests
 debian-proxy: 0 clean, 3 vulnerable, 2 not scanned, 5 digests
 alpine-proxy: 2 clean, 1 vulnerable, 2 not scanned, 5 digests
 REPOSITORY    STATE     SEVERITY    FINDINGS  CATALOGED  PATH
 *alpine-proxy vulnerable critical    41        1          v3.22/main/x86_64/curl-8.14.1-r4.apk
+*cargo-proxy  vulnerable critical    1         1          api/v1/crates/smallvec/1.6.0/download
 *debian-proxy vulnerable critical    38        1          pool/main/c/curl/curl_7.88.1-10+deb12u15_amd64.deb
 *debian-proxy vulnerable high        4         1          pool/main/j/jq/jq_1.6-2.1+deb12u2_amd64.deb
 *debian-proxy vulnerable critical    9         1          pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
 *go-proxy     vulnerable high        4         4          golang.org/x/text/@v/v0.21.0.zip
 *go-proxy     vulnerable high        5         1          golang.org/x/text/@v/v0.3.0.zip
-*npm-proxy    vulnerable high        6         1          lodash/-/lodash-4.17.15.tgz
+ …
+ npm-proxy    not_scanned -           -         -          lodash/-/lodash-4.17.15.tgz
  … (the clean and not-scanned files follow)
 * = would be refused with the gate enforcing at threshold 'high': 7 file(s)
 ```
@@ -148,9 +150,12 @@ REPOSITORY    STATE     SEVERITY    FINDINGS  CATALOGED  PATH
 (Abridged: the full table lists every cached file; `out/preview.json` keeps it as JSON for
 [Step 4](4-enforce.md)'s gate.) Read it as the team would:
 
-- **The known-bad fixtures are there**, as planned: `x/text v0.3.0`, `lodash 4.17.15`,
-  `libxml2`, `curl` on Alpine. `smallvec 1.6.0` is missing from this list because its scan
-  was still running when the preview printed; it is in the blocked list by [Step 3](3-review-the-queues.md).
+- **Four of the five known-bad fixtures are there**, as planned: `x/text v0.3.0`,
+  `smallvec 1.6.0`, `libxml2`, `curl` on Alpine. `lodash 4.17.15` is not: its line reads
+  `not_scanned`. It was pulled in the middle of the 72-file npm install, its scan ran out of
+  budget (below), and the preview has no verdict for it. [Step 4](4-enforce.md) refuses it
+  anyway, because `fail_closed` scans it inline on the next pull; the point is that the
+  preview did not predict that refusal.
 - **So are ordinary pulls.** `golang.org/x/text v0.21.0`, the version the Go project pinned,
   is `high` today: two 2026 CVEs against `x/text` itself (fixed in 0.39 and 0.41) and two
   against the `x/mod` its `go.mod` requires. On Debian 12, `curl`, `jq` and `libxml2`, three
@@ -163,8 +168,8 @@ REPOSITORY    STATE     SEVERITY    FINDINGS  CATALOGED  PATH
   tarball means the scanner cataloged the package; `4` for `x/text v0.21.0` means the
   module plus the three requirements in its `go.mod`. A `clean` verdict with `0` would mean
   "nothing to grade"; none of the fixtures scored that.
-- **`not scanned` is not "clean".** 71 of 103 npm files have no verdict after the
-  `npm install`. Under `record_only` a first pull is served while the scan runs; the scans
+- **`not scanned` is not "clean".** 57 of 73 npm files have no verdict after the
+  `npm install`, `lodash` among them. Under `record_only` a first pull is served while the scan runs; the scans
   of a 72-file install ran at once and most of them exceeded the 30-second budget the gate
   gives each one, which is recorded as inconclusive, not as a verdict (finding F1 in
   [Findings](findings.md)). The next pull of the same file scans it again. The preview is
@@ -180,7 +185,7 @@ backports fixes would expect its security tracker, not the upstream product, to 
 
 ## What record-only costs
 
-Nothing for the clients: the npm install took 7 seconds with and without the gate. For the
+Nothing for the clients: the npm install took 8 seconds with and without the gate. For the
 registry, one scan per new file, in the background. For the team, one question per starred
 line before [Step 4](4-enforce.md): upgrade, drop, or except.
 

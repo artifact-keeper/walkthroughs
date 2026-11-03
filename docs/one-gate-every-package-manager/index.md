@@ -53,7 +53,8 @@ managers (`go`, `cargo`, `npm`, `apt` and `apk`) and rolls it out the way a team
 
 Everything runs in containers on one host. The code is in
 [`one-gate-every-package-manager/`](https://github.com/artifact-keeper/walkthroughs/tree/main/one-gate-every-package-manager)
-and `make all` reproduces it from an empty registry; the timings are in [Results](results.md).
+and `make all` reproduces it from an empty registry in about three minutes with the images
+on the host, plus two minutes for `make gates`; the timings are in [Results](results.md).
 
 !!! note "Registry version"
     The walkthrough targets **Artifact Keeper 1.12.0**, which brings the gate to Go, Debian

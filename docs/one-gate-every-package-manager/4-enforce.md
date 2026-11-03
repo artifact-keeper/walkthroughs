@@ -21,7 +21,7 @@ the work list; here the answers are in
 | Flagged | Decision | Why |
 |---|---|---|
 | Go: `golang.org/x/text v0.21.0` (high, fixed in 0.39 and 0.41) | upgrade to `v0.43.0`, `cobra` to `v1.10.2` | the fix exists; `x/text 0.43` needs Go 1.26, so the client image moves to `golang:1.26-alpine` |
-| npm: `express 4.21.2` pulls `path-to-regexp 0.1.12` (high, fixed in 0.1.13) | upgrade to `express 5.1.0` | the fix exists |
+| npm: `express 4.21.2` pulls `path-to-regexp 0.1.12` (high, fixed in 0.1.13; flagged in an earlier run of this walkthrough, among the 57 unscanned files in the recorded one, finding F1) | upgrade to `express 5.1.0` | the fix exists |
 | apt: `curl` (critical, 38 findings, no fixed version), `jq` (high, fix in the security suite), `libxml2` (critical) | drop them from the ordinary list; keep `ca-certificates`, `bash`, `git` | nothing to upgrade to inside `bookworm main`; see [Step 5](5-handle-an-exception.md) for what an exception would need |
 | apk: `curl` (critical, 41 findings, no fixed version) | drop it; keep `jq`, `libxml2`, `git` | as above |
 | cargo: nothing above `high` (`syn` and `anyhow` carry `medium` findings and are served) | nothing | |
@@ -74,8 +74,8 @@ $ make baseline PHASE=enforce BASELINE=fixed
 baseline go: exit 0 in 3s
 baseline cargo: exit 0 in 1s
 npm error code E423
-npm error 423 Locked - GET https://ak.internal/npm/npm-proxy/mime-types/-/mime-types-3.0.2.tgz - scan_pending
-baseline npm: exit 1 in 38s
+npm error 423 Locked - GET https://ak.internal/npm/npm-proxy/router/-/router-2.2.0.tgz - scan_pending
+baseline npm: exit 1 in 41s
 baseline apt: exit 0 in 4s
 baseline apk: exit 0 in 2s
 ```
@@ -92,11 +92,11 @@ Run it again, and the picture changes:
 
 ```console
 $ make baseline PHASE=enforce-warm BASELINE=fixed
-baseline go: exit 0 in 4s
+baseline go: exit 0 in 8s
 baseline cargo: exit 0 in 1s
 npm error code E423
 npm error 423 Locked - GET https://ak.internal/npm/npm-proxy/@types/node/-/node-22.15.3.tgz - scan_pending
-baseline npm: exit 1 in 4s
+baseline npm: exit 1 in 5s
 baseline apt: exit 0 in 4s
 baseline apk: exit 0 in 2s
 ```
@@ -126,12 +126,11 @@ and #5149, the permanent one. Both are in [Findings](findings.md), with what the
 
 ```console
 $ make known-bad PHASE=enforce
-# get https://ak.internal/go/go-proxy/golang.org/x/text/@v/v0.3.0.zip: 403 Forbidden (0.144s)
 go: golang.org/x/text@v0.3.0: reading https://ak.internal/go/go-proxy/golang.org/x/text/@v/v0.3.0.zip: 403 Forbidden
 known-bad go: exit 1 in 1s
 error: failed to download from `https://ak.internal/cargo/cargo-proxy/api/v1/crates/smallvec/1.6.0/download`
   {"error":"scan_blocked","file":"smallvec-1.6.0.crate","reason":"blocked by inline vulnerability scan policy"}
-known-bad cargo: exit 101 in 1s
+known-bad cargo: exit 101 in 0s
 npm error 403 403 Forbidden - GET https://ak.internal/npm/npm-proxy/lodash/-/lodash-4.17.15.tgz - scan_blocked
 known-bad npm: exit 1 in 2s
 E: Failed to fetch https://ak.internal/debian/debian-proxy/pool/main/libx/libxml2/libxml2_2.9.14%2bdfsg-1.3%7edeb12u6_amd64.deb  403  Forbidden [IP: 172.31.60.8 443]

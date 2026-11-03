@@ -27,17 +27,18 @@ publishes the tarball `npm pack` saved during the record-only pass, with the CI 
 
 ```console
 $ make vendor
-vendor: waiting for the upload scan of 96e6b632-38ea-4310-8702-249a8b0d52e3  completed
-vendor: scan 819f3fbe-4b5c-4759-b26c-4451ea55297b: {"scan_type":"grype","status":"completed","grade_status":"rated","findings_count":6,"critical_count":0,"high_count":3,"vuln_db_version":"grype-db-v6.1.10"}
-dependency  1fbbfed0-7282-4230-b56d-8e601934e3ec  6 findings  grade_status=rated
-grype       819f3fbe-4b5c-4759-b26c-4451ea55297b  6 findings  grade_status=rated
++ lodash@4.17.15
+vendor: waiting for the upload scan of 64f0b43c-2d09-496a-8086-eb88e298e48c . completed
+vendor: scan 218e2500-6391-4ff8-8770-640621ee8be7: {"scan_type":"grype","status":"completed","grade_status":"rated","findings_count":6,"critical_count":0,"high_count":3,"vuln_db_version":"grype-db-v6.1.10"}
+grype       218e2500-6391-4ff8-8770-640621ee8be7  6 findings  grade_status=rated
+dependency  fb0e38e4-5272-48d3-a494-4d3331424254  6 findings  grade_status=rated
   grype    high    CVE-2021-23337  lodash@4.17.15  fixed=4.17.21  acknowledged=false
   grype    high    CVE-2020-8203   lodash@4.17.15  fixed=4.17.19  acknowledged=false
-  grype    high    CVE-2026-4800   lodash@4.17.15  …              acknowledged=false
-  grype    medium  CVE-2020-28500  lodash@4.17.15  …              acknowledged=false
-  grype    medium  CVE-2025-13465  lodash@4.17.15  …              acknowledged=false
-  grype    medium  CVE-2026-2950   lodash@4.17.15  …              acknowledged=false
-  osv.dev  high    CVE-2021-23337  lodash@4.17.15  …              acknowledged=false
+  grype    high    CVE-2026-4800   lodash@4.17.15  fixed=4.18.0   acknowledged=false
+  grype    medium  CVE-2020-28500  lodash@4.17.15  fixed=4.17.21  acknowledged=false
+  grype    medium  CVE-2025-13465  lodash@4.17.15  fixed=4.17.23  acknowledged=false
+  grype    medium  CVE-2026-2950   lodash@4.17.15  fixed=4.18.0   acknowledged=false
+  osv.dev  high    CVE-2021-23337  lodash@4.17.15  fixed=4.17.21  acknowledged=false
   … (the dependency scan repeats the same six)
 vendor: download through npm-internal: HTTP 403
 ```
@@ -47,27 +48,26 @@ and both wrote the same six CVEs as separate rows. The scan policy (`max_severit
 found three at or above `high`, quarantined the artifact, and the download answers `403`:
 the hosted gate's answer for "held by a scan policy" (1.12.0 made that `403` rather than
 `409`, so a client stops waiting for a release that will not come). The repository now has a
-score, which is what the 1.12.0 grade status is about: `grade: C`, `grade_status: rated`,
+score, which is what the 1.12.0 grade status is about: `grade_status: rated`,
 `coverage: 1 of 1 cataloged` (`GET /api/v1/security/scores` was `[]` until this upload).
 
-![The scan results page: the upload scans of the vendored lodash 4.17.15, Grype and the dependency scan, six findings each](images/u06-scan-results.png)
+![The scan results page after the rescan: two rounds of Grype and dependency scans of lodash 4.17.15, three high and three medium findings each, plus a not-applicable OpenSCAP row](images/u06-scan-results.png)
 
 Then the decision, as a record:
 
 ```console
 $ make acknowledge
-acknowledge: grype CVE-2021-23337 acknowledged by 0b872336-10b8-4739-8313-5a91aa7b6275 at 2026-11-03T03:25:47.301554Z
-acknowledge: grype CVE-2020-8203 acknowledged by 0b872336-… at 2026-11-03T03:25:47.364176Z
+acknowledge: grype CVE-2021-23337 acknowledged by 2f718147-e1ae-4c38-9c4c-b2ac151864ff at 2026-11-03T03:36:24.391613Z
+acknowledge: grype CVE-2020-8203 acknowledged by 2f718147-… at 2026-11-03T03:36:24.474160Z
 …
-acknowledge: osv.dev CVE-2025-13465 acknowledged by 0b872336-… at 2026-11-03T03:25:48.353165Z
-acknowledge: 18 finding(s) acknowledged with reason: legacy-app: lodash is only used for _.get on trusted config; prototype pollution not reachable; ticket SEC-421
+acknowledge: osv.dev CVE-2025-13465 acknowledged by 2f718147-… at 2026-11-03T03:36:25.075647Z
+acknowledge: 12 finding(s) acknowledged with reason: legacy-app: lodash is only used for _.get on trusted config; prototype pollution not reachable; ticket SEC-421
 acknowledge: quarantine: {"quarantine_status":"quarantined","quarantine_reason":"Policy 'npm-internal-gate': 3 findings at or above high severity","is_blocked":true}
 acknowledge: download through npm-internal: HTTP 409
 ```
 
 `POST /api/v1/security/findings/{id}/acknowledge` with `{"reason": …}`, once per row:
-eighteen rows for six CVEs, because two scanners wrote them and (in this run) a scan had
-already run twice. The policy no longer refuses the artifact, and the answer changes from
+twelve rows for six CVEs, because two scanners wrote them. The policy no longer refuses the artifact, and the answer changes from
 `403` to `409`: the quarantine hold the scanner wrote is still there, and a hold with no
 recorded source falls back to the plain quarantine answer once the policy passes (finding F5
 in [Findings](findings.md)). An administrator releases it:
@@ -75,14 +75,18 @@ in [Findings](findings.md)). An administrator releases it:
 ```console
 $ make release
 release: before: {"quarantine_status":"quarantined","is_blocked":true}
-release: {"artifact_id":"96e6b632-38ea-4310-8702-249a8b0d52e3","new_status":"released","message":"Artifact released from quarantine"}
+release: {"artifact_id":"64f0b43c-2d09-496a-8086-eb88e298e48c","new_status":"released","message":"Artifact released from quarantine"}
 release: after:  {"quarantine_status":"released","is_blocked":false}
 release: download through npm-internal: HTTP 200
+release: npm-internal score: {"grade":"A","grade_status":"rated","score":100,"coverage":{"artifacts":1,"scanned":1,"cataloged":1,"partial":0,"failed":0,"uncataloged":0,"coverage_pct":100},"acknowledged_count":6}
 ```
 
 Acknowledge, then release, then the legacy application installs `lodash` from
 `npm-internal` while every other project keeps getting `403` from `npm-proxy`. The reason
-and the actor are on every acknowledged row; the audit log has the release.
+and the actor are on every acknowledged row; the audit log has the release. The score moved
+from `C` (61) to `A` (100) with `acknowledged_count: 6`: acknowledged findings do not count
+against the grade, and the grade status stays `rated` because the artifact was fully
+assessed.
 
 ## What the acknowledgement does not survive (#5153)
 
@@ -90,21 +94,23 @@ A scanner database update rescans hosted artifacts. Here the rescan is forced:
 
 ```console
 $ make rescan
-rescan: {"message":"Scan queued for artifact 96e6b632-…","artifacts_queued":1,"scan_result_ids":["94b2b3cd-…","368f3909-…","b48edc28-…"]}
-rescan: new Grype scan 368f3909-ecf9-4232-9762-39001e7ade70: {"status":"completed","findings_count":6,"acknowledged_count":null}
+rescan: {"message":"Scan queued for artifact 64f0b43c-…","artifacts_queued":1,"scan_result_ids":["1f0ee05e-…","1cc3eb84-…","92cb6ad4-…"]}
+rescan: new Grype scan 1cc3eb84-086d-4e0b-8618-b20f8343a3ac: {"status":"completed","findings_count":6,"acknowledged_count":null}
   grype    high    CVE-2020-8203   lodash@4.17.15  acknowledged=false
   grype    high    CVE-2021-23337  lodash@4.17.15  acknowledged=false
   grype    high    CVE-2026-4800   lodash@4.17.15  acknowledged=false
   …
   osv.dev  high    CVE-2020-8203   lodash@4.17.15  acknowledged=false
   …
-rescan: quarantine: {"quarantine_status":"quarantined","quarantine_reason":"Policy 'npm-internal-gate': 9 findings at or above high severity","is_blocked":true}
+rescan: quarantine: {"quarantine_status":"quarantined","quarantine_reason":"Policy 'npm-internal-gate': 3 findings at or above high severity","is_blocked":true}
 rescan: download through npm-internal: HTTP 403
 ```
 
 `POST /api/v1/security/scan` with `{"artifact_id": …, "bypass_dedup": true}` (admin only).
 The new scans write the same six CVEs as new, unacknowledged rows; the policy counts them,
-quarantines the artifact again, and the download is refused again. The acknowledgement was
+quarantines the artifact again, the download is refused again, and the repository's grade
+drops back to `C` (the dashboard screenshot in [Step 3](3-review-the-queues.md) was taken
+after this). The acknowledgement was
 stored on the old rows, not on the decision. That is open issue #5153, planned for 1.12.0:
 acknowledgements keyed by CVE and component that keep applying across rescans, dedup copies
 and promotion. Until it lands, gate G7 reports `BLOCKED(#5153)`, and a team should keep its

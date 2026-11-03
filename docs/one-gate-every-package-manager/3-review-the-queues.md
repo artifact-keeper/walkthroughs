@@ -24,8 +24,8 @@ $ make review
   "total_findings": 0,
   "critical_findings": 0,
   "high_findings": 0,
-  "policy_violations_blocked": 10,
-  "proxy_blocked": 10,
+  "policy_violations_blocked": 8,
+  "proxy_blocked": 8,
   "repos_rated": 0,
   "repos_incomplete": 0,
   "repos_unrated": 0
@@ -40,8 +40,9 @@ dashboard counts: proxy verdicts are not "scans" in the sense of the scan list, 
 repository scores (`repos_rated` and so on, [grade status](https://github.com/artifact-keeper/artifact-keeper/blob/main/docs/security/grade-status.md)
 since 1.12.0) are computed for hosted repositories only. `GET /api/v1/security/scores`
 returns `[]` until [Step 5](5-handle-an-exception.md) puts an artifact into `npm-internal`.
+`total_scans: 0` next to `proxy_blocked: 8` says it plainly.
 
-![The web UI's security dashboard after enforcing: six repositories with scanning, ten policy blocks, and one hosted repository scored C](images/u04-security-dashboard.png)
+![The web UI's security dashboard after the whole run: six repositories with scanning, nine policy blocks, and the one hosted repository scored](images/u04-security-dashboard.png)
 
 The web UI's dashboard (Security, Dashboard) shows the same numbers; "Policy Blocks" is
 `policy_violations_blocked`. It has no card for `proxy_blocked` yet and no list of the
@@ -52,19 +53,16 @@ refused proxied files (the web follow-ups for the 1.12.0 backend work are not in
 ```console
 == GET /api/v1/security/proxy-blocked   (instance admin; what every proxy refuses right now)
 alpine-proxy  critical  41 findings  CVE-2026-10536,CVE-2026-11856,CVE-2026-18924  v3.22/main/x86_64/curl-8.14.1-r4.apk
-cargo-proxy   critical  3 findings   CVE-2021-25900,CVE-2021-25901,CVE-2019-15551  api/v1/crates/smallvec/1.6.0/download
+cargo-proxy   critical  1 findings   CVE-2021-25900                                api/v1/crates/smallvec/1.6.0/download
 debian-proxy  critical  38 findings  CVE-2026-10536,CVE-2026-11856,CVE-2026-18924  pool/main/c/curl/curl_7.88.1-10+deb12u15_amd64.deb
 debian-proxy  high      4 findings   CVE-2026-32316,CVE-2024-23337,CVE-2025-9403   pool/main/j/jq/jq_1.6-2.1+deb12u2_amd64.deb
-debian-proxy  critical  9 findings   …                                             pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
-debian-proxy  critical  …                                                          pool/main/o/openssl/openssl_3.0.20-1~deb12u2_amd64.deb
-debian-proxy  high      …                                                          pool/main/z/zlib/zlib1g_1.2.13.dfsg-1_amd64.deb
+debian-proxy  critical  9 findings   CVE-2026-6653,CVE-2026-74860,CVE-2026-86138   pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
 go-proxy      high      4 findings   CVE-2026-56851,CVE-2026-56852,CVE-2026-56864  golang.org/x/text/@v/v0.21.0.zip
 go-proxy      high      5 findings   CVE-2021-38561,CVE-2022-32149,CVE-2026-56851  golang.org/x/text/@v/v0.3.0.zip
 npm-proxy     high      6 findings   CVE-2020-8203,CVE-2021-23337,CVE-2026-4800    lodash/-/lodash-4.17.15.tgz
 ```
 
-(Abridged to the columns that matter; `openssl` and `zlib1g` are there because a Debian
-package was probed while choosing the fixed baseline.) One list across every repository, the
+(Abridged to the columns that matter; the script prints the first three CVE ids.) One list across every repository, the
 CVE ids most severe first, the digest alongside (`checksum_sha256` in the JSON), and two
 filters, `repository` and `min_severity`. It lists only what each repository's own settings
 refuse: a record-only repository, or a repository whose threshold is above the verdict,
@@ -82,8 +80,6 @@ proxy-cache  cargo-proxy   critical  api/v1/crates/smallvec/1.6.0/download
 proxy-cache  debian-proxy  critical  pool/main/c/curl/curl_7.88.1-10+deb12u15_amd64.deb
 proxy-cache  debian-proxy  high      pool/main/j/jq/jq_1.6-2.1+deb12u2_amd64.deb
 proxy-cache  debian-proxy  critical  pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
-proxy-cache  debian-proxy  critical  pool/main/o/openssl/openssl_3.0.20-1~deb12u2_amd64.deb
-proxy-cache  debian-proxy  high      pool/main/z/zlib/zlib1g_1.2.13.dfsg-1_amd64.deb
 proxy-cache  go-proxy      high      golang.org/x/text/@v/v0.21.0.zip
 proxy-cache  go-proxy      high      golang.org/x/text/@v/v0.3.0.zip
 proxy-cache  npm-proxy     high      lodash/-/lodash-4.17.15.tgz
@@ -101,22 +97,20 @@ After [Step 5](5-handle-an-exception.md) the vendored `lodash` appears in the ho
 
 ```console
 == GET /api/v1/admin/audit   (PROXY_SCAN_BLOCKED rows: who asked for what)
-2026-11-03T03:18:27Z  anonymous  -  alpine-proxy  attempts=1  curl-8.14.1-r4.apk
-2026-11-03T03:18:21Z  anonymous  -  cargo-proxy   attempts=1  smallvec-1.6.0.crate
-2026-11-03T03:17:46Z  anonymous  -  debian-proxy  attempts=1  libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
-2026-11-03T03:17:42Z  anonymous  -  npm-proxy     attempts=1  lodash-4.17.15.tgz
-2026-11-03T03:17:40Z  anonymous  -  go-proxy      attempts=1  v0.3.0.zip
-…
-2026-11-03T03:17:08Z  anonymous  -  debian-proxy  attempts=3  libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
-2026-11-03T03:17:02Z  anonymous  -  go-proxy      attempts=3  v0.3.0.zip
+2026-11-03T03:36:14Z  anonymous  -  alpine-proxy  attempts=1  curl-8.14.1-r4.apk
+2026-11-03T03:36:13Z  anonymous  -  debian-proxy  attempts=1  libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb
+2026-11-03T03:36:09Z  anonymous  -  npm-proxy     attempts=1  lodash-4.17.15.tgz
+2026-11-03T03:36:08Z  anonymous  -  cargo-proxy   attempts=1  smallvec-1.6.0.crate
+2026-11-03T03:36:07Z  anonymous  -  go-proxy      attempts=1  v0.3.0.zip
 ```
 
 Every `403 scan_blocked` writes a `PROXY_SCAN_BLOCKED` audit row (1.12.0, #4969) with the
 repository, the path, the digest, the verdict, the principal, and an `attempts` counter:
 refusals of one digest by one principal are aggregated per minute, so the first refusal is
 written at once and the retries inside the window become one summary row when it closes
-(`attempts=3` above: apt and go both retry a failed download). [Step 6](6-prove-it-fails-safely.md)
-measures that.
+(`attempts=1` here: the five known-bad pulls, one row each, a minute after
+[Step 4](4-enforce.md) ran them). [Step 6](6-prove-it-fails-safely.md) measures the
+aggregation with a retry loop.
 
 Two honest limits of this run. The principal is `anonymous` because the five proxies are
 public and the clients send no credential ([Step 1](1-stand-up-the-registry.md)); with
