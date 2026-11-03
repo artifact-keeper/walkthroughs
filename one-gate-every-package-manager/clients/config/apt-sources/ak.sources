@@ -1,7 +1,7 @@
-# apt: Debian bookworm through the registry. The index signature is the registry's own
-# (a Remote re-signs what it serves); the key is fetched by registry/bootstrap.sh.
+# apt: Debian bookworm through the registry. A Remote passes the upstream InRelease through
+# with its signature intact, so the image's own Debian archive keyring verifies it.
 Types: deb
 URIs: https://ak.internal/debian/debian-proxy
 Suites: bookworm
 Components: main
-Signed-By: /run/ak/debian-proxy.asc
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg

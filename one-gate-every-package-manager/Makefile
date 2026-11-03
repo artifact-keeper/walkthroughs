@@ -31,11 +31,16 @@ record: ## step 2: the gate in record-only mode on all five proxies (scan, recor
 	THRESHOLD=$(THRESHOLD) policy/mode.sh record_only
 	policy/wait-scanner.sh
 
-baseline: ## what each package manager fetches on an ordinary day (download only)
-	clients/baseline.sh
+# PHASE names the directory under clients/out/ the client logs go to (record, enforce).
+# BASELINE=fixed runs the projects in clients/baseline-fixed/ (the pins after the review).
+PHASE ?= run
+BASELINE ?=
 
-known-bad: ## one package with a published advisory per package manager (download only)
-	-clients/known-bad.sh
+baseline: ## what each package manager fetches on an ordinary day (download only); logs in clients/out/$(PHASE)/
+	PHASE=$(PHASE) BASELINE=$(BASELINE) clients/baseline.sh
+
+known-bad: ## one package with a published advisory per package manager (download only); logs in clients/out/$(PHASE)/
+	-PHASE=$(PHASE) clients/known-bad.sh
 
 preview: ## step 2: what would be blocked, from the recorded verdicts
 	THRESHOLD=$(THRESHOLD) policy/preview.sh
@@ -72,10 +77,15 @@ exception: vendor acknowledge rescan proxied ## step 5, all four parts
 gates: ## run G1-G9 (PASS / FAIL / BLOCKED per gate), evidence in out/gates/
 	THRESHOLD=$(THRESHOLD) gates/run-all.sh
 
-all: registry-up bootstrap images record baseline known-bad preview enforce review exception ## the whole story, from an empty registry
-	$(MAKE) baseline
-	$(MAKE) known-bad
+all: registry-up bootstrap images record ## the whole story, from an empty registry (steps 1 to 5)
+	$(MAKE) baseline known-bad PHASE=record
+	$(MAKE) preview
+	$(MAKE) baseline PHASE=record-fixed BASELINE=fixed
+	$(MAKE) preview
+	$(MAKE) enforce lock
+	$(MAKE) baseline known-bad PHASE=enforce BASELINE=fixed
 	$(MAKE) review
+	$(MAKE) exception
 
 clean: ## delete the stack and all state: containers, volumes, network, tokens, outputs
 	registry/clean.sh

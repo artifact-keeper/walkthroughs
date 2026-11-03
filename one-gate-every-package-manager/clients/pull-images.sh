@@ -3,7 +3,7 @@
 # clients/out/images.txt. Override an image with IMG_GO, IMG_CARGO, IMG_NPM, IMG_APT, IMG_APK.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-: "${IMG_GO:=docker.io/library/golang:1.25-alpine}"
+: "${IMG_GO:=docker.io/library/golang:1.26-alpine}"
 : "${IMG_CARGO:=docker.io/library/rust:1-slim-bookworm}"
 : "${IMG_NPM:=docker.io/library/node:22-alpine}"
 : "${IMG_APT:=docker.io/library/debian:12-slim}"

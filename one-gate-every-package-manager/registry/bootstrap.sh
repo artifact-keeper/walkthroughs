@@ -12,8 +12,6 @@
 #   - tokens (in registry/.tokens/, gitignored, mode 600):
 #       admin.token     API token with every scope, for the scripts
 #       ci-npm.token    repo token on npm-internal, read+write (npm publish)
-#   - the signing keys the Debian and Alpine remotes re-sign their indexes with, fetched
-#     into registry/out/ for the apt and apk clients
 # Scan-on-proxy itself is configured by policy/mode.sh, not here.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -87,14 +85,7 @@ if works "$TOKENS/ci-npm.token" /api/v1/auth/me; then log "ci-npm.token still va
   log "minted ci-npm.token (repo token on npm-internal: read+write, 90 days)"
 fi
 
-# --- index signing keys for apt and apk ---------------------------------------
-# A Debian or Alpine Remote re-signs the indexes it serves with its own key; the
-# clients trust that key, not the upstream's.
-akcurl -fsS "$U/debian/debian-proxy/gpg-key.asc" -o "$OUT/debian-proxy.asc"
-log "Debian index signing key: $OUT/debian-proxy.asc ($(grep -c BEGIN "$OUT/debian-proxy.asc") PEM block)"
-# Alpine's key file name is the one apk derives from the APKINDEX signature entry;
-# the registry publishes it under <branch>/keys/ with a fixed name.
-ALPINE_BRANCH="${ALPINE_BRANCH:-v3.22}"
-akcurl -fsS "$U/alpine/alpine-proxy/$ALPINE_BRANCH/keys/artifact-keeper.rsa.pub" -o "$OUT/artifact-keeper.rsa.pub"
-log "Alpine index signing key: $OUT/artifact-keeper.rsa.pub"
+# Note: the Debian and Alpine Remotes pass the upstream InRelease and APKINDEX.tar.gz through
+# with the upstream signatures intact (gpg-key.asc and <branch>/keys/ answer 404 "No signing
+# key configured" for a Remote), so apt and apk verify them with the keys their images ship.
 log "done. Tokens in $TOKENS (never commit). CA: $CA"
