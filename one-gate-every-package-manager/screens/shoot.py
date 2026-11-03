@@ -38,10 +38,12 @@ def main() -> int:
         page.fill("input[name=username], input[id=username], input[type=text]", USER)
         page.fill("input[name=password], input[id=password], input[type=password]", PASSWORD)
         page.click("button[type=submit]")
-        page.wait_for_load_state("networkidle")
-        if "/login" in page.url:
-            print("login failed:", page.url, file=sys.stderr)
+        try:
+            page.wait_for_url(lambda u: "/login" not in u, timeout=20000)
+        except Exception:
+            print("login failed:", page.url, page.inner_text("body")[:300], file=sys.stderr)
             return 1
+        page.wait_for_load_state("networkidle")
         for name, path, _ in PAGES:
             page.goto(f"{BASE}{path}", wait_until="networkidle")
             page.wait_for_timeout(1500)
