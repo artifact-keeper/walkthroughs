@@ -1,0 +1,7 @@
+# apt: Debian bookworm through the registry. The index signature is the registry's own
+# (a Remote re-signs what it serves); the key is fetched by registry/bootstrap.sh.
+Types: deb
+URIs: https://ak.internal/debian/debian-proxy
+Suites: bookworm
+Components: main
+Signed-By: /run/ak/debian-proxy.asc

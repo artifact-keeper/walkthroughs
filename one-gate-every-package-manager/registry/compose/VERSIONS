@@ -1,0 +1,9 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  main
+commit:  5022d173c47f50f3b387f1fe359391d5949478e5  ("docs: add brand banner to README (#5190)", 2026-11-02)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example): filled in by the run, see docs results.md

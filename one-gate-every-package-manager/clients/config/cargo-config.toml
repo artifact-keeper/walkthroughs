@@ -1,0 +1,14 @@
+# Cargo: crates.io is replaced by the registry's proxy (sparse index). With source
+# replacement every `cargo fetch`, `cargo build` and `cargo install` resolves and downloads
+# through ak.internal. The repository is public, so no token is needed.
+[source.crates-io]
+replace-with = "ak"
+
+[source.ak]
+registry = "sparse+https://ak.internal/cargo/cargo-proxy/index/"
+
+[http]
+cainfo = "/run/ak/ca.crt"
+
+[net]
+retry = 0
