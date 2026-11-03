@@ -1,0 +1,91 @@
+# Local overrides on top of the stock upstream docker-compose.yml (artifact-keeper main,
+# see VERSIONS). The stock file in this directory is byte-for-byte upstream; every change
+# for this walkthrough lives here. Compose project name: ak-gate (see ../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (the :main builds, pinned by digest
+#     once the run has recorded them in VERSIONS).
+#   - container_name: every upstream name is prefixed ak-gate- so this stack can run next
+#     to other Artifact Keeper stacks on the same host.
+#   - network: ak-gate-net (AK_NET_SUBNET). The backend needs the internet to proxy the
+#     five public upstreams; the client containers join the same network and are
+#     configured to use only https://ak.internal.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:HTTPS_PORT -> 443. Nothing else publishes a port.
+#   - Trivy and OpenSCAP are off (profile "scanners"): scan-on-proxy grades packages with
+#     the bundled engine (Grype); TRIVY_URL is unset so the backend does not log a missing
+#     scanner on every scan.
+#   - Dependency-Track is off (profile "dtrack"): nothing here exports SBOMs to it, and it
+#     is the heaviest part of the stock stack. The backend's dependency on dtrack-init is
+#     `required: false` upstream, so leaving the profile off is supported.
+services:
+  pg-certs:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-gate-pg-certs
+  scan-workspace-init:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-gate-scan-ws-init
+  dtrack-init:
+    image: docker.io/library/alpine:3.24
+    container_name: ak-gate-dtrack-init
+    profiles: ["dtrack"]
+  dependency-track-apiserver:
+    container_name: ak-gate-dtrack-api
+    profiles: ["dtrack"]
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-gate-dtrack-frontend
+    profiles: ["dtrack"]
+    ports: !reset []
+
+  postgres:
+    image: docker.io/library/postgres:18-alpine
+    container_name: ak-gate-db
+    ports: !reset []
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6
+    container_name: ak-gate-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-gate-trivy
+    profiles: ["scanners"]
+    ports: !reset []
+  openscap:
+    container_name: ak-gate-openscap
+    profiles: ["scanners"]
+    ports: !reset []
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:main}
+    container_name: ak-gate-backend
+    environment:
+      TRIVY_URL:
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_NET_SUBNET:-172.31.60.0/24}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:${HTTPS_PORT:-30446},https://localhost:${HTTPS_PORT:-30446}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:main}
+    container_name: ak-gate-web
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    container_name: ak-gate-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30446}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-gate-net
+    ipam:
+      config:
+        - subnet: ${AK_NET_SUBNET:-172.31.60.0/24}

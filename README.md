@@ -17,6 +17,8 @@ runs.
 | Walkthrough | Guide | Code |
 |---|---|---|
 | Rocky Linux image mode on bare metal | [site](https://artifact-keeper.github.io/walkthroughs/rocky-linux-image-mode-bare-metal/) | [`rocky-linux-image-mode-bare-metal/`](rocky-linux-image-mode-bare-metal/) |
+| A private conda channel for pixi | [site](https://artifact-keeper.github.io/walkthroughs/private-conda-channel-pixi/) | [`private-conda-channel-pixi/`](private-conda-channel-pixi/) |
+| One gate for every package manager (draft) | [site](https://artifact-keeper.github.io/walkthroughs/one-gate-every-package-manager/) | [`one-gate-every-package-manager/`](one-gate-every-package-manager/) |
 
 ## Layout
 

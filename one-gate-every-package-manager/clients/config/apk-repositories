@@ -1,0 +1,4 @@
+# apk: Alpine v3.22 through the registry. A Remote passes APKINDEX.tar.gz through with the
+# upstream signature intact, so the image's own /etc/apk/keys verify it.
+https://ak.internal/alpine/alpine-proxy/v3.22/main
+https://ak.internal/alpine/alpine-proxy/v3.22/community

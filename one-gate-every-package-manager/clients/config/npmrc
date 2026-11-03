@@ -1,0 +1,8 @@
+; npm: one registry, the stack's CA, no install scripts, no audit or funding calls.
+registry=https://ak.internal/npm/npm-proxy/
+cafile=/run/ak/ca.crt
+ignore-scripts=true
+audit=false
+fund=false
+update-notifier=false
+cache=/tmp/npmcache

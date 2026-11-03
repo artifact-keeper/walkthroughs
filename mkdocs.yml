@@ -126,6 +126,20 @@ nav:
           - Findings: private-conda-channel-pixi/findings.md
           - Original plan: private-conda-channel-pixi/plan.md
 
+  - One gate for every package manager:
+      - one-gate-every-package-manager/index.md
+      - 1. Stand up the registry and the five clients: one-gate-every-package-manager/1-stand-up-the-registry.md
+      - 2. Record first: one-gate-every-package-manager/2-record-first.md
+      - 3. Review the dashboard and the queues: one-gate-every-package-manager/3-review-the-queues.md
+      - 4. Enforce: one-gate-every-package-manager/4-enforce.md
+      - 5. Handle a legitimate exception: one-gate-every-package-manager/5-handle-an-exception.md
+      - 6. Prove it fails safely: one-gate-every-package-manager/6-prove-it-fails-safely.md
+      - Results: one-gate-every-package-manager/results.md
+      - Next steps: one-gate-every-package-manager/next-steps.md
+      - Lab notes:
+          - Findings: one-gate-every-package-manager/findings.md
+          - Original plan: one-gate-every-package-manager/plan.md
+
 validation:
   links:
     anchors: warn

@@ -1,0 +1,10 @@
+{
+  "name": "baseline",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@types/node": "22.15.3",
+    "express": "4.21.2",
+    "typescript": "5.8.3"
+  }
+}

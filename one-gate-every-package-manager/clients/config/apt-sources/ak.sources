@@ -1,0 +1,7 @@
+# apt: Debian bookworm through the registry. A Remote passes the upstream InRelease through
+# with its signature intact, so the image's own Debian archive keyring verifies it.
+Types: deb
+URIs: https://ak.internal/debian/debian-proxy
+Suites: bookworm
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg

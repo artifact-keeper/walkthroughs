@@ -28,6 +28,16 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-conda-channel-pixi/index.md)
 
+-   :material-shield-check-outline:{ .lg .middle } __One gate for every package manager__
+
+    ---
+
+    Put one scan gate in front of `go`, `cargo`, `npm`, `apt` and `apk` without breaking a
+    build: record first, see what would be blocked, review the queues, enforce and lock, handle
+    an exception, and prove the gate fails closed. Draft, run against Artifact Keeper `main`.
+
+    [:octicons-arrow-right-24: Start the walkthrough](one-gate-every-package-manager/index.md)
+
 </div>
 
 Looking for a specific format, tool or control? [Browse by tag](tags.md).
