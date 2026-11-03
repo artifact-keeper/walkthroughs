@@ -50,7 +50,7 @@ the hosted gate's answer for "held by a scan policy" (1.12.0 made that `403` rat
 score, which is what the 1.12.0 grade status is about: `grade: C`, `grade_status: rated`,
 `coverage: 1 of 1 cataloged` (`GET /api/v1/security/scores` was `[]` until this upload).
 
-![npm-internal's Security tab: one artifact, grade C, three high and three medium findings](images/u06-npm-internal-security.png)
+![The scan results page: the upload scans of the vendored lodash 4.17.15, Grype and the dependency scan, six findings each](images/u06-scan-results.png)
 
 Then the decision, as a record:
 

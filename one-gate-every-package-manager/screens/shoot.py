@@ -21,7 +21,7 @@ PAGES = [
     ("u03-npm-proxy-settings", "/repositories/npm-proxy", "Settings", True),
     ("u04-security-dashboard", "/security", None, True),
     ("u05-audit", "/audit", None, False),
-    ("u06-npm-internal-security", "/repositories/npm-internal", "Security", True),
+    ("u06-scan-results", "/security/scans", None, True),
 ]
 
 
