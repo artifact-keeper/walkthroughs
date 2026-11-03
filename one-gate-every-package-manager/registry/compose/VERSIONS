@@ -6,4 +6,14 @@ files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-p
          docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
          registry/caddy/Caddyfile replaces it)
 
-# Images (registry/.env.example): filled in by the run, see docs results.md
+# Images (registry/.env.example), 2026-11-02; 1.12.0 is not released, these are the :main builds
+ghcr.io/artifact-keeper/artifact-keeper-backend:main  revision 12808b8694e4  digest sha256:302343442240cfd1b19d942690d7db34845e5962e13fe372667e4de936b4dc88
+ghcr.io/artifact-keeper/artifact-keeper-web:main      revision 0f89b1c5e474  digest sha256:579cbc711f4bbeb9ac59c0acdd5c11741da96923c2e673e73a57d7ec25fe61b8
+
+# Client images (clients/run.sh, clients/pull-images.sh), as pulled on 2026-11-03
+docker.io/library/golang:1.26-alpine     sha256:a2012b4a1d1f9f7e9f44e0d39b805a901e856b1dd80b4e6ee4338db547050308
+docker.io/library/rust:1-slim-bookworm   sha256:24707e70a4f1e23d9a7b25202ec43126d28a52294b96aad5c670df1fd1f1d400
+docker.io/library/node:22-alpine         sha256:025b8e975a61d94e33abeafaad1255ef44e4898cf1a1b6446860009c72e6d284
+docker.io/library/debian:12-slim         sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3
+docker.io/library/alpine:3.22            sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f
+mcr.microsoft.com/playwright/python:v1.52.0-noble (screenshots only)
