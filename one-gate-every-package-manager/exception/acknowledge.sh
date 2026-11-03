@@ -20,5 +20,5 @@ for sid in $(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -r '(.it
   done
 done
 echo "acknowledge: $n finding(s) acknowledged with reason: $reason"
-echo "acknowledge: quarantine: $(body_of "$(api GET "/quarantine/$art")" | jq -c '{quarantine_status, quarantine_source, quarantine_reason}' 2>/dev/null)"
+echo "acknowledge: quarantine: $(body_of "$(api GET "/quarantine/$art")" | jq -c '{quarantine_status, quarantine_reason, is_blocked}')"
 echo "acknowledge: download through npm-internal: HTTP $(akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")"

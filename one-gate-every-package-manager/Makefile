@@ -10,7 +10,7 @@ SHELL := /bin/bash
 THRESHOLD ?= high
 
 .PHONY: help registry-up registry-down bootstrap images record baseline known-bad preview enforce fail-open \
-        lock unlock review exception vendor acknowledge rescan proxied gates all clean screens-ready
+        lock unlock review exception vendor acknowledge release rescan proxied gates all clean screens-ready screens
 
 help: ## list targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -63,8 +63,11 @@ review: ## step 3: dashboard, blocked list, hold queues, scores, refusal audit r
 vendor: ## step 5: publish the vendored lodash 4.17.15 to npm-internal; upload scan refuses it
 	exception/vendor.sh
 
-acknowledge: ## step 5: acknowledge its findings with a reason; download allowed
+acknowledge: ## step 5: acknowledge its findings with a reason (the policy passes; the hold stays)
 	exception/acknowledge.sh
+
+release: ## step 5: release the quarantine hold the scan wrote; download allowed
+	exception/release.sh
 
 rescan: ## step 5: scan it again; the acknowledgement does not survive (#5153)
 	exception/rescan.sh
@@ -72,7 +75,7 @@ rescan: ## step 5: scan it again; the acknowledgement does not survive (#5153)
 proxied: ## step 5: a proxied false positive (async-ctrlc 1.2.0, #5143) has no exception
 	exception/proxied.sh
 
-exception: vendor acknowledge rescan proxied ## step 5, all four parts
+exception: vendor acknowledge release rescan proxied ## step 5, all five parts
 
 gates: ## run G1-G9 (PASS / FAIL / BLOCKED per gate), evidence in out/gates/
 	THRESHOLD=$(THRESHOLD) gates/run-all.sh
@@ -91,6 +94,9 @@ all: registry-up bootstrap images record ## the whole story, from an empty regis
 
 clean: ## delete the stack and all state: containers, volumes, network, tokens, outputs
 	registry/clean.sh
+
+screens: ## UI screenshots with Playwright in a container (screens/out/)
+	screens/run.sh
 
 screens-ready: ## print the UI URL and where the admin credentials are
 	@echo "UI:        https://127.0.0.1:$${HTTPS_PORT:-30446}  (certificate from the stack's internal CA)"

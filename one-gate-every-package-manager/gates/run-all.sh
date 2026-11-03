@@ -13,7 +13,7 @@ count_fail() { fails=$(grep -c $'\tFAIL\t' "$RESULTS" 2>/dev/null || echo 0); }
 
 # The known-bad fixtures: repository, cache path (regex for proxy-scans), exact probe path.
 KB_GO='go-proxy|golang.org/x/text/@v/v0.3.0.zip|golang.org/x/text/@v/v0.3.0.zip'
-KB_CARGO='cargo-proxy|smallvec-1.6.0.crate|api/v1/crates/smallvec/1.6.0/download'
+KB_CARGO='cargo-proxy|api/v1/crates/smallvec/1.6.0/download|api/v1/crates/smallvec/1.6.0/download'
 KB_NPM='npm-proxy|lodash-4.17.15.tgz|lodash/-/lodash-4.17.15.tgz'
 # The OS packages' cache paths carry the version the distribution serves on the day of the
 # run, so they are read back from the proxy-scan records of the record phase.
@@ -62,7 +62,7 @@ for spec in "$KB_GO" "$KB_CARGO" "$KB_NPM" "$KB_APT" "$KB_APK"; do
   IFS='|' read -r repo re path <<<"$spec"
   t=${repo%-proxy}; [[ $t == debian ]] && t=apt; [[ $t == alpine ]] && t=apk
   r=$("$PROBE" "$repo" "$path")
-  entry=$(proxy_scan_entry "$repo" "$re")
+  entry=$(body_of "$(api GET "/repositories/$repo/security/proxy-scans?path=$path")" | jq -c '.items[0] // empty')
   summary=$(jq -r '"state=\(.state) severity=\(.max_severity) findings=\(.findings_count) cataloged=\(.components_cataloged) cves=\((.findings // [])[0:3] | map(.cve_id) | join(","))"' <<<"${entry:-{\}}")
   e=$(log_exit "$CO/enforce/known-bad-$t.log")
   evidence G4 "$t: client exit ${e:-missing}; probe $repo $path: $r" "   verdict: $summary"
@@ -143,7 +143,7 @@ r=$(http GET "$U/api/v1/repositories/go-proxy/download/golang.org/x/text/@v/v0.2
 evidence G9 "generic route: HTTP $r $b"
 [[ $r == 403 && $b == *scan_on_proxy_route_required* ]] && pass G9 "generic download route refuses a scanning Remote (403 scan_on_proxy_route_required)" || fail G9 "generic route refuses" "HTTP $r $b"
 # (b) an Alpine branch that names no release is inconclusive: 423, never unscanned bytes
-f=$(kb_apk); r=$("$PROBE" alpine-proxy "latest-stable/main/x86_64/$f")
+f=$(basename "$(kb_apk)"); r=$("$PROBE" alpine-proxy "latest-stable/main/x86_64/$f")
 evidence G9 "alpine latest-stable/main/x86_64/$f: $r"
 [[ $r == "HTTP 423"*scan_pending* ]] && pass G9 "fail_closed withholds a package whose release cannot be determined (alpine latest-stable: 423)" || fail G9 "inconclusive withheld" "$r"
 # (c) a Debian Remote that has never served its Release: a base-release package is inconclusive
@@ -159,6 +159,7 @@ r=$("$PROBE" "$key" "$basepkg")
 evidence G9 "$key (no apt update yet) $basepkg: $r"
 [[ $r == "HTTP 423"*scan_pending* ]] && pass G9 "a Debian Remote with no cached Release withholds a base-release package (423)" || fail G9 "fresh Debian remote withholds" "$r"
 # (d) the instance lock: a repository administrator cannot weaken the policy
+"$ROOT/policy/lock.sh" on go-proxy >/dev/null
 pw="$TOKENS/repoadmin.password"
 uid=$(body_of "$(api GET '/users?per_page=200')" | jq -r '(if type=="array" then . else .items end)[] | select(.username=="repoadmin") | .id')
 if [[ -z $uid ]]; then
@@ -169,19 +170,22 @@ fi
 rjwt=$(akcurl -sS -X POST "$U/api/v1/auth/login" -H 'Content-Type: application/json' -d "$(jq -nc --arg p "$(cat "$pw")" '{username:"repoadmin",password:$p}')" | jq -r .access_token)
 weaken=$(akcurl -sS -o "$GOUT/body" -w '%{http_code}' -X PUT "$U/api/v1/repositories/go-proxy/security" -H "Authorization: Bearer $rjwt" -H 'Content-Type: application/json' -d '{"proxy_scan_action":"record_only"}'); wb=$(body | jq -c . 2>/dev/null)
 tighten=$(akcurl -sS -o "$GOUT/body" -w '%{http_code}' -X PUT "$U/api/v1/repositories/go-proxy/security" -H "Authorization: Bearer $rjwt" -H 'Content-Type: application/json' -d '{"severity_threshold":"medium"}')
-akcurl -sS -o /dev/null -X PUT "$U/api/v1/repositories/go-proxy/security" -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d "{\"severity_threshold\":\"$THRESHOLD\",\"instance_locked\":true}"
-locked=$(body_of "$(api GET /repositories/go-proxy/security)" | jq -r .instance_locked)
+akcurl -sS -o /dev/null -X PUT "$U/api/v1/repositories/go-proxy/security" -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d "{\"proxy_scan_action\":\"fail_closed\",\"severity_threshold\":\"$THRESHOLD\",\"instance_locked\":true}"
+locked=$(body_of "$(api GET /repositories/go-proxy/security)" | jq -r .config.instance_locked)
 evidence G9 "go-proxy instance_locked=$locked; repoadmin sets record_only: HTTP $weaken $wb; repoadmin lowers the threshold to medium: HTTP $tighten (reset to $THRESHOLD)"
 [[ $locked == true && $weaken == 403 && $tighten == 200 ]] && pass G9 "instance lock: a repository admin can tighten the policy but not weaken it" || fail G9 "instance lock" "locked=$locked weaken=$weaken tighten=$tighten"
-# (e) a retry loop against a refused file writes at most two audit rows a minute
+# (e) a retry loop against a refused file writes at most two audit rows a minute: the first
+# refusal at once, the repeats as one summary row when the 60 s window closes. Wait for it.
 IFS='|' read -r repo re path <<<"$KB_NPM"
+sleep 61   # let any window a previous pull of this file opened close first
 since=$(date -u +%FT%TZ)
 for _ in $(seq 12); do "$PROBE" "$repo" "$path" >/dev/null; done
-sleep 2
+sleep 65
 http GET "$U/api/v1/admin/audit?action=PROXY_SCAN_BLOCKED&per_page=200&from=$since" >/dev/null
-rows=$(body | jq --arg s "$since" '[(.items // .logs // [])[] | select(.action=="PROXY_SCAN_BLOCKED" and .details.path=="lodash/-/lodash-4.17.15.tgz" and ((.created_at // .timestamp) >= $s))] | length')
-evidence G9 "12 refused pulls of lodash 4.17.15 in a row: $rows audit row(s) since $since (first at once, repeats summarised when the window closes)"
-(( rows >= 1 && rows <= 2 )) && pass G9 "refusal audit is aggregated: a retry loop writes at most two rows a minute" || fail G9 "audit aggregation" "$rows rows"
+rows=$(body | jq -r --arg s "$since" '[(.items // [])[] | select(.action=="PROXY_SCAN_BLOCKED" and .details.path=="lodash-4.17.15.tgz" and ((.created_at | sub("\\.[0-9]+";"")) >= $s))] | sort_by(.created_at) | .[] | "attempts=\(.details.attempts) aggregated=\(.details.aggregated) at \(.created_at)"')
+n=$(grep -c attempts <<<"$rows" || true)
+evidence G9 "12 refused pulls of lodash 4.17.15 within a few seconds, counted 65 s later: $n audit row(s)" "$rows"
+(( n >= 1 && n <= 2 )) && grep -q 'attempts=11 aggregated=true' <<<"$rows" && pass G9 "refusal audit is aggregated: a retry loop writes at most two rows a minute" || fail G9 "audit aggregation" "$n rows: $(tr '\n' ';' <<<"$rows")"
 # (f) the refused file stays in the proxy cache listing and is refused on every read
 http GET "$U/api/v1/repositories/npm-proxy/artifacts?per_page=500" >/dev/null
 listed=$(body | jq -r '(.items // .)[] | select(.path | test("lodash-4.17.15.tgz")) | .path' | head -1)

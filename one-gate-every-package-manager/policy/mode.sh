@@ -30,7 +30,7 @@ for k in "${repos[@]}"; do
   case $LOCK in
     on)   b=$(jq -c '. + {instance_locked:true}' <<<"$body") ;;
     off)  b=$(jq -c '. + {instance_locked:false}' <<<"$body") ;;
-    keep) cur=$(body_of "$(api GET "/repositories/$k/security")" | jq -r '.instance_locked // false')
+    keep) cur=$(body_of "$(api GET "/repositories/$k/security")" | jq -r '.config.instance_locked // false')
           b=$(jq -c --argjson l "$cur" '. + {instance_locked:$l}' <<<"$body") ;;
     *) echo "mode.sh: LOCK=on|off|keep" >&2; exit 2 ;;
   esac
