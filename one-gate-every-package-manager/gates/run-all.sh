@@ -24,11 +24,11 @@ KB_APK="alpine-proxy|$(kb_apk | sed 's/[.]/[.]/g')|$(kb_apk)"
 
 # G1 the stack: five formats enforced, five proxies, every client reaches the registry ---
 ev=()
-formats=$(body_of "$(api GET /formats)" | jq -r '(if type=="array" then . else (.items // .formats) end)[] | select(.key as $k | ["go","cargo","npm","debian","alpine"] | index($k)) | "\(.key)=\(.scan_on_proxy)"' | sort | tr '\n' ' ')
+formats=$(body_of "$(api GET /formats)" | jq -r '(if type=="array" then . else (.items // .formats) end)[] | select(.format_key as $k | ["go","cargo","npm","debian","alpine"] | index($k)) | "\(.format_key)=\(.scan_on_proxy)"' | sort | tr '\n' ' ')
 ev+=("GET /api/v1/formats: $formats")
 ok=1; [[ $formats == "alpine=enforced cargo=enforced debian=enforced go=enforced npm=enforced " ]] || ok=0
 for p in 'go-proxy golang.org/x/text/@v/list' 'cargo-proxy index/sm/al/smallvec' 'npm-proxy lodash' 'debian-proxy dists/bookworm/InRelease' 'alpine-proxy v3.22/main/x86_64/APKINDEX.tar.gz'; do
-  set -- $p; r=$("$PROBE" "$1" "$2"); ev+=("$1 $2: $r"); [[ $r == "HTTP 200"* ]] || ok=0
+  set -- $p; r=$("$PROBE" "$1" "$2" | cut -c1-60); ev+=("$1 $2: $r"); [[ $r == "HTTP 200"* ]] || ok=0
 done
 evidence G1 "${ev[@]}"
 (( ok )) && pass G1 "five formats enforced; metadata of all five proxies served" || fail G1 "five formats enforced; metadata served" "see evidence"
@@ -142,8 +142,10 @@ else fail G8 "crate graded on its own coordinate" "$r"; fi
 r=$(http GET "$U/api/v1/repositories/go-proxy/download/golang.org/x/text/@v/v0.21.0.zip"); b=$(body | jq -c . 2>/dev/null)
 evidence G9 "generic route: HTTP $r $b"
 [[ $r == 403 && $b == *scan_on_proxy_route_required* ]] && pass G9 "generic download route refuses a scanning Remote (403 scan_on_proxy_route_required)" || fail G9 "generic route refuses" "HTTP $r $b"
-# (b) an Alpine branch that names no release is inconclusive: 423, never unscanned bytes
-f=$(basename "$(kb_apk)"); r=$("$PROBE" alpine-proxy "latest-stable/main/x86_64/$f")
+# (b) an Alpine branch that names no release is inconclusive: 423, never unscanned bytes.
+# latest-stable serves its own curl version; read it from that branch's index.
+v=$(akcurl -sS "$U/alpine/alpine-proxy/latest-stable/main/x86_64/APKINDEX.tar.gz" | tar -xzO APKINDEX 2>/dev/null | awk '/^P:curl$/{p=1} p&&/^V:/{sub("V:",""); print; exit}')
+f="curl-${v:-unknown}.apk"; r=$("$PROBE" alpine-proxy "latest-stable/main/x86_64/$f")
 evidence G9 "alpine latest-stable/main/x86_64/$f: $r"
 [[ $r == "HTTP 423"*scan_pending* ]] && pass G9 "fail_closed withholds a package whose release cannot be determined (alpine latest-stable: 423)" || fail G9 "inconclusive withheld" "$r"
 # (c) a Debian Remote that has never served its Release: a base-release package is inconclusive
