@@ -6,7 +6,7 @@
 #
 # The packages (see docs plan.md, "Known-bad fixtures"):
 #   go     golang.org/x/text v0.3.0         CVE-2020-14040, CVE-2021-38561 (high); graded as itself (#4952)
-#   cargo  smallvec 0.6.9                   CVE-2019-15551 (critical)
+#   cargo  smallvec 1.6.0                   CVE-2021-25900 (critical); 0.6.9 is yanked, cargo will not resolve it
 #   npm    lodash 4.17.15                   CVE-2020-8203, CVE-2021-23337 (high)
 #   apt    the bookworm package named in clients/known-bad/apt.txt
 #   apk    the v3.22 package named in clients/known-bad/apk.txt
