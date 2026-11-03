@@ -14,13 +14,14 @@ USER = os.environ.get("AK_USER", "admin")
 PASSWORD = os.environ["AK_PASSWORD"]
 OUT = os.environ.get("OUT", "/out")
 
-# (file name, path, what the caption should say)
+# (file name, path, tab to click or None, full page?)
 PAGES = [
-    ("u01-repositories", "/repositories", "the repositories list"),
-    ("u02-npm-proxy-scans", "/repositories/npm-proxy", "a Remote's detail page with the proxy scan panel"),
-    ("u03-security-dashboard", "/security", "the admin security dashboard"),
-    ("u04-scans", "/security/scans", "the scan list"),
-    ("u05-audit", "/audit", "the audit log"),
+    ("u01-repositories", "/repositories", None, True),
+    ("u02-npm-proxy-security", "/repositories/npm-proxy", "Security", True),
+    ("u03-npm-proxy-settings", "/repositories/npm-proxy", "Settings", True),
+    ("u04-security-dashboard", "/security", None, True),
+    ("u05-audit", "/audit", None, False),
+    ("u06-npm-internal-security", "/repositories/npm-internal", "Security", True),
 ]
 
 
@@ -44,11 +45,14 @@ def main() -> int:
             print("login failed:", page.url, page.inner_text("body")[:300], file=sys.stderr)
             return 1
         page.wait_for_load_state("load")
-        for name, path, _ in PAGES:
+        for name, path, tab, full in PAGES:
             # The UI polls, so "networkidle" never comes; load, then give the data calls 3 s.
             page.goto(f"{BASE}{path}", wait_until="load")
             page.wait_for_timeout(3000)
-            page.screenshot(path=os.path.join(OUT, f"{name}.png"), full_page=True)
+            if tab:
+                page.get_by_role("tab", name=tab).first.click()
+                page.wait_for_timeout(3000)
+            page.screenshot(path=os.path.join(OUT, f"{name}.png"), full_page=full)
             print("saved", name, page.url)
         browser.close()
     return 0

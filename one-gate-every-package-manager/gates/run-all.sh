@@ -110,13 +110,18 @@ evidence G6 "${ev[@]}"
 art=$(cat "$ROOT/out/vendored-artifact-id" 2>/dev/null)
 if [[ -z $art ]]; then fail G7 "hosted exception" "run make exception first"; else
   http GET "$U/api/v1/security/artifacts/$art/scans" >/dev/null
-  scans=$(body | jq -c '[(.items // .)[] | select(.scan_type=="grype") | {id, status, findings_count, acknowledged_count, created_at}] | sort_by(.created_at)')
+  scans=$(body | jq -c '[(.items // .)[] | select(.status=="completed") | {scan_type, id, findings_count, created_at}] | sort_by(.created_at)')
   n=$(jq length <<<"$scans")
   latest=$(jq -r '.[-1]' <<<"$scans"); first=$(jq -r '.[0]' <<<"$scans")
   dl=$(http GET "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")
   evidence G7 "scans of the vendored lodash 4.17.15: $scans" "download now: HTTP $dl"
-  if (( n < 2 )); then fail G7 "acknowledged findings survive a rescan" "expected two scans (make rescan)"
-  elif [[ $(jq -r .acknowledged_count <<<"$first") -gt 0 && $(jq -r .acknowledged_count <<<"$latest") == 0 && $dl == 403 ]]; then
+  # acknowledged rows per scan, oldest and newest
+  acked() { http GET "$U/api/v1/security/scans/$1/findings?per_page=100" >/dev/null; body | jq '[(.items // .)[] | select(.is_acknowledged)] | length'; }
+  unacked() { http GET "$U/api/v1/security/scans/$1/findings?per_page=100" >/dev/null; body | jq '[(.items // .)[] | select(.is_acknowledged | not)] | length'; }
+  fa=$(acked "$(jq -r .id <<<"$first")"); lu=$(unacked "$(jq -r .id <<<"$latest")")
+  evidence G7 "oldest scan: $fa acknowledged; newest scan: $lu unacknowledged"
+  if (( n < 2 )); then fail G7 "acknowledged findings survive a rescan" "expected a second round of scans (make rescan)"
+  elif (( fa > 0 && lu > 0 )) && [[ $dl == 403 ]]; then
     blocked '#5153' G7 "acknowledged findings survive a rescan" "the rescan wrote unacknowledged rows and the download is refused again"
   elif [[ $dl == 200 ]]; then pass G7 "acknowledged findings survive a rescan"
   else fail G7 "acknowledged findings survive a rescan" "download HTTP $dl, scans $scans"; fi
@@ -124,7 +129,7 @@ fi
 
 # G8 the proxied exception: a crate refused for its bundled Cargo.lock ----------------------
 r=$("$PROBE" cargo-proxy api/v1/crates/async-ctrlc/1.2.0/download)
-entry=$(proxy_scan_entry cargo-proxy 'async-ctrlc-1.2.0')
+entry=$(body_of "$(api GET '/repositories/cargo-proxy/security/proxy-scans?path=api/v1/crates/async-ctrlc/1.2.0/download')" | jq -c '.items[0] // empty')
 own=$(jq -r '[(.findings // [])[] | select(.package_name=="async-ctrlc")] | length' <<<"${entry:-{\}}")
 others=$(jq -r '[(.findings // [])[] | .package_name] | unique | join(",")' <<<"${entry:-{\}}")
 evidence G8 "async-ctrlc 1.2.0: $r" "findings against async-ctrlc itself: $own; against other packages: $others"

@@ -21,6 +21,8 @@ done
 echo
 [[ -n $scan ]] || { echo "rescan: no new completed scan" >&2; exit 1; }
 sid=$(jq -r .id <<<"$scan")
-echo "rescan: new scan $sid: $(jq -c '{status, findings_count, acknowledged_count}' <<<"$scan")"
-body_of "$(api GET "/security/scans/$sid/findings?per_page=100")" | jq -r '(.items // .)[] | "  \(.severity)\t\(.cve_id)\t\(.package_name // .package)@\(.package_version // .version)\tacknowledged=\(.is_acknowledged)"' | column -t -s $'\t'
+echo "rescan: new Grype scan $sid: $(jq -c '{status, findings_count, acknowledged_count}' <<<"$scan")"
+for s in $(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -r --arg b "$before" '(.items // .)[] | select(.status=="completed" and (.created_at > $b)) | .id' 2>/dev/null; echo "$sid"); do
+  body_of "$(api GET "/security/scans/$s/findings?per_page=100")" | jq -r '(.items // .)[] | "  \(.source)\t\(.severity)\t\(.cve_id)\t\(.affected_component)@\(.affected_version)\tacknowledged=\(.is_acknowledged)"'
+done | sort -u | column -t -s $'\t'
 echo "rescan: download through npm-internal: HTTP $(akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")"

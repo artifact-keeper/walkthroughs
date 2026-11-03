@@ -19,7 +19,7 @@ proj=$(mktemp -d); trap 'rm -rf "$proj"' EXIT
 cp "$TGZ" "$proj/"
 printf 'registry=https://ak.internal/npm/npm-internal/\n//ak.internal/npm/npm-internal/:_authToken=%s\ncafile=/run/ak/ca.crt\nignore-scripts=true\naudit=false\nfund=false\nupdate-notifier=false\ncache=/tmp/npmcache\n' "$CI" > "$proj/.npmrc"
 chmod 600 "$proj/.npmrc"
-if akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz" | grep -q '^20'; then
+if body_of "$(api GET '/repositories/npm-internal/artifacts?per_page=100')" | jq -e '(.items // .)[] | select(.path | endswith("lodash-4.17.15.tgz"))' >/dev/null; then
   echo "vendor: lodash 4.17.15 is already in npm-internal"
 else
   CLIENT_ARGS="-e NPM_CONFIG_USERCONFIG=/work/.npmrc" "$ROOT/clients/run.sh" npm -w "$proj" -- npm publish lodash-4.17.15.tgz --loglevel http 2>&1 | grep -vE '^npm (http|verb)' || true
@@ -40,5 +40,10 @@ done
 echo " $st"
 sid=$(jq -r .id <<<"$scan")
 echo "vendor: scan $sid: $(jq -c '{scan_type, status, grade_status, findings_count, critical_count, high_count, vuln_db_version}' <<<"$scan")"
-body_of "$(api GET "/security/scans/$sid/findings?per_page=100")" | jq -r '(.items // .)[] | "  \(.severity)\t\(.cve_id)\t\(.package_name // .package)@\(.package_version // .version)\tacknowledged=\(.is_acknowledged)"' | column -t -s $'\t' | tee "$ROOT/out/vendored-findings.txt"
+# Every scanner that ran on the upload: Grype and the registry's own dependency scan both
+# write findings, and the gate counts all of them.
+body_of "$(api GET "/security/artifacts/$art/scans")" | jq -r '(.items // .)[] | select(.status=="completed") | "\(.scan_type)\t\(.id)\t\(.findings_count) findings\tgrade_status=\(.grade_status)"' | column -t -s $'\t'
+for s in $(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -r '(.items // .)[] | select(.status=="completed") | .id'); do
+  body_of "$(api GET "/security/scans/$s/findings?per_page=100")" | jq -r '(.items // .)[] | "  \(.source)\t\(.severity)\t\(.cve_id)\t\(.affected_component)@\(.affected_version)\tfixed=\(.fixed_version)\tacknowledged=\(.is_acknowledged)"'
+done | column -t -s $'\t' | tee "$ROOT/out/vendored-findings.txt"
 echo "vendor: download through npm-internal: HTTP $(akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")"
