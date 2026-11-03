@@ -43,10 +43,11 @@ def main() -> int:
         except Exception:
             print("login failed:", page.url, page.inner_text("body")[:300], file=sys.stderr)
             return 1
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         for name, path, _ in PAGES:
-            page.goto(f"{BASE}{path}", wait_until="networkidle")
-            page.wait_for_timeout(1500)
+            # The UI polls, so "networkidle" never comes; load, then give the data calls 3 s.
+            page.goto(f"{BASE}{path}", wait_until="load")
+            page.wait_for_timeout(3000)
             page.screenshot(path=os.path.join(OUT, f"{name}.png"), full_page=True)
             print("saved", name, page.url)
         browser.close()
