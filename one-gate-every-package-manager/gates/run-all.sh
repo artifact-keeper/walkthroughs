@@ -110,7 +110,7 @@ evidence G6 "${ev[@]}"
 art=$(cat "$ROOT/out/vendored-artifact-id" 2>/dev/null)
 if [[ -z $art ]]; then fail G7 "hosted exception" "run make exception first"; else
   http GET "$U/api/v1/security/artifacts/$art/scans" >/dev/null
-  scans=$(body | jq -c '[(.items // .)[] | {id, status, findings_count, acknowledged_count, created_at}] | sort_by(.created_at)')
+  scans=$(body | jq -c '[(.items // .)[] | select(.scan_type=="grype") | {id, status, findings_count, acknowledged_count, created_at}] | sort_by(.created_at)')
   n=$(jq length <<<"$scans")
   latest=$(jq -r '.[-1]' <<<"$scans"); first=$(jq -r '.[0]' <<<"$scans")
   dl=$(http GET "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")

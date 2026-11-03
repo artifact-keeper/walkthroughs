@@ -9,12 +9,12 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../policy/lib.sh"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 art=$(cat "$ROOT/out/vendored-artifact-id")
-before=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -r '(.items // .)[0].id')
+before=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -c '[(.items // .)[] | select(.scan_type=="grype")] | sort_by(.created_at) | reverse | .[0] // empty' | jq -r .id)
 r=$(api POST /security/scan -d "$(jq -nc --arg a "$art" '{artifact_id:$a, bypass_dedup:true}')"); must "rescan" "$r"
 echo "rescan: $(body_of "$r" | jq -c .)"
 echo -n "rescan: waiting for a new completed scan "
 for _ in $(seq 60); do
-  scan=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -c --arg b "$before" '(.items // .)[] | select(.id != $b and .status=="completed")' | head -1)
+  scan=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -c --arg b "$before" '[(.items // .)[] | select(.scan_type=="grype" and .id != $b and .status=="completed")] | sort_by(.created_at) | reverse | .[0] // empty')
   [[ -n $scan ]] && break
   echo -n "."; sleep 5
 done

@@ -31,13 +31,14 @@ art=$(body_of "$(api GET '/repositories/npm-internal/artifacts?per_page=100')" |
 echo "$art" > "$ROOT/out/vendored-artifact-id"
 echo -n "vendor: waiting for the upload scan of $art "
 for _ in $(seq 60); do
-  scan=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -c '(.items // .)[0] // empty')
+  # The list also holds a not-applicable OpenSCAP row; the verdict is the latest Grype scan.
+  scan=$(body_of "$(api GET "/security/artifacts/$art/scans")" | jq -c '[(.items // .)[] | select(.scan_type=="grype")] | sort_by(.created_at) | reverse | .[0] // empty')
   st=$(jq -r '.status // empty' <<<"$scan")
   [[ $st == completed || $st == failed ]] && break
   echo -n "."; sleep 5
 done
 echo " $st"
 sid=$(jq -r .id <<<"$scan")
-echo "vendor: scan $sid: $(jq -c '{status, scanner_type, grade_status, findings_count, critical_count, high_count}' <<<"$scan")"
+echo "vendor: scan $sid: $(jq -c '{scan_type, status, grade_status, findings_count, critical_count, high_count, vuln_db_version}' <<<"$scan")"
 body_of "$(api GET "/security/scans/$sid/findings?per_page=100")" | jq -r '(.items // .)[] | "  \(.severity)\t\(.cve_id)\t\(.package_name // .package)@\(.package_version // .version)\tacknowledged=\(.is_acknowledged)"' | column -t -s $'\t' | tee "$ROOT/out/vendored-findings.txt"
 echo "vendor: download through npm-internal: HTTP $(akcurl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ADMIN" "$U/npm/npm-internal/lodash/-/lodash-4.17.15.tgz")"
