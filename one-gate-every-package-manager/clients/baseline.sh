@@ -26,9 +26,9 @@ for t in "${tools[@]}"; do
     go)    "$here/run.sh" go -w "$proj" -- go mod download -x; cp "$proj/go.sum" "$OUTDIR/baseline-go.sum" 2>/dev/null ;;
     cargo) "$here/run.sh" cargo -w "$proj" -- cargo fetch; cp "$proj/Cargo.lock" "$OUTDIR/baseline-Cargo.lock" 2>/dev/null ;;
     npm)   "$here/run.sh" npm -w "$proj" -- npm install --loglevel http; cp "$proj/package-lock.json" "$OUTDIR/baseline-package-lock.json" 2>/dev/null ;;
-    apt)   CLIENT_ARGS="-v $here/baseline/apt/packages.txt:/etc/ak-packages:ro,z" \
+    apt)   CLIENT_ARGS="-v $src/packages.txt:/etc/ak-packages:ro,z" \
              "$here/run.sh" apt -- sh -c 'apt-get update && apt-get download $(cat /etc/ak-packages)' ;;
-    apk)   CLIENT_ARGS="-v $here/baseline/apk/packages.txt:/etc/ak-packages:ro,z" \
+    apk)   CLIENT_ARGS="-v $src/packages.txt:/etc/ak-packages:ro,z" \
              "$here/run.sh" apk -- sh -c 'apk fetch --no-cache --no-progress $(cat /etc/ak-packages)' ;;
     *) echo "baseline.sh: unknown tool $t" >&2; rc=2; continue ;;
   esac > >(tee -a "$log") 2>&1

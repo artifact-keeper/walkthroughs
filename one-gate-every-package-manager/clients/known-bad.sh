@@ -9,7 +9,7 @@
 #   cargo  smallvec 1.6.0                   CVE-2021-25900 (critical); 0.6.9 is yanked, cargo will not resolve it
 #   npm    lodash 4.17.15                   CVE-2020-8203, CVE-2021-23337 (high)
 #   apt    the bookworm package named in clients/known-bad/apt.txt
-#   apk    the v3.22 package named in clients/known-bad/apk.txt
+#   apk    the v3.22 package named in clients/known-bad/apk.txt (libxml2 scanned clean there; curl did not)
 # Each run writes clients/out/<PHASE>/known-bad-<tool>.log; the exit status of the client is in
 # the last line. A refused pull is the expected result once the gate enforces.
 set -uo pipefail
@@ -26,7 +26,7 @@ for t in "${tools[@]}"; do
     go)    printf 'module example.com/legacy\n\ngo 1.24\n' > "$proj/go.mod"
            "$here/run.sh" go -w "$proj" -- go mod download -x golang.org/x/text@v0.3.0 ;;
     cargo) mkdir -p "$proj/src"; : > "$proj/src/lib.rs"
-           printf '[package]\nname = "legacy"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nsmallvec = "=0.6.9"\n' > "$proj/Cargo.toml"
+           printf '[package]\nname = "legacy"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nsmallvec = "=1.6.0"\n' > "$proj/Cargo.toml"
            "$here/run.sh" cargo -w "$proj" -- cargo fetch ;;
     npm)   "$here/run.sh" npm -w "$proj" -- npm pack lodash@4.17.15 --loglevel http
            cp "$proj"/lodash-4.17.15.tgz "$here/out/" 2>/dev/null ;;

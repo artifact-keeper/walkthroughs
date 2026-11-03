@@ -13,14 +13,14 @@ count_fail() { fails=$(grep -c $'\tFAIL\t' "$RESULTS" 2>/dev/null || echo 0); }
 
 # The known-bad fixtures: repository, cache path (regex for proxy-scans), exact probe path.
 KB_GO='go-proxy|golang.org/x/text/@v/v0.3.0.zip|golang.org/x/text/@v/v0.3.0.zip'
-KB_CARGO='cargo-proxy|smallvec-0.6.9.crate|api/v1/crates/smallvec/0.6.9/download'
+KB_CARGO='cargo-proxy|smallvec-1.6.0.crate|api/v1/crates/smallvec/1.6.0/download'
 KB_NPM='npm-proxy|lodash-4.17.15.tgz|lodash/-/lodash-4.17.15.tgz'
-kb_apt() { # the pool path apt fetched in the enforce phase, from the client log
-  grep -oE 'pool/main/[^ "]+\.deb' "$CO/record/known-bad-apt.log" 2>/dev/null | head -1
-}
-kb_apk() { grep -oE '[a-z0-9._-]+-[0-9][^ /]*\.apk' "$CO/record/known-bad-apk.log" 2>/dev/null | grep -i "$(head -1 "$ROOT/clients/known-bad/apk.txt")" | head -1; }
-KB_APT="debian-proxy|$(kb_apt | sed 's/[.]/[.]/g')|$(kb_apt)"
-KB_APK="alpine-proxy|$(kb_apk | sed 's/[.]/[.]/g')|v3.22/main/x86_64/$(kb_apk)"
+# The OS packages' cache paths carry the version the distribution serves on the day of the
+# run, so they are read back from the proxy-scan records of the record phase.
+kb_apt() { proxy_scan_entry debian-proxy "pool/.*/$(head -1 "$ROOT/clients/known-bad/apt.txt")_" | jq -r .path; }
+kb_apk() { proxy_scan_entry alpine-proxy "/$(head -1 "$ROOT/clients/known-bad/apk.txt")-[0-9]" | jq -r .path; }
+KB_APT="debian-proxy|$(kb_apt | sed 's/[.+]/[&]/g')|$(kb_apt)"
+KB_APK="alpine-proxy|$(kb_apk | sed 's/[.]/[.]/g')|$(kb_apk)"
 
 # G1 the stack: five formats enforced, five proxies, every client reaches the registry ---
 ev=()
@@ -72,14 +72,21 @@ for spec in "$KB_GO" "$KB_CARGO" "$KB_NPM" "$KB_APT" "$KB_APK"; do
 done
 
 # G5 the baselines still pass under enforcement ------------------------------------------
+# Two runs per format: cold (right after enforcing, every file scanned inline on this pull)
+# and warm (the same run again, verdicts stored). Both are reported.
 for t in go cargo npm apt apk; do
-  e=$(log_exit "$CO/enforce/baseline-$t.log")
-  if [[ $e == 0 ]]; then pass G5 "$t: baseline passes under fail_closed"
+  e=$(log_exit "$CO/enforce/baseline-$t.log"); w=$(log_exit "$CO/enforce-warm/baseline-$t.log")
+  refused=$(grep -cE 'E423|423 Locked|403 Forbidden|Permission denied|scan_pending|scan_blocked' "$CO/enforce/baseline-$t.log" 2>/dev/null || true)
+  evidence G5 "$t: cold run exit ${e:-missing} (${refused:-0} refusal line(s)); warm run exit ${w:-missing}"
+  if [[ $e == 0 && $w == 0 ]]; then pass G5 "$t: baseline passes under fail_closed (cold and warm)"
   elif [[ $t == npm ]]; then
-    r=$("$PROBE" npm-proxy '@types%2fnode/-/node-22.15.3.tgz')
-    evidence G5 "npm baseline exit $e; @types/node tarball: $r"
-    [[ $r == "HTTP 423"*scan_pending* ]] && blocked '#5149' G5 "npm: baseline passes under fail_closed" "@types/* tarballs never establish identity, 423 under fail_closed" \
-      || fail G5 "npm: baseline passes under fail_closed" "exit $e, $r"
+    r=$("$PROBE" npm-proxy '@types/node/-/node-22.15.3.tgz')
+    cold423=$(grep -c 'E423' "$CO/enforce/baseline-npm.log" 2>/dev/null || true)
+    evidence G5 "npm: @types/node tarball alone: $r" "$(grep -E 'E4[0-9]{2}' "$CO/enforce/baseline-npm.log" "$CO/enforce-warm/baseline-npm.log" | sed 's#.*/baseline-##' | head -4)"
+    if [[ $r == "HTTP 423"*scan_pending* ]] && grep -q 'node-22.15.3.tgz - scan_pending' "$CO/enforce-warm/baseline-npm.log" 2>/dev/null; then
+      blocked '#5149' G5 "npm: warm baseline passes under fail_closed" "@types/* tarballs never establish identity, 423 under fail_closed"
+    else fail G5 "npm: warm baseline passes under fail_closed" "exit $w"; fi
+    [[ $e == 0 ]] || fail G5 "npm: cold baseline passes under fail_closed" "exit $e: ${cold423:-0} 423 answer(s) on the cold install (inline scans over the 30 s budget, see findings F1)"
   else
     evidence G5 "$t baseline exit ${e:-missing}: $(grep -iE 'HTTP|error|E[0-9]{3}|403|423' "$CO/enforce/baseline-$t.log" | head -5)"
     fail G5 "$t: baseline passes under fail_closed" "exit ${e:-missing}"
@@ -141,8 +148,8 @@ if [[ $(http GET "$U/api/v1/repositories/$key") != 200 ]]; then
   http POST "$U/api/v1/repositories" -H 'Content-Type: application/json' -d "{\"key\":\"$key\",\"name\":\"Debian, never apt-updated (gate G9)\",\"format\":\"debian\",\"repo_type\":\"remote\",\"visibility\":\"public\",\"upstream_url\":\"https://deb.debian.org/debian\"}" >/dev/null
 fi
 THRESHOLD=$THRESHOLD "$ROOT/policy/mode.sh" fail_closed "$key" >/dev/null
-# a package of the base release (no +deb12uN in its version): the Packages index names the path
-basepkg=$(grep -oE 'pool/main/[^ "]+_[0-9][^ "]*\.deb' "$CO/record/baseline-apt.log" | grep -v '+deb12u\|~bpo' | head -1)
+# a package of the base release (no +deb12uN or ~bpo marker in its version): hello 2.10-3
+basepkg='pool/main/h/hello/hello_2.10-3_amd64.deb'
 r=$("$PROBE" "$key" "$basepkg")
 evidence G9 "$key (no apt update yet) $basepkg: $r"
 [[ $r == "HTTP 423"*scan_pending* ]] && pass G9 "a Debian Remote with no cached Release withholds a base-release package (423)" || fail G9 "fresh Debian remote withholds" "$r"

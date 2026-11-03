@@ -83,7 +83,9 @@ all: registry-up bootstrap images record ## the whole story, from an empty regis
 	$(MAKE) baseline PHASE=record-fixed BASELINE=fixed
 	$(MAKE) preview
 	$(MAKE) enforce lock
-	$(MAKE) baseline known-bad PHASE=enforce BASELINE=fixed
+	-$(MAKE) baseline PHASE=enforce BASELINE=fixed
+	-$(MAKE) baseline PHASE=enforce-warm BASELINE=fixed
+	$(MAKE) known-bad PHASE=enforce
 	$(MAKE) review
 	$(MAKE) exception
 
