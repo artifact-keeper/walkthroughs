@@ -1,0 +1,22 @@
+{
+  "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.acme-labs/notes",
+    "title": "Notes",
+    "description": "Team notes",
+    "version": "1.0.0",
+    "remotes": [
+      {
+        "type": "streamable-http",
+        "url": "https://notes.acme-labs.example/mcp/v1"
+      }
+    ]
+  },
+  "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+      "status": "active",
+      "publishedAt": "2026-10-01T12:00:00Z",
+      "updatedAt": "2026-10-01T12:00:00Z"
+    }
+  }
+}

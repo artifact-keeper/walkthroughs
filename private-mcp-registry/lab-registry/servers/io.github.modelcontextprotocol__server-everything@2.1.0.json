@@ -1,0 +1,27 @@
+{
+  "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.modelcontextprotocol/server-everything",
+    "title": "Everything",
+    "description": "Exercises every feature of the MCP protocol (reference server)",
+    "version": "2.1.0",
+    "packages": [
+      {
+        "registryType": "npm",
+        "registryBaseUrl": "https://registry.npmjs.org",
+        "identifier": "@modelcontextprotocol/server-everything",
+        "version": "2.1.0",
+        "transport": {
+          "type": "stdio"
+        }
+      }
+    ]
+  },
+  "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+      "status": "active",
+      "publishedAt": "2026-10-01T12:00:00Z",
+      "updatedAt": "2026-10-01T12:00:00Z"
+    }
+  }
+}

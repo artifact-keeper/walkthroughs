@@ -1,0 +1,10 @@
+{
+  "name": "@acme/tickets-mcp",
+  "version": "1.0.0",
+  "description": "Acme's internal ticket queue as an MCP server (stdio, no dependencies)",
+  "license": "MIT",
+  "mcpName": "com.acme/tickets",
+  "bin": { "acme-tickets-mcp": "bin/server.js" },
+  "files": ["bin/server.js"],
+  "engines": { "node": ">=18" }
+}

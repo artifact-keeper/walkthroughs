@@ -1,0 +1,17 @@
+{
+  "manifest_version": "0.3",
+  "name": "acme-tickets",
+  "display_name": "Acme tickets",
+  "version": "1.0.0",
+  "description": "Read-only access to Acme's internal ticket queue",
+  "author": { "name": "Acme platform team" },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": { "command": "node", "args": ["${__dirname}/server/index.js"] }
+  },
+  "tools": [
+    { "name": "list_tickets", "description": "List tickets in the Acme queue, optionally only open or closed ones." },
+    { "name": "get_ticket", "description": "Get one ticket by its number." }
+  ]
+}

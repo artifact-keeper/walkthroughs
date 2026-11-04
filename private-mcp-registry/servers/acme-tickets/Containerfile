@@ -1,0 +1,9 @@
+# The same server as an OCI image. The label is what MCP clients and Artifact Keeper read
+# to tie the image to its registry entry (mcp_require_oci_label checks it).
+ARG NODE_IMAGE=docker.io/library/node:22-alpine
+FROM ${NODE_IMAGE}
+LABEL io.modelcontextprotocol.server.name="com.acme/tickets"
+COPY package.json /app/package.json
+COPY bin/server.js /app/bin/server.js
+USER node
+ENTRYPOINT ["node", "/app/bin/server.js"]

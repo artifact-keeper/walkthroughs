@@ -1,0 +1,10 @@
+# Client image pins (client/build.sh reads this file; KEY=value, no spaces). As of 2026-11-04.
+# Claude Code from npmjs.com, exact version.
+CLAUDE_CODE_VERSION=2.1.318
+# mcp-publisher, the official registry's publishing CLI: the release tarball and the SHA-256
+# the release's registry_1.8.7_checksums.txt lists for it.
+MCP_PUBLISHER_VERSION=1.8.7
+MCP_PUBLISHER_SHA256_AMD64=00b21004149a4ce66f0782508ae4a2bce67d1bea395a8da0bd8028159fb59579
+MCP_PUBLISHER_SHA256_ARM64=653ecba7556f4ff7f9c88251400a9ddcb22f7534de497874296b41d0586febea
+# Base image
+NODE_IMAGE=docker.io/library/node:22-bookworm-slim

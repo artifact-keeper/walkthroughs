@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Start the ak-mcp stack (rootless podman). Generates .env and the lab bundle signer on the
+# first run, exports Caddy's internal root CA to out/ak-internal-ca.crt, waits for /readyz.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "up.sh: generating $ENV_FILE"
+  umask 077
+  jwt="$(openssl rand -base64 48 | tr -d '\n')"
+  hook="$(openssl rand -base64 32 | tr -d '\n')"
+  admin="Ak$(openssl rand -hex 16)"   # alphanumeric: safe everywhere
+  sed -e "s|^JWT_SECRET=.*|JWT_SECRET=${jwt}|" \
+      -e "s|^AK_WEBHOOK_SECRET_KEY=.*|AK_WEBHOOK_SECRET_KEY=${hook}|" \
+      -e "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${admin}|" \
+      "$REG_DIR/.env.example" > "$ENV_FILE"
+  umask 022
+fi
+
+# The lab MCPB signer (step "Bundles"): a self-signed RSA certificate whose SHA-256
+# fingerprint the backend trusts through MCP_TRUSTED_BUNDLE_SIGNERS. Generated once, kept in
+# .signer/ (gitignored); the fingerprint is written into .env before the backend starts.
+SIGNER="$REG_DIR/.signer"
+if [[ ! -s "$SIGNER/signer.crt" ]]; then
+  mkdir -p "$SIGNER"; chmod 700 "$SIGNER"
+  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -sha256 -subj "/CN=Acme MCP bundle signing (lab)" \
+    -keyout "$SIGNER/signer.key" -out "$SIGNER/signer.crt" 2>/dev/null
+  chmod 600 "$SIGNER/signer.key"
+  echo "up.sh: generated the lab bundle signer in $SIGNER"
+fi
+fp=$(openssl x509 -in "$SIGNER/signer.crt" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d : | tr 'A-F' 'a-f')
+if ! grep -q "^MCP_TRUSTED_BUNDLE_SIGNERS=$fp$" "$ENV_FILE"; then
+  sed -i "s|^MCP_TRUSTED_BUNDLE_SIGNERS=.*|MCP_TRUSTED_BUNDLE_SIGNERS=$fp|" "$ENV_FILE"
+fi
+
+load_env
+# Override the images for one run without editing .env:
+#   AK_BACKEND_IMAGE=ghcr.io/artifact-keeper/artifact-keeper-backend:dev registry/up.sh
+export BACKEND_IMAGE="${AK_BACKEND_IMAGE:-$BACKEND_IMAGE}" WEB_IMAGE="${AK_WEB_IMAGE:-$WEB_IMAGE}"
+echo "up.sh: backend=$BACKEND_IMAGE web=$WEB_IMAGE"
+for img in "$BACKEND_IMAGE" "$WEB_IMAGE"; do
+  if [[ $img == localhost/* ]] && ! podman image exists "$img"; then
+    echo "up.sh: $img is not in podman's image store; build it first (README.md, \"Images\")" >&2
+    exit 1
+  fi
+done
+
+mkdir -p "$OUT"
+compose up -d
+
+echo -n "up.sh: waiting for Caddy's internal CA "
+for _ in $(seq 60); do
+  if podman exec "$PROJECT-caddy" test -s /data/caddy/pki/authorities/local/root.crt 2>/dev/null; then break; fi
+  echo -n "."; sleep 2
+done
+podman exec "$PROJECT-caddy" cat /data/caddy/pki/authorities/local/root.crt > "$CA.tmp"
+openssl x509 -in "$CA.tmp" -noout >/dev/null && mv "$CA.tmp" "$CA"
+echo " $CA ($(openssl x509 -in "$CA" -noout -subject))"
+
+echo -n "up.sh: waiting for $(AK_HOST_URL)/readyz "
+deadline=$((SECONDS + ${READY_TIMEOUT:-300}))
+until akcurl -fsS "$(AK_HOST_URL)/readyz" >/dev/null 2>&1; do
+  if (( SECONDS > deadline )); then
+    echo; echo "up.sh: not ready after ${READY_TIMEOUT:-300}s; backend logs:" >&2
+    podman logs --tail 50 "$PROJECT-backend" >&2 || true
+    exit 1
+  fi
+  echo -n "."; sleep 5
+done
+echo " ready"
+akcurl -fsS "$(AK_HOST_URL)/health" | jq -c '{status, version}' 2>/dev/null || true
+podman image inspect "$BACKEND_IMAGE" --format 'backend image {{.Id}}' 2>/dev/null || true

@@ -1,0 +1,90 @@
+# Local overrides on top of the stock upstream docker-compose.yml (see VERSIONS).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here. Compose project name: ak-mcp (see ../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (builds of the MCP Registry branches,
+#     artifact-keeper#5257 and artifact-keeper-web#1077, until they are merged).
+#   - container_name: every upstream name is prefixed ak-mcp- so this stack can run next to
+#     other Artifact Keeper stacks on the same host.
+#   - network: the default network is ak-mcp-net (AK_NET_SUBNET). The workstation container,
+#     the lab upstream registry and the screenshot browser join it and reach Caddy by its
+#     network alias ak.internal.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:30448 -> 443. Postgres and OpenSearch publish nothing.
+#   - AK_EXTERNAL_URL=https://ak.internal: every coordinate the registry serves (npm
+#     registryBaseUrl, OCI identifiers, bundle URLs) names https://ak.internal, whichever
+#     port a request came in on.
+#   - AK_SSRF_ALLOW_PRIVATE_CIDRS=<LAB_IP>/32: the Remote MCP repository's upstream is the
+#     lab registry at .200 of the stack network, a private address the SSRF guard refuses
+#     by default. Only that one address is allowed; every other private range stays blocked.
+#   - MCP_TRUSTED_BUNDLE_SIGNERS: the lab bundle signer's certificate fingerprint (up.sh).
+#   - MCP_RESOLVER_INTERVAL_SECS=5: the async fill of a package through a Remote backing
+#     repository runs every 5 s instead of 15 s, so the walkthrough waits less.
+#   - Trivy is disabled: TRIVY_URL is unset and the trivy service moves to the "scanners"
+#     profile. Grype, bundled in the backend image, scans every upload.
+#   - openscap is disabled (profile "scanners").
+services:
+  pg-certs:
+    container_name: ak-mcp-pg-certs
+  scan-workspace-init:
+    container_name: ak-mcp-scan-ws-init
+  dtrack-init:
+    container_name: ak-mcp-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-mcp-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-mcp-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    container_name: ak-mcp-db
+    ports: !reset []
+  opensearch:
+    container_name: ak-mcp-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-mcp-trivy
+    profiles: ["scanners"]
+  openscap:
+    container_name: ak-mcp-openscap
+    profiles: ["scanners"]
+
+  backend:
+    image: ${BACKEND_IMAGE:-localhost/ak-backend:mcp-c89f9cea}
+    container_name: ak-mcp-backend
+    environment:
+      TRIVY_URL:
+      AK_EXTERNAL_URL: https://ak.internal
+      AK_SSRF_ALLOW_PRIVATE_CIDRS: ${LAB_IP:-172.31.76.200}/32
+      MCP_TRUSTED_BUNDLE_SIGNERS: ${MCP_TRUSTED_BUNDLE_SIGNERS:-}
+      MCP_RESOLVER_INTERVAL_SECS: "5"
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_NET_SUBNET:-172.31.76.0/24}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:${HTTPS_PORT:-30448},https://localhost:${HTTPS_PORT:-30448}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-localhost/ak-web:mcp-89313d4}
+    container_name: ak-mcp-web
+
+  caddy:
+    container_name: ak-mcp-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30448}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-mcp-net
+    ipam:
+      config:
+        - subnet: ${AK_NET_SUBNET:-172.31.76.0/24}

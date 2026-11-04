@@ -55,6 +55,17 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-agent-plugin-marketplace/index.md)
 
+-   :material-server-security:{ .lg .middle } __A private MCP registry__ `preview: #5257`
+
+    ---
+
+    **Needs the MCP Registry repository type** (artifact-keeper#5257, not merged yet). Publish
+    internal MCP servers whose packages live in the same registry, curate the public MCP
+    registry behind an approval queue, hide servers whose packages are quarantined or flagged,
+    publish from CI with OIDC, and give VS Code, Copilot and Claude Code one URL.
+
+    [:octicons-arrow-right-24: Start the walkthrough](private-mcp-registry/index.md)
+
 </div>
 
 Looking for a specific format, tool or control? [Browse by tag](tags.md).

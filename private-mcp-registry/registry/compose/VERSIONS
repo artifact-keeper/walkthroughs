@@ -1,0 +1,19 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  feat/mcp-registry-phase1 (pull request #5257, not merged yet)
+commit:  3a73f81e  (docker-compose.yml is identical to main at c3a650e; docker/Caddyfile gains
+         the /mcp/* route, which registry/caddy/Caddyfile has too)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example) of the reference run, 2026-11-04, built from the PR branches
+localhost/ak-backend:mcp-c89f9cea  artifact-keeper@c89f9cea ("docs(openapi): MCP health, namespace
+                                   proofs and worker API (#5253)"), docker/Dockerfile.backend,
+                                   image id sha256:a8432a6a153c58d210d36c8371f8ba5b19964953126106c2212a290898b61b85
+localhost/ak-web:mcp-89313d4       artifact-keeper-web@89313d4 (pull request #1077), Dockerfile,
+                                   image id sha256:ef950b5405b3f4c717a14f549cae18d39a2659c5bff4c7faba1577e5b39145a5
+# The other images (postgres, opensearch, caddy, alpine) are the tags the upstream file names.
+# Lab fixtures: docker.io/library/python:3.12-alpine@sha256:5789aa194f757888f41fa3d48e14b6feaa1b57c0af0b56fcb1372d6474d3bff0
+# (lab-registry), docker.io/library/node:22-alpine (servers/acme-tickets image),
+# mcr.microsoft.com/playwright:v1.49.1-noble (screens).
