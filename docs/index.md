@@ -28,6 +28,16 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-conda-channel-pixi/index.md)
 
+-   :material-puzzle:{ .lg .middle } __A private marketplace for agent plugins__
+
+    ---
+
+    Publish internal plugins for AI coding agents once, install them in Claude Code from the
+    registry's own marketplace and in Cursor, Codex and Copilot with the `ak` CLI, and prove
+    that overwrites, tampered downloads, unscanned versions and leaked tokens are all refused.
+
+    [:octicons-arrow-right-24: Start the walkthrough](private-agent-plugin-marketplace/index.md)
+
 </div>
 
 Looking for a specific format, tool or control? [Browse by tag](tags.md).

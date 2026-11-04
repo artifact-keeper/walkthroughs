@@ -126,6 +126,26 @@ nav:
           - Findings: private-conda-channel-pixi/findings.md
           - Original plan: private-conda-channel-pixi/plan.md
 
+  - A private marketplace for agent plugins:
+      - private-agent-plugin-marketplace/index.md
+      - 1. Stand up the registry: private-agent-plugin-marketplace/1-stand-up-the-registry.md
+      - 2. Author the plugins: private-agent-plugin-marketplace/2-author-the-plugins.md
+      - 3. Publish: private-agent-plugin-marketplace/3-publish.md
+      - 4. Install in Claude Code: private-agent-plugin-marketplace/4-install-in-claude-code.md
+      - 5. Install in Cursor, Codex and Copilot: private-agent-plugin-marketplace/5-install-in-cursor-codex-copilot.md
+      - 6. Ship an update: private-agent-plugin-marketplace/6-ship-an-update.md
+      - "7. Govern: scanning, tokens and audit": private-agent-plugin-marketplace/7-govern.md
+      - 8. Prove it fails safely: private-agent-plugin-marketplace/8-prove-it-fails-safely.md
+      - Results: private-agent-plugin-marketplace/results.md
+      - Next steps: private-agent-plugin-marketplace/next-steps.md
+      - Reference:
+          - Client settings and file locations: private-agent-plugin-marketplace/reference/client-settings.md
+          - Registry API used: private-agent-plugin-marketplace/reference/registry-api.md
+          - Make targets: private-agent-plugin-marketplace/reference/make-targets.md
+      - Lab notes:
+          - Findings: private-agent-plugin-marketplace/findings.md
+          - Original plan: private-agent-plugin-marketplace/plan.md
+
 validation:
   links:
     anchors: warn

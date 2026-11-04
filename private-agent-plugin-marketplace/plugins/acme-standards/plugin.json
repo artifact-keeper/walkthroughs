@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "acme-standards",
+  "version": "1.0.0",
+  "description": "Acme engineering standards as agent skills, plus an MCP server that answers questions about them",
+  "author": { "name": "Acme Platform Team", "email": "platform@acme.example" },
+  "license": "MIT",
+  "keywords": ["standards", "style", "security", "mcp"]
+}

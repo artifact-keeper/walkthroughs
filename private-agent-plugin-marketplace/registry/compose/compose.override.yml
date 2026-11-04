@@ -1,0 +1,83 @@
+# Local overrides on top of the stock upstream docker-compose.yml (artifact-keeper c3a650e).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here. Compose project name: ak-agents (see ../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (the first backend build with the
+#     agentplugins format, and the web :dev build with the Agent Plugins setup tab).
+#   - container_name: every upstream name is prefixed ak-agents- so this stack can run
+#     next to other Artifact Keeper stacks on the same host.
+#   - network: the default network is ak-agents-net (AK_NET_SUBNET). Every client
+#     container joins it and reaches Caddy by its network alias ak.internal.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:30447 -> 443. Postgres and OpenSearch publish
+#     nothing. A second alias, mirror.internal, serves registry/out/mirror as static
+#     files with a certificate from the same CA: the tampered mirror of gate G5.
+#   - AK_EXTERNAL_URL=https://ak.internal: every URL in the marketplace documents is
+#     https://ak.internal/..., whichever port a request came in on. Claude Code refuses
+#     archive URLs that are not https.
+#   - Trivy is disabled: TRIVY_URL is unset and the trivy service moves to the "scanners"
+#     profile. Grype, bundled in the backend image, scans every upload.
+#   - openscap is disabled (profile "scanners"): nothing here is a container image.
+services:
+  pg-certs:
+    container_name: ak-agents-pg-certs
+  scan-workspace-init:
+    container_name: ak-agents-scan-ws-init
+  dtrack-init:
+    container_name: ak-agents-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-agents-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-agents-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    container_name: ak-agents-db
+    ports: !reset []
+  opensearch:
+    container_name: ak-agents-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-agents-trivy
+    profiles: ["scanners"]
+  openscap:
+    container_name: ak-agents-openscap
+    profiles: ["scanners"]
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:sha-c3a650e}
+    container_name: ak-agents-backend
+    environment:
+      TRIVY_URL:
+      AK_EXTERNAL_URL: https://ak.internal
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_NET_SUBNET:-172.31.72.0/24}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:${HTTPS_PORT:-30447},https://localhost:${HTTPS_PORT:-30447}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:dev}
+    container_name: ak-agents-web
+
+  caddy:
+    container_name: ak-agents-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30447}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - ../out/mirror:/srv/mirror:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal, mirror.internal]
+
+networks:
+  default:
+    name: ak-agents-net
+    ipam:
+      config:
+        - subnet: ${AK_NET_SUBNET:-172.31.72.0/24}
