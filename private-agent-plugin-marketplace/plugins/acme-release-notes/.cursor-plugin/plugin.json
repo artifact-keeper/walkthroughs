@@ -1,0 +1,8 @@
+{
+  "name": "acme-release-notes",
+  "version": "1.0.0",
+  "description": "Write release notes from merged changes in Acme's house format",
+  "author": { "name": "Acme Platform Team", "email": "platform@acme.example" },
+  "license": "MIT",
+  "keywords": ["release", "changelog"]
+}

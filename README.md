@@ -17,6 +17,7 @@ runs.
 | Walkthrough | Guide | Code |
 |---|---|---|
 | Rocky Linux image mode on bare metal | [site](https://artifact-keeper.github.io/walkthroughs/rocky-linux-image-mode-bare-metal/) | [`rocky-linux-image-mode-bare-metal/`](rocky-linux-image-mode-bare-metal/) |
+| A private marketplace for agent plugins (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-agent-plugin-marketplace/) | [`private-agent-plugin-marketplace/`](private-agent-plugin-marketplace/) |
 
 ## Layout
 

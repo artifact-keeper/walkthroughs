@@ -1,0 +1,79 @@
+# A developer workstation in a container: Node 22, Claude Code, Codex and the GitHub Copilot
+# CLI from npm, the Cursor CLI when its installer works, the ak CLI, a small stdio MCP server
+# (acme-docs-mcp, used by the acme-standards plugin) and the internal CA in the system trust
+# store. No credentials are baked in; client/run.sh passes a token per run.
+#
+# The ak CLI comes from a release by default (AK_CLI_MODE=release, AK_CLI_RELEASE=vX.Y.Z): the
+# ak-linux-<arch> binary, checked against its .sha256 and its Sigstore keyless signature
+# (cosign verify-blob, the identity pinned to the CLI's release workflow at that tag). With
+# AK_CLI_MODE=source it is built with cargo at AK_CLI_REV instead. client/build.sh picks
+# the mode from client/VERSIONS.
+ARG NODE_IMAGE=docker.io/library/node:22-bookworm-slim
+ARG RUST_IMAGE=docker.io/library/rust:1.88-bookworm
+ARG DEBIAN_IMAGE=docker.io/library/debian:bookworm-slim
+ARG COSIGN_IMAGE=ghcr.io/sigstore/cosign/cosign:v2.5.0
+ARG AK_CLI_MODE=release
+
+FROM ${COSIGN_IMAGE} AS cosign
+
+# --- ak from a release: download, check the SHA-256 and the signature ---------------------
+FROM ${DEBIAN_IMAGE} AS ak-release
+ARG AK_CLI_RELEASE
+ARG TARGETARCH
+COPY --from=cosign /ko-app/cosign /usr/local/bin/cosign
+RUN set -eux; \
+    apt-get update; apt-get install -y --no-install-recommends ca-certificates curl; rm -rf /var/lib/apt/lists/*; \
+    test -n "$AK_CLI_RELEASE"; \
+    asset="ak-linux-${TARGETARCH:-amd64}"; \
+    base="https://github.com/artifact-keeper/artifact-keeper-cli/releases/download/$AK_CLI_RELEASE"; \
+    mkdir -p /out/bin /tmp/ak && cd /tmp/ak; \
+    for f in "$asset" "$asset.sha256" "$asset.sig" "$asset.pem"; do curl -fsSLO "$base/$f"; done; \
+    echo "$(cut -d' ' -f1 "$asset.sha256")  $asset" | sha256sum -c -; \
+    cosign verify-blob --certificate "$asset.pem" --signature "$asset.sig" \
+      --certificate-identity "https://github.com/artifact-keeper/artifact-keeper-cli/.github/workflows/release.yml@refs/tags/$AK_CLI_RELEASE" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com "$asset"; \
+    install -m 755 "$asset" /out/bin/ak; \
+    /out/bin/ak --version
+
+# --- ak from source, at AK_CLI_REV (the fallback) ------------------------------------------
+FROM ${RUST_IMAGE} AS ak-source
+ARG AK_CLI_REV=10eafa8
+RUN cargo install --locked --root /out \
+      --git https://github.com/artifact-keeper/artifact-keeper-cli --rev "$AK_CLI_REV" artifact-keeper-cli \
+ && /out/bin/ak --version
+
+FROM ak-${AK_CLI_MODE} AS ak
+
+# --- the workstation ---------------------------------------------------------------------
+FROM ${NODE_IMAGE}
+ARG CLAUDE_CODE_VERSION
+ARG CODEX_VERSION
+ARG COPILOT_VERSION
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl jq zip unzip git procps \
+ && rm -rf /var/lib/apt/lists/*
+RUN npm install -g --no-fund --no-audit \
+      "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+      "@openai/codex@${CODEX_VERSION}" \
+      "@github/copilot@${COPILOT_VERSION}" \
+ && npm cache clean --force
+# The Cursor CLI (cursor-agent). Its installer writes under $HOME; install it into /opt and
+# link it onto PATH. A failure here is recorded, not fatal: Cursor then loads the
+# directory ak writes after a window reload, which is all the walkthrough relies on.
+RUN set -eux; mkdir -p /opt/cursor; \
+    if HOME=/opt/cursor bash -c 'curl -fsSL https://cursor.com/install | bash' >/opt/cursor/install.log 2>&1; then \
+      ln -s "$(readlink -f /opt/cursor/.local/bin/cursor-agent)" /usr/local/bin/cursor-agent; \
+      cursor-agent --version > /opt/cursor/VERSION 2>&1 || true; \
+    else echo "installer failed" > /opt/cursor/VERSION; fi; \
+    cat /opt/cursor/VERSION
+COPY --from=ak /out/bin/ak /usr/local/bin/ak
+COPY acme-docs-mcp.js /usr/local/bin/acme-docs-mcp
+COPY .work/ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN chmod 755 /usr/local/bin/acme-docs-mcp && update-ca-certificates >/dev/null
+# Node (Claude Code, Codex's launcher, Copilot) reads NODE_EXTRA_CA_CERTS; ak reads AK_CA_CERT.
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ak-internal-ca.crt \
+    AK_CA_CERT=/usr/local/share/ca-certificates/ak-internal-ca.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    DISABLE_AUTOUPDATER=1 \
+    HOME=/home/dev
+WORKDIR /work
