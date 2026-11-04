@@ -2,8 +2,8 @@
 # G4 Claude Code end to end, in a fresh home: the private marketplace registered through
 # settings.json (Authorization header) and registered by a session start, acme-review and acme-standards installed, and the
 # installed files are exactly the published zip's (skills, commands, agents, hooks). None
-# of this needs an Anthropic account. Using the plugin in a session does: that check is
-# BLOCKED(account) with the command to run after `claude /login`.
+# of this needs an Anthropic account. Using the plugin in a session does: that check runs when
+# CLAUDE_CODE_OAUTH_TOKEN is set, and is BLOCKED(account) otherwise.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 G=G4; H="$ROOT/out/homes/g4"; rm -rf "$H"
@@ -50,5 +50,57 @@ check $G "Agent Plugins Standard plugin installs into Claude Code with its skill
   bash -c "[[ $(rc install_standards_rc) == 0 ]] && ls '$S'/*/skills/acme-style/SKILL.md >/dev/null 2>&1"
 head -20 "$G_TMP/g4-details.txt"
 check $G "claude plugin details shows the component inventory without an account" "rc $(rc details_rc)" test "$(rc details_rc)" = 0
-blocked account $G "a signed-in Claude Code session uses the plugin" \
-  "after 'claude /login' in out/homes/g4, run: claude -p '/acme-review:checklist' (and ask for a review to load the review skill)"
+# With a Claude Code session token in the environment (CLAUDE_CODE_OAUTH_TOKEN, from
+# `claude setup-token`; the nightly runner passes it from ~/.config/ak-e2e/), start a real
+# session in the G4 home and run the plugin's command. Cheap and bounded: haiku, no tools, two
+# turns, a budget cap, nothing persisted. The checks read the stream-json events, not the
+# model's prose: the init event's command, agent and skill lists, the SessionStart hook's
+# response, and the result event.
+if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+  SJ="$G_TMP/g4-session.jsonl"
+  "$RUN" -c -h g4 -- bash -c 'cd /tmp && timeout 300 claude -p "/acme-review:checklist" --model haiku \
+      --max-turns 2 --max-budget-usd 0.25 --tools "" --no-session-persistence \
+      --output-format stream-json --verbose </dev/null' > "$SJ" 2> "$G_TMP/g4-session.err"
+  src=$?
+  ev() { jq -c "$1" "$SJ" 2>/dev/null | head -1; }
+  echo "session rc $src"
+  echo "init: $(ev 'select(.type == "system" and .subtype == "init") | {model, claude_code_version,
+    plugins: [.plugins[] | select(.name | startswith("acme")) | {name, version}],
+    commands: [.slash_commands[] | select(startswith("acme"))], agents: [.agents[] | select(startswith("acme"))],
+    skills: [.skills[] | select(startswith("acme"))], mcp_servers}')"
+  echo "hook: $(ev 'select(.type == "system" and .subtype == "hook_response") | {hook_event, exit_code, outcome, stdout}')"
+  echo "result: $(ev 'select(.type == "result") | {subtype, is_error, num_turns, api_error_status, total_cost_usd}')"
+  init_has() { # init_has FIELD NAME...
+    local f=$1 n; shift
+    for n in "$@"; do
+      jq -se --arg f "$f" --arg n "$n" 'any(.[]; .type == "system" and .subtype == "init" and any(.[$f][]?; . == $n))' \
+        "$SJ" >/dev/null || { echo "init.$f has no $n"; return 1; }
+    done
+  }
+  # the hook's expected output is the text its command echoes, read from the published hooks.json
+  hook_text=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$ROOT/plugins/acme-review/hooks/hooks.json" | sed -E "s/^echo '(.*)'$/\1/")
+  hook_ran() {
+    jq -se --arg t "$hook_text" 'any(.[]; .type == "system" and .subtype == "hook_response" and .hook_event == "SessionStart"
+      and .exit_code == 0 and (.stdout | rtrimstr("\n")) == $t)' "$SJ" >/dev/null
+  }
+  finished_ok() {
+    [[ $src == 0 ]] && jq -se 'any(.[]; .type == "result" and .is_error == false and .subtype == "success")' "$SJ" >/dev/null
+  }
+  loads_latest() {
+    jq -se --arg v "$latest" 'any(.[]; .type == "system" and .subtype == "init"
+      and any(.plugins[]?; .name == "acme-review" and .version == $v))' "$SJ" >/dev/null
+  }
+  check $G "signed-in session: the init event loads acme-review at the registry's latest ($latest)" "see log" loads_latest
+  check $G "signed-in session: the init event lists the plugin command acme-review:checklist" "see log" \
+    init_has slash_commands acme-review:checklist
+  check $G "signed-in session: the init event lists the plugin agent acme-review:reviewer" "see log" \
+    init_has agents acme-review:reviewer
+  check $G "signed-in session: the init event lists the acme-standards skills" "see log" \
+    init_has skills acme-standards:acme-style acme-standards:acme-secure-defaults
+  check $G "signed-in session: the plugin's SessionStart hook ran (exit 0, its own output)" "see log" hook_ran
+  check $G "signed-in session: /acme-review:checklist completes without an error" \
+    "rc $src, see out/gates/tmp/g4-session.*" finished_ok
+else
+  blocked account $G "signed-in session: the plugin's command, agent, skills and hook load and run" \
+    "set CLAUDE_CODE_OAUTH_TOKEN (claude setup-token) and rerun, or after 'claude /login' in out/homes/g4 run: claude -p '/acme-review:checklist'"
+fi
