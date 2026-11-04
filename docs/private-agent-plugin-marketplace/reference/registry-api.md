@@ -1,5 +1,7 @@
 # Reference: Artifact Keeper API used
 
+--8<-- "includes/preview-1.12.md"
+
 Base `https://ak.internal`. Verified on the backend build `sha-c3a650e` (Artifact Keeper
 main at commit `c3a650e`; the format ships in 1.12.0). `Authorization: Bearer <token>` unless
 noted. The protocol reference upstream is

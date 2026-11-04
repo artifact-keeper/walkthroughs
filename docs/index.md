@@ -28,11 +28,12 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-conda-channel-pixi/index.md)
 
--   :material-puzzle:{ .lg .middle } __A private marketplace for agent plugins__
+-   :material-puzzle:{ .lg .middle } __A private marketplace for agent plugins__ `preview: 1.12.0`
 
     ---
 
-    Publish internal plugins for AI coding agents once, install them in Claude Code from the
+    **Coming in Artifact Keeper 1.12.0**; runs on a development build until then. Publish
+    internal plugins for AI coding agents once, install them in Claude Code from the
     registry's own marketplace and in Cursor, Codex and Copilot with the `ak` CLI, and prove
     that overwrites, tampered downloads, unscanned versions and leaked tokens are all refused.
 

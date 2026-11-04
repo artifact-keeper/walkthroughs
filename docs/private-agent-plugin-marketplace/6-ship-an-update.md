@@ -1,5 +1,7 @@
 # Step 6: Ship an update
 
+--8<-- "includes/preview-1.12.md"
+
 `acme-review` 1.1.0 adds one item to the checklist. [`make update`](https://github.com/artifact-keeper/walkthroughs/blob/main/private-agent-plugin-marketplace/flows/update.sh)
 publishes it and brings both kinds of install up to date.
 

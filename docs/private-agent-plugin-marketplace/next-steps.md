@@ -1,5 +1,7 @@
 # Next steps
 
+--8<-- "includes/preview-1.12.md"
+
 ## Adapting this to your organization
 
 - **One DNS name and a real CA.** `ak.internal` with Caddy's internal CA stands in for your

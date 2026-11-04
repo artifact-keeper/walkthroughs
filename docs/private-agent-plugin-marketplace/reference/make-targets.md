@@ -1,5 +1,7 @@
 # Reference: make targets
 
+--8<-- "includes/preview-1.12.md"
+
 Run every target from `private-agent-plugin-marketplace/`. Each one can be re-run; `make help`
 prints this list. The scripts behind them are linked so you can read what each one does.
 

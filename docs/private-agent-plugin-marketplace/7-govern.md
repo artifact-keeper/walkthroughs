@@ -1,5 +1,7 @@
 # Step 7: Govern: scanning, tokens and audit
 
+--8<-- "includes/preview-1.12.md"
+
 Everything that applies to other hosted artifacts in Artifact Keeper applies to plugin
 versions: scan on upload and scan policies, repository permissions and scoped tokens, download
 records. This page shows each on the plugins from the earlier steps.

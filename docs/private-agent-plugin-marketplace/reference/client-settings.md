@@ -1,5 +1,7 @@
 # Reference: client settings and file locations
 
+--8<-- "includes/preview-1.12.md"
+
 What the workstation image contains, which certificate settings each client honours, and
 where each one keeps what it installs. All of it was observed in the image built by
 [`client/Containerfile`](https://github.com/artifact-keeper/walkthroughs/blob/main/private-agent-plugin-marketplace/client/Containerfile).

@@ -1,5 +1,7 @@
 # Plan: a private marketplace for AI coding-agent plugins
 
+--8<-- "includes/preview-1.12.md"
+
 Status: design for review, 2026-11-03. Implementation starts against this plan; the gates below
 define done. Code lands in `private-agent-plugin-marketplace/` of this repository. This page is
 kept as written before the build; the [lab notes](findings.md) record what changed.

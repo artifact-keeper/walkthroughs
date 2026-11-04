@@ -1,5 +1,7 @@
 # Step 1: Stand up the registry
 
+--8<-- "includes/preview-1.12.md"
+
 The registry runs as its own compose project, `ak-agents`, on a podman network of the same
 name. Two decisions shape everything after this page.
 

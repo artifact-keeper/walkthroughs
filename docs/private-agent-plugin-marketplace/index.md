@@ -1,5 +1,6 @@
 ---
 tags:
+  - preview
   - agent plugins
   - Claude Code
   - Cursor
@@ -18,6 +19,8 @@ description: >-
 ---
 
 # A private marketplace for AI coding-agent plugins
+
+--8<-- "includes/preview-1.12.md"
 
 This walkthrough builds one governed place for the plugins your developers load into their AI
 coding agents. A platform team publishes internal plugins (review skills, coding standards, an

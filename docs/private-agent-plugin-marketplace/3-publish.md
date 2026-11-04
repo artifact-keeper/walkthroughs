@@ -1,5 +1,7 @@
 # Step 3: Publish
 
+--8<-- "includes/preview-1.12.md"
+
 A published plugin version is one zip at a fixed path:
 
 ```text

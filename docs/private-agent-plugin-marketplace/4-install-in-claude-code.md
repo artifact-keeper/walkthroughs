@@ -1,5 +1,7 @@
 # Step 4: Install in Claude Code
 
+--8<-- "includes/preview-1.12.md"
+
 Claude Code is the one agent that reads a hosted marketplace: point it at
 `claude-marketplace.json` and it downloads each plugin's `archive`, checks the `sha256`,
 and installs it. No `ak`, no git, nothing else on the machine. Plugin management needs no

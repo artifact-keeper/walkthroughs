@@ -1,5 +1,7 @@
 # Step 8: Prove it fails safely
 
+--8<-- "includes/preview-1.12.md"
+
 A registry earns trust by what it refuses. The ten gates in
 [`gates/`](https://github.com/artifact-keeper/walkthroughs/tree/main/private-agent-plugin-marketplace/gates)
 run every refusal this walkthrough relies on, and `make gates` repeats them at any time. Each

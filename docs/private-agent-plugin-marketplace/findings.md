@@ -1,5 +1,7 @@
 # Lab notes: a private marketplace for agent plugins
 
+--8<-- "includes/preview-1.12.md"
+
 The record of building and running the walkthrough planned in [plan.md](plan.md), on
 2026-11-03 and 2026-11-04 (UTC). Commands are as run; outputs are trimmed, not edited. The
 narrative pages are written from these notes. Gate results are in [section 6](#6-the-reference-runs).

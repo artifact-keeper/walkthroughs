@@ -1,5 +1,7 @@
 # Results
 
+--8<-- "includes/preview-1.12.md"
+
 Two runs on `grace` (Ubuntu 26.04, 40 cores, rootless podman 5.7) on 2026-11-04, each from an
 empty registry: `make all`, then `make gates`; between them `make clean`. Backend
 `artifact-keeper-backend:sha-c3a650e`, web `:dev` (895d28d), ak `v1.11.0-rc.2` (release

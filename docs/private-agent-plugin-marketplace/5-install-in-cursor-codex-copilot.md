@@ -1,5 +1,7 @@
 # Step 5: Install in Cursor, Codex and Copilot
 
+--8<-- "includes/preview-1.12.md"
+
 None of these three accepts a hosted marketplace URL today. Cursor's team marketplaces import
 git repositories, `codex plugin marketplace add` takes a git URL or a local directory, and
 `copilot plugin install` takes a marketplace, a repository or a local path. So the developer

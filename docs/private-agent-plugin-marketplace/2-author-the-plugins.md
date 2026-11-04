@@ -1,5 +1,7 @@
 # Step 2: Author the plugins
 
+--8<-- "includes/preview-1.12.md"
+
 A plugin for an AI coding agent is a directory: instructions the agent reads (skills,
 commands, agents), configuration it acts on (hooks, MCP servers), and a manifest that names
 it. Every agent has its own manifest location, so the first decision is which layout to ship.
