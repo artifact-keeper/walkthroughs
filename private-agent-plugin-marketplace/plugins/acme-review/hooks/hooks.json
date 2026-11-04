@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'acme-review is installed: ask for a review, or run /acme-review:checklist'"
+          }
+        ]
+      }
+    ]
+  }
+}

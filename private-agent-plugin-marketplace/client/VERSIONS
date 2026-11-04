@@ -1,0 +1,16 @@
+# Client image pins (client/build.sh reads this file; KEY=value, no spaces).
+# Agent CLIs from npmjs.com, exact versions, as of 2026-11-03.
+CLAUDE_CODE_VERSION=2.1.318
+CODEX_VERSION=0.166.0
+COPILOT_VERSION=1.0.105
+# The ak CLI: the release that first carries `ak agent plugins` (a prerelease, tagged at
+# artifact-keeper-cli@10eafa8, PR #292). The build downloads ak-linux-<arch>, checks its
+# .sha256 and its cosign keyless signature. Set AK_CLI_RELEASE=source (or empty) to build ak
+# from source at AK_CLI_REV with cargo instead (about 12 minutes).
+AK_CLI_RELEASE=v1.11.0-rc.2
+AK_CLI_REV=10eafa8
+# Base images
+NODE_IMAGE=docker.io/library/node:22-bookworm-slim
+RUST_IMAGE=docker.io/library/rust:1.88-bookworm
+DEBIAN_IMAGE=docker.io/library/debian:bookworm-slim
+COSIGN_IMAGE=ghcr.io/sigstore/cosign/cosign:v2.5.0

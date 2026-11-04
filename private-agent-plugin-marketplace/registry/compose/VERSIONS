@@ -1,0 +1,12 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  main
+commit:  c3a650e  ("feat(agentplugins): Agent Plugins repositories for AI coding-agent plugin bundles (#5251) (#5256)", 2026-11-03)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example); digests recorded by the reference run
+ghcr.io/artifact-keeper/artifact-keeper-backend:sha-c3a650e  revision c3a650e10235  index digest sha256:a7556eaf2a39d0095d295a25c1fb9899fef6360af96120d2c22be66e84b5f690  (built 2026-11-04T02:33Z)
+ghcr.io/artifact-keeper/artifact-keeper-web:dev              revision 895d28d0f322  index digest sha256:ddc8125ba8c5c8403962fabd3b769598004695728753fbdf21e149c0ce3b839d
+# The other images (postgres, opensearch, caddy, alpine) are the tags the upstream file names.

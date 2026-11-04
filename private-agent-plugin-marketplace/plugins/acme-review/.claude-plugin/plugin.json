@@ -1,0 +1,9 @@
+{
+  "name": "acme-review",
+  "version": "1.0.0",
+  "description": "Acme code review: a review skill, a checklist command, a reviewer agent and a session reminder",
+  "author": { "name": "Acme Platform Team", "email": "platform@acme.example" },
+  "homepage": "https://wiki.acme.example/engineering/code-review",
+  "license": "MIT",
+  "keywords": ["review", "quality", "acme"]
+}
