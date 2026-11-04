@@ -1,0 +1,4 @@
+# Build backend of acme-agent-tools (its [build-system] requires). `make lock` compiles it,
+# with hashes, into build-constraints.txt; internal/publish.sh builds with those pins and
+# policies/curation.sh approves those names.
+hatchling>=1.27

@@ -1,0 +1,14 @@
+{
+  "name": "@acme/tickets-mcp",
+  "version": "1.0.0",
+  "description": "Internal MCP server exposing Acme's ticket queue (walkthrough fixture)",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "tickets-mcp": "index.js" },
+  "files": ["index.js"],
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.7"
+  }
+}

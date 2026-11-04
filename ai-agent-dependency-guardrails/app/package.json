@@ -1,0 +1,8 @@
+{
+  "name": "acme-agent-mcp-servers",
+  "private": true,
+  "description": "MCP servers the demo agent may start, pinned and installed from the registry",
+  "dependencies": {
+    "@acme/tickets-mcp": "1.0.0"
+  }
+}

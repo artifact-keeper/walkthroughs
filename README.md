@@ -7,6 +7,10 @@
   </picture>
 </p>
 
+> **Examples, not complete defenses.** Each walkthrough shows one way to use Artifact Keeper in a
+> real setup, built and tested in a lab. The configurations do not cover every edge case or
+> attack and are not hardened production setups. Review and adapt them for your environment.
+
 Step-by-step walkthroughs for real deployments built on
 [Artifact Keeper](https://github.com/artifact-keeper/artifact-keeper). Each walkthrough is
 complete in this repository: the narrated guide and every script, Containerfile and config it
@@ -17,6 +21,7 @@ runs.
 | Walkthrough | Guide | Code |
 |---|---|---|
 | Rocky Linux image mode on bare metal | [site](https://artifact-keeper.github.io/walkthroughs/rocky-linux-image-mode-bare-metal/) | [`rocky-linux-image-mode-bare-metal/`](rocky-linux-image-mode-bare-metal/) |
+| AI coding agents through one registry | [site](https://artifact-keeper.github.io/walkthroughs/ai-agent-dependency-guardrails/) | [`ai-agent-dependency-guardrails/`](ai-agent-dependency-guardrails/) |
 | A private marketplace for agent plugins (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-agent-plugin-marketplace/) | [`private-agent-plugin-marketplace/`](private-agent-plugin-marketplace/) |
 
 ## Layout

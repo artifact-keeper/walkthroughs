@@ -37,6 +37,9 @@ Run it locally before pushing; do not use "push and see if CI passes" as a workf
 - Keep PRs focused on a single walkthrough or a single change.
 - Write in a plain, direct voice: give the decision, then the reason. Define a tool in a short
   parenthetical the first time it appears. Use "you" for instructions.
+- Open every walkthrough's overview page and code README with the "An example, not a complete
+  defense" warning: the setup is a lab example, does not cover every edge case or attack, and is
+  not a hardened production configuration. Link it to the walkthrough's findings.
 - Every page stands alone. Link to other pages instead of saying "as above".
 - Every command in a page must match the code in `<slug>/`. Mark abridged code blocks as
   abridged and link to the full file.

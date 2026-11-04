@@ -1,0 +1,4 @@
+out/
+agent/out/
+app/.venv/
+app/node_modules/

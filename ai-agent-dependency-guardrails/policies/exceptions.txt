@@ -1,0 +1,4 @@
+# Reviewed exceptions to the 7-day cooldown: versions a human approved early, with the reason.
+# Format: <npm|pypi> <name> <version> <reason>
+# A version that is old enough by now is skipped (nothing to approve).
+npm body-parser 2.4.0 security fix for GHSA-27r3-jxmh-p828 / CVE-2026-111181 (body-parser >=2.0.0 <2.4.0, high); 2.3.0 is refused by scan-on-proxy; 2.4.0 published 2026-10-22

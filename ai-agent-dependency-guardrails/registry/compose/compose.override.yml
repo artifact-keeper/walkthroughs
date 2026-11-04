@@ -1,0 +1,100 @@
+# Local overrides on top of the stock upstream docker-compose.yml (artifact-keeper v1.11.7).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here. Compose project name: ak-agent (see ../lib.sh).
+#
+# What changes and why:
+#   - images: every image is pinned by digest (multi-arch index digests, 2026-10-27).
+#     BACKEND_IMAGE / WEB_IMAGE come from .env (the 1.11.7 / 1.11.1 releases).
+#   - container_name: every upstream name is prefixed ak-agent- so this stack can run
+#     next to other Artifact Keeper stacks on the same host.
+#   - networks: the default network is ak-agent-net (AK_NET_SUBNET, NOT internal: the
+#     backend needs the internet to proxy PyPI, npm and Docker Hub). A second network,
+#     agent-net (AGENT_NET_SUBNET), is internal (no route out). Only Caddy joins both, so
+#     the agent sandbox on agent-net can reach https://ak.internal and nothing else.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:30445 -> 443. Postgres and OpenSearch publish nothing.
+#   - Trivy is disabled: TRIVY_URL is unset and the trivy service moves to the
+#     "scanners" profile. In 1.11.7 TRIVY_URL only drives the filesystem scanner through
+#     a local trivy CLI, which the backend image does not ship, so every scan logged
+#     "Trivy CLI not available" and skipped it. Grype (bundled) does the package scans.
+#   - openscap is disabled (profile "scanners"): this walkthrough scans packages, not images.
+#   - The negative tests run a lab "public" PyPI index and npm registry at LAB_IP (.200 on
+#     ak-agent-net, see lab-upstream/). Remote upstreams on private networks are refused
+#     by default (SSRF guard); AK_SSRF_ALLOW_PRIVATE_CIDRS allows exactly that host.
+services:
+  pg-certs:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-agent-pg-certs
+  scan-workspace-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-agent-scan-ws-init
+  dtrack-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-agent-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-agent-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-agent-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    image: docker.io/library/postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    container_name: ak-agent-db
+    ports: !reset []
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6@sha256:be67c71b8d0e5edf1e9825145501c0136c3b8221206e1ce782ce17b04d0280b5
+    container_name: ak-agent-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-agent-trivy
+    profiles: ["scanners"]
+    ports: !reset []
+  openscap:
+    container_name: ak-agent-openscap
+    profiles: ["scanners"]
+    ports: !reset []
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:1.11.7@sha256:81051e8120211248ec2e2f87a913fd95053a4e7a05584fc24d05c05fc55eda80}
+    container_name: ak-agent-backend
+    environment:
+      TRIVY_URL:
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_NET_SUBNET:-172.31.50.0/24}
+      AK_SSRF_ALLOW_PRIVATE_CIDRS: ${LAB_IP:-172.31.50.200}/32
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:30445,https://localhost:30445
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:1.11.1@sha256:0d1db2f50b4403359de323f46a9607dc4782c9fa198ce0dd53a1f313854cccfe}
+    container_name: ak-agent-web
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    container_name: ak-agent-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30445}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+      agent-net:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-agent-net
+    ipam:
+      config:
+        - subnet: ${AK_NET_SUBNET:-172.31.50.0/24}
+  agent-net:
+    name: agent-net
+    internal: true
+    ipam:
+      config:
+        - subnet: ${AGENT_NET_SUBNET:-172.31.51.0/24}

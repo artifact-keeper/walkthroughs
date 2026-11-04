@@ -22,6 +22,15 @@ description: >-
 
 --8<-- "includes/preview-1.12.md"
 
+!!! warning "An example, not a complete defense"
+    This walkthrough shows one way to run a private marketplace of agent plugins on Artifact
+    Keeper. The configuration is an example, built and tested in a lab. It does not cover every
+    edge case or attack, and it is not a hardened production setup. In particular, the scan
+    finds known vulnerabilities in what a plugin bundles; it does not judge whether a skill,
+    hook or MCP server is malicious. Some gaps we found are listed in [Findings](findings.md).
+    Review and adapt it for your own environment, and use it alongside your other controls
+    (code review of plugins, sandboxing, secrets handling, monitoring), not instead of them.
+
 This walkthrough builds one governed place for the plugins your developers load into their AI
 coding agents. A platform team publishes internal plugins (review skills, coding standards, an
 MCP server, release tooling) to an Artifact Keeper repository of the new `agentplugins` format.

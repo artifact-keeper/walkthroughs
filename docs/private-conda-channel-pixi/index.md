@@ -19,6 +19,13 @@ description: >-
 
 # A private conda channel for pixi, with supply-chain controls
 
+!!! warning "An example, not a complete defense"
+    This walkthrough shows one way to use Artifact Keeper as a private conda channel with supply-chain controls. The configuration is an
+    example, built and tested in a lab. It does not cover every edge case or attack, and it is not
+    a hardened production setup. Some gaps we found are listed in [Findings](findings.md). Review
+    and adapt it for your own environment, and use it alongside your other controls, not instead
+    of them.
+
 This walkthrough builds a private conda channel that a security team would sign off on. One
 registry, Artifact Keeper, proxies conda-forge, hosts your internal packages, and presents a
 single channel to every developer and build. Every package is signed, every install verifies the

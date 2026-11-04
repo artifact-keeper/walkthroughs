@@ -1,0 +1,9 @@
+# uv configuration for the lab tests (/etc/uv/lab.toml, used with `uv --config-file`):
+# the same setup as uv.toml, pointed at pypi-lab-virtual (internal first, then the lab upstream).
+index-strategy = "first-index"
+no-build = true
+
+[[index]]
+name = "ak"
+url = "https://ak.internal/pypi/pypi-lab-virtual/simple/"
+default = true

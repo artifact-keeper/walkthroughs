@@ -1,5 +1,11 @@
 # A private marketplace for AI coding-agent plugins
 
+> **An example, not a complete defense.** This shows one way to run a private marketplace of agent
+> plugins on Artifact Keeper. The configuration is an example, built and tested in a lab. It does
+> not cover every edge case or attack, and it is not a hardened production setup; known gaps are
+> in the [findings](../docs/private-agent-plugin-marketplace/findings.md). Review and adapt it for
+> your environment, and use it alongside your other controls, not instead of them.
+
 Code for the walkthrough at
 [`docs/private-agent-plugin-marketplace/`](../docs/private-agent-plugin-marketplace/index.md)
 ([plan](../docs/private-agent-plugin-marketplace/plan.md), lab notes in

@@ -15,6 +15,13 @@ description: >-
 
 # Rocky Linux image mode on bare metal
 
+!!! warning "An example, not a complete defense"
+    This walkthrough shows one way to use Artifact Keeper as the source of truth for an image-mode fleet. The configuration is an
+    example, built and tested in a lab. It does not cover every edge case or attack, and it is not
+    a hardened production setup. Some gaps we found are listed in [Findings](findings.md). Review
+    and adapt it for your own environment, and use it alongside your other controls, not instead
+    of them.
+
 Every box in an edge fleet should be running the same operating system, the same Kubernetes,
 and the same site configuration, and you should be able to prove it. That is harder than it
 sounds. With a package-based install, two machines start to drift the first time someone runs

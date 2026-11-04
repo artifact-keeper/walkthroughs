@@ -1,0 +1,11 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+tag:     v1.11.7
+commit:  65c16c4534d835a40118527b842e87a9edaaf2d9  ("chore(release): 1.11.7 prep", 2026-10-24)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example), 2026-10-27
+ghcr.io/artifact-keeper/artifact-keeper-backend:1.11.7  index digest sha256:81051e8120211248ec2e2f87a913fd95053a4e7a05584fc24d05c05fc55eda80
+ghcr.io/artifact-keeper/artifact-keeper-web:1.11.1      index digest sha256:0d1db2f50b4403359de323f46a9607dc4782c9fa198ce0dd53a1f313854cccfe
