@@ -1,0 +1,10 @@
+[Unit]
+Description=Artifact Keeper walkthroughs: nightly end-to-end run at 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=ak-e2e.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,61 @@
+# What the nightly runner (e2e/ak_e2e.py) needs to know about each walkthrough.
+# One table per walkthrough directory. The runner tests a walkthrough only if it has an
+# entry here: without one it cannot tell the walkthrough's stack from someone else's, so it
+# reports BLOCKED(unregistered) instead of running `make clean` on a stranger's containers.
+#
+# Keys (all optional except the resource names):
+#   containers  regexes for the container names the stack creates (podman ps -a)
+#   volumes     regexes for the volume names
+#   networks    exact network names
+#   subnets     the subnets those networks pin (an overlap with another network is a conflict)
+#   ports       host TCP ports the stack listens on
+#   min_ak      oldest Artifact Keeper backend the walkthrough supports; older -> BLOCKED(min-version)
+#   secrets     environment variables to pass from ~/.config/ak-e2e/ (missing -> the walkthrough
+#               reports the checks that need them as BLOCKED)
+#   requires    host requirements: "kvm" (read-write /dev/kvm) or "tool:<name>" (in PATH)
+#   preflight   make target run before anything else; non-zero exit -> BLOCKED(preflight)
+#   timeout_clean / timeout_all / timeout_gates   hard per-step limits, seconds
+#   disk_gb     free space needed on the podman storage volume
+
+[defaults]
+timeout_clean = 900
+timeout_all = 5400
+timeout_gates = 2700
+disk_gb = 40
+
+[walkthrough.private-conda-channel-pixi]
+containers = ['^ak-conda-']
+volumes = ['^ak-conda[_-]']
+networks = ['ak-conda-net', 'build-isolated']
+subnets = ['172.31.40.0/24']
+ports = [30444]
+requires = ['tool:cosign', 'tool:zstd']
+timeout_all = 5400
+
+[walkthrough.rocky-linux-image-mode-bare-metal]
+containers = ['^artifact-keeper-']
+volumes = ['^artifact-keeper_']
+networks = ['artifact-keeper-network']
+ports = [30080, 30443, 8000, 2222]
+requires = ['tool:skopeo', 'tool:cosign', 'tool:gpg']
+preflight = 'preflight'
+timeout_all = 10800
+timeout_gates = 7200
+disk_gb = 100
+
+[walkthrough.ai-agent-dependency-guardrails]
+containers = ['^ak-agent-']
+volumes = ['^ak-agent_']
+networks = ['ak-agent-net', 'agent-net']
+subnets = ['172.31.50.0/24', '172.31.51.0/24']
+ports = [30445]
+min_ak = '1.11.7'
+
+[walkthrough.private-agent-plugin-marketplace]
+containers = ['^ak-agents-']
+volumes = ['^ak-agents_']
+networks = ['ak-agents-net']
+subnets = ['172.31.72.0/24']
+ports = [30447]
+min_ak = '1.12.0'
+secrets = ['CLAUDE_CODE_OAUTH_TOKEN']

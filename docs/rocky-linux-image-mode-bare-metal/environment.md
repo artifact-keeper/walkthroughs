@@ -193,8 +193,9 @@ rm -f "$C/policy.json"
 | `deploy/state/` | VM disk, OVMF vars, serial logs, `timings.log`, rendered kickstart (contains your public key) |
 
 `./registry/down.sh -v` deletes Artifact Keeper's volumes; `make vm-clean` deletes
-`deploy/state/` (`CLEAN_CACHE=1` also drops the media cache); `make clean` removes the
-local build scratch directories.
+`deploy/state/` (`CLEAN_CACHE=1` also drops the media cache); `make clean` does both, and
+also removes the generated `registry/.env`, the API token and the local build scratch
+directories (keys and pulled images are kept).
 
 ## Ports
 

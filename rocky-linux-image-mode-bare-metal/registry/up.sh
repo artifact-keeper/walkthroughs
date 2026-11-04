@@ -22,6 +22,11 @@ set -a
 source "$ENV_FILE"
 set +a
 HTTP_PORT="${HTTP_PORT:-30080}"
+# Override the backend and web images for one run without editing .env (the e2e
+# contract): AK_BACKEND_IMAGE=ghcr.io/artifact-keeper/artifact-keeper-backend:dev registry/up.sh
+export BACKEND_IMAGE="${AK_BACKEND_IMAGE:-}" WEB_IMAGE="${AK_WEB_IMAGE:-}"
+echo "up.sh: backend=${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:$ARTIFACT_KEEPER_VERSION}" \
+     "web=${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:$ARTIFACT_KEEPER_WEB_VERSION}"
 
 compose() {
   podman compose --env-file "$ENV_FILE" -p artifact-keeper \

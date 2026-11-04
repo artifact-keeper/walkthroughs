@@ -320,7 +320,8 @@ is in a state you do not trust.
 | `make vm-clean` | stop and delete `deploy/state/` (`CLEAN_CACHE=1` also drops the media cache) |
 | `make promote REL=4` | move `:10` to another release without touching the VM |
 | `make registry-down` | stop Artifact Keeper, volumes kept (`registry/down.sh -v` deletes them) |
-| `make clean` | remove local build scratch (`base/.work`, `rpms/.work`, `rpms/out`, `image/.work`) |
+| `make gates` | gates 6-8 from `signing/verify.sh` and, with a read-write `/dev/kvm`, gate 9 (`make vm-all`); one PASS / FAIL / BLOCKED line per check, results in `out/gates/` |
+| `make clean` | delete everything the walkthrough created: the VM state (`make vm-clean`), the stack and its volumes (`registry/down.sh -v`), the generated `.env` and token, and the build scratch; keys and pulled images are kept |
 
 Every variable in `deploy/lib.sh` (`IMAGE`, `REGISTRY`, `VM_SMP`, `VM_MEM`, `SSH_PORT`,
 `SSH_KEY`, `STAGE2`, timeouts, ...) can be overridden on the `make` command line; the full
