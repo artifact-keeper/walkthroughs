@@ -117,7 +117,8 @@ Cursor CLI and `ak`, each run with a throwaway home.
     make gates         # the ten gates, including every refusal
     make screens-ready # the UI address and where the admin password is
     ```
-    TIMING_PLACEHOLDER
+    On a 40-core host with the stack images already pulled, `make all` takes about 4 minutes
+    (most of it building the workstation image) and `make gates` under 40 seconds.
 
 ## Steps
 

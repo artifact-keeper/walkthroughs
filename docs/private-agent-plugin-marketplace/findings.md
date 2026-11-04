@@ -25,7 +25,7 @@ commit, `687900d`) to build and probe the client image against static files.
 `10eafa8` with `cargo install --locked --git ... --rev 10eafa8 artifact-keeper-cli`: 11 min 27 s
 for the release profile on 40 cores (the crate is `artifact-keeper-cli`, the binary `ak`,
 `rust-version` 1.88). The prerelease `v1.11.0-rc.2`, tagged at the same commit, was published
-during the session; the Containerfile now downloads it by default
+at 03:15 UTC; the Containerfile now downloads it by default
 (`ak-linux-<arch>`, `.sha256` checked, `cosign verify-blob` against the release workflow's
 identity at that tag) and keeps the cargo build behind `AK_CLI_RELEASE=source`. The download
 and verification path was first tried against `v1.2.0`:
@@ -206,11 +206,82 @@ First full gate run: 92 PASS, 3 FAIL, 2 BLOCKED(account), 35 s.
 
 ## 6. The reference runs
 
-RUNS_PLACEHOLDER
+Both from an empty registry, in a git checkout of the branch at
+`~/walkthrough-runs/private-agent-plugin-marketplace` on `grace`. Logs are kept there under
+`private-agent-plugin-marketplace/out/runs/` (`run1-all.log`, `run1-gates.log`, `run1-out/`,
+`run2-*.log`; run 2's `make all` log has a Unix timestamp on every line).
 
-## F1 (open)
+| | Run 1 | Run 2 |
+|---|---|---|
+| started | 2026-11-04T03:16:57Z | 2026-11-04T03:22:08Z (after `make clean`, 5 s) |
+| `make all` | 232 s, exit 0 | 219 s, exit 0 |
+| `make gates` | 36 s, exit 0 | 37 s, exit 0 |
+| verdicts | 96 PASS, 2 BLOCKED(account), 1 BLOCKED(F1), 0 FAIL | the same |
 
-The backend's global security-headers middleware overwrites `Referrer-Policy: no-referrer` on
-`/agentplugins/t/{token}/...` with `strict-origin-when-cross-origin`, contrary to
-`docs/agent-plugins.md`. Gate G3 reports it as `BLOCKED(F1)`; Caddy restores the header in this
-deployment.
+Run 1 built the `ak` stage from the release:
+
+```text
+client: ak CLI from release v1.11.0-rc.2 (sha256 and cosign signature checked)
++ curl -fsSLO https://github.com/artifact-keeper/artifact-keeper-cli/releases/download/v1.11.0-rc.2/ak-linux-amd64
+ ...
+ak-linux-amd64: OK
+Verified OK
+```
+
+`make clean` keeps that stage image (`localhost/ak-agents/ak-cli:v1.11.0-rc.2`), so run 2 reused
+it. `ak --version` prints `ak 1.11.0`: the prerelease's crate version has no `-rc.2` suffix.
+
+Run 2, per target (from the timestamps): `registry-up` 31 s, `bootstrap` 5 s, `client` 151 s,
+`validate` 2 s, `publish` 6 s, `indexes` 2 s, `consume-claude` 7 s, `consume-cli` 8 s,
+`update` 5 s, `scan` 2 s, `audit` under 1 s. Gates: G1 1 s, G2 2 s, G3 3 s, G4 6 s, G5 4 s,
+G6 1 s, G7 1 s, G8 15 s, G9 1 s, G10 3 s.
+
+The blocked checks, verbatim:
+
+```text
+BLOCKED(F1)       G3   the backend itself sends Referrer-Policy: no-referrer on the token route: it sends 'strict-origin-when-cross-origin' (findings.md F1; Caddy restores no-referrer)
+BLOCKED(account)  G4   a signed-in Claude Code session uses the plugin: after 'claude /login' in out/homes/g4, run: claude -p '/acme-review:checklist' (and ask for a review to load the review skill)
+BLOCKED(account)  G8   the agents use the installed plugin in a session: after logging in (codex login; copilot login; cursor-agent login, or reload a Cursor window) in out/homes/g8, ask each agent for the fixture skill 'check'
+```
+
+Also seen after run 2, in the web UI screenshots: the Packages tab lists `acme-review` 1.1.0,
+`acme-standards` 1.0.0 and `acme-release-notes` 1.0.0, each with **0 downloads**, while
+`GET /api/v1/admin/downloads` has records for them and the artifact rows have
+`download_count` 2 and 3. The storage card showed 0 B until its estimate runs.
+
+## F1: Referrer-Policy overwritten on the token route
+
+Open. `docs/agent-plugins.md` says token-route responses carry `Referrer-Policy: no-referrer`,
+and the token router sets it (`backend/src/api/handlers/agent_plugins.rs`, the
+`map_response` layer of `token_router()`). The global `security_headers_middleware`
+(`backend/src/api/middleware/security_headers.rs`) runs after it and calls
+`headers.insert("referrer-policy", "strict-origin-when-cross-origin")`, which replaces the
+value. The handler's test (around line 1350) builds the format router alone, without the global
+layer, so it passes.
+
+Request, from inside the compose network, straight to the backend (a 200 from the token router:
+its `cache-control` is present):
+
+```console
+$ podman exec ak-agents-caddy wget -q -S --spider "http://backend:8080/agentplugins/t/<developer token>/agent-plugins/claude-marketplace.json"
+  HTTP/1.1 200 OK
+  etag: "3396a9e665c2cc08f06d81847462f6152c6f3f46ec80ecf41dd10dda20f8ac65"
+  cache-control: private, no-store
+  content-type: application/json
+  referrer-policy: strict-origin-when-cross-origin
+  x-correlation-id: cd57aa5b-37b9-406f-b913-c9b5cafe0397
+  vary: origin
+  access-control-allow-credentials: true
+  x-frame-options: DENY
+  x-content-type-options: nosniff
+  strict-transport-security: max-age=31536000; includeSubDomains
+  permissions-policy: camera=(), microphone=(), geolocation=()
+  content-security-policy: default-src 'self'; script-src 'self'; ...
+  content-length: 4170
+```
+
+Fix: set `referrer-policy` with `entry(...).or_insert(...)` in the global middleware, as it
+already does for `content-security-policy`, and test the token route through the full router.
+Workaround in this walkthrough: Caddy's `header_down Referrer-Policy no-referrer` on
+`/agentplugins/t/*`. Gate G3 checks both: on the wire (PASS) and from the backend directly
+(`BLOCKED(F1)`).

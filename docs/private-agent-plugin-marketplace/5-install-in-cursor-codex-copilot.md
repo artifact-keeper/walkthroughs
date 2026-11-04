@@ -29,6 +29,10 @@ Installed acme-release-notes 1.0.0 for vscode in /home/dev/.copilot/installed-pl
 with a warning: `ak` installs a plugin for an agent it was not tagged for, because Copilot and
 VS Code do load Claude Code layouts.
 
+The web UI's Setup tab shows the same commands:
+
+![The Setup tab of the agent-plugins repository, Cursor / Codex / VS Code view: ak agent plugins install with --harness cursor, codex and vscode](images/u03-setup-cursor-codex-vscode.png)
+
 ## Where each agent gets it
 
 | `--harness` | Directory | What `ak` then runs |

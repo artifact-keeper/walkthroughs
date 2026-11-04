@@ -55,7 +55,7 @@ One check reports `BLOCKED(F1)`: the backend documents `Referrer-Policy: no-refe
 token route, but the build used here sends `strict-origin-when-cross-origin`, because its
 global security-headers layer overwrites the route's value. Caddy restores `no-referrer` in this
 deployment, so the check on the wire passes; the check against the backend directly stays
-blocked until the backend is fixed ([lab notes](findings.md), F1).
+blocked until the backend is fixed ([lab notes, F1](findings.md#f1-referrer-policy-overwritten-on-the-token-route)).
 
 ## G4 Claude Code end to end
 

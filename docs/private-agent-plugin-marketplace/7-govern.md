@@ -83,21 +83,22 @@ REST API:
 ```console
 == acme-review 1.1.0
 published:
-{"at":"2026-11-04T...","by":"ci","sha256":"f248747d...","harnesses":["claude"],"downloads":2}
+{"at":"2026-11-04T03:25:40.617090Z","by":"ci","sha256":"f248747d0f02e9575bdc1b1f9b0af7c612f7d8b354df8ce8fd2658131f5d40e2","harnesses":["claude"],"downloads":2}
 downloads:
-{"at":"2026-11-04T02:59:40Z","user":"developer","ip":"172.31.72.8","agent":"-"}
-{"at":"2026-11-04T02:59:38Z","user":"developer","ip":"172.31.72.8","agent":"Claude-Code-Plugin-Manager"}
+{"at":"2026-11-04T03:25:44.070743Z","user":"developer","ip":"172.31.72.8","agent":"-"}
+{"at":"2026-11-04T03:25:42.304776Z","user":"developer","ip":"172.31.72.8","agent":"Claude-Code-Plugin-Manager"}
 
 == downloads from agent-plugins, by user and client
 {"user":"developer","agent":"-","downloads":4}
-{"user":"developer","agent":"Claude-Code-Plugin-Manager","downloads":5}
+{"user":"developer","agent":"Claude-Code-Plugin-Manager","downloads":4}
 
 == audit events: tokens, users and permissions
-{"at":"...","actor":"admin","action":"REPOSITORY_CREATED","resource_type":"repository"}
-{"at":"...","actor":"admin","action":"PERMISSION_RULE_CREATED","resource_type":"permission_rule"}
-{"at":"...","actor":"ci","action":"API_TOKEN_CREATED","resource_type":"api_token"}
-{"at":"...","actor":"developer","action":"API_TOKEN_CREATED","resource_type":"api_token"}
+{"at":"2026-11-04T03:22:40.644780Z","actor":"admin","action":"REPOSITORY_CREATED","resource_type":"repository"}
  ...
+{"at":"2026-11-04T03:22:41.834667Z","actor":"admin","action":"PERMISSION_RULE_CREATED","resource_type":"permission_rule"}
+{"at":"2026-11-04T03:22:42.628071Z","actor":"ci","action":"API_TOKEN_CREATED","resource_type":"api_token"}
+ ...
+{"at":"2026-11-04T03:22:43.840475Z","actor":"developer","action":"API_TOKEN_CREATED","resource_type":"api_token"}
 ```
 
 - **The publisher** is on the version's artifact record (`uploaded_by`), here `ci`, with the

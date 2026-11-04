@@ -93,6 +93,11 @@ Where the token ends up: `settings.json`, where you put it, and a copy of the sa
 manage, replace `headers` with `headersHelper`, a command that prints the header from your
 secret store at fetch time, so no file holds a long-lived token.
 
+The web UI's Setup tab for the repository gives the same two routes, filled in for the
+repository:
+
+![The Setup tab of the agent-plugins repository, Claude Code view: create a read token, then option 1, an extraKnownMarketplaces entry with an Authorization header, or option 2, claude plugin marketplace add with the token in the URL, and claude plugin install](images/u02-setup-claude-code.png)
+
 ## 2. The token-in-path route (no settings edit)
 
 When you cannot edit settings, put a read-only repository token in the URL. The registry
