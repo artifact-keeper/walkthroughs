@@ -156,6 +156,13 @@ client/run.sh -h claude-settings -- claude      # then /login, then:
 #   "review the last commit"   (loads the review skill)
 ```
 
-Gate G4 reports that check as `BLOCKED(account)` with the same commands.
+Gate G4 reports that check as `BLOCKED(account)` with the same commands. With a Claude Code
+session token in `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`), G4 runs it instead: one
+`claude -p "/acme-review:checklist"` session in the G4 home, on Haiku with no tools, two turns
+and a budget cap. It reads the session's `stream-json` events, not the model's answer. The
+`init` event must load acme-review at the registry's latest version and list its command
+`acme-review:checklist`, its agent `acme-review:reviewer` and the acme-standards skills. The
+plugin's `SessionStart` hook must answer with exit 0 and its own text, and the `result` event
+must report no error. The token reaches the container through the environment only.
 
 Next: [Step 5, install in Cursor, Codex and Copilot](5-install-in-cursor-codex-copilot.md).
