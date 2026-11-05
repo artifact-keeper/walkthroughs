@@ -132,11 +132,11 @@ The six `BLOCKED` lines are findings, not gaps in the walkthrough:
 
 | Check | Why | Tracked in |
 |---|---|---|
-| G2 x2: files in subdirectories are in the snapshot | the tree listing of a Remote drops `?recursive=true` | [F2](findings.md#f2-the-tree-listing-drops-recursivetrue-so-snapshot_download-misses-files-in-subdirectories) (not filed yet) |
+| G2 x2: files in subdirectories are in the snapshot | the tree listing of a Remote drops `?recursive=true` | [F2](findings.md#f2-the-tree-listing-drops-recursivetrue-so-snapshot_download-misses-files-in-subdirectories), [#5321](https://github.com/artifact-keeper/artifact-keeper/issues/5321) |
 | G6: a malicious pickle is flagged | no scanner reads model files | [F4](findings.md#f4-a-clean-scan-releases-a-malicious-pickle-from-the-upload-hold), [#5285](https://github.com/artifact-keeper/artifact-keeper/issues/5285) |
 | G7 x2: a fresh offline workstation loads straight from Artifact Keeper in 60 s | uncached optional files are 502s that clients retry | [F3](findings.md#f3-offline-every-uncached-path-is-a-502-after-an-upstream-attempt-and-clients-retry-it), [#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282) |
 | G7: an unseeded file is a clean 404 | no cache-only mode | [#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282) |
 
-With the `:dev` image (`main` without #5300), G5's hosted `snapshot_download` check is a seventh,
+With a backend without #5300 (`main` at `46070a04`), G5's hosted `snapshot_download` check is a seventh,
 `BLOCKED(ak-fix)` ([F1](findings.md#f1-snapshot_download-fails-against-a-local-repository)):
 75 PASS, 0 FAIL, 7 BLOCKED in the run of 2026-11-04 22:08 UTC.

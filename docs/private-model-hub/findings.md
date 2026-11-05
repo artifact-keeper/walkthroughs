@@ -24,10 +24,10 @@ these notes and from the reference run in [Results](results.md). Line numbers ar
 ### F1. snapshot_download fails against a Local repository
 
 Reported as [artifact-keeper#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280),
-fixed by pull request [#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300) (not
-merged yet). The reference run uses a backend built from that branch, and there the G5 check
-passes: `snapshot_download` returns all nine files of `acme/embedder`, the one in `1_Pooling/`
-included. On `main` (`:dev`), `hf_hub_download` of a named file, `AutoModel.from_pretrained` and
+fixed by pull request [#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300), merged
+into `main` as `6c701cd4` and coming in 1.12.0. The reference run used a backend built from that
+branch, and there the G5 check passes: `snapshot_download` returns all nine files of `acme/embedder`, the one in `1_Pooling/`
+included. On `main` before the fix (`46070a04`), `hf_hub_download` of a named file, `AutoModel.from_pretrained` and
 `SentenceTransformer(...)` all work against `hf-local`; `snapshot_download` does not:
 
 ```text
@@ -60,8 +60,9 @@ snapshot:     {"ok":true, "files":[".gitattributes","README.md","config.json","m
 model does not load (`Pooling.__init__() missing 1 required positional argument`). The G2
 checks for it report `BLOCKED(ak-fix)`. `docs/huggingface.md:160-163` says "Downloads are
 unaffected: `snapshot_download` takes its file list from the model-info `siblings`", which is
-no longer true. Not filed yet; proposed: forward `recursive`, `expand` and `cursor`, and follow
-`Link: rel="next"`.
+no longer true. Filed as
+[artifact-keeper#5321](https://github.com/artifact-keeper/artifact-keeper/issues/5321): forward
+`recursive`, `expand` and `cursor`, and follow `Link: rel="next"`.
 
 ### F3. Offline, every uncached path is a 502 after an upstream attempt, and clients retry it
 
@@ -73,7 +74,9 @@ negative-cached for only 45 s (`NEGATIVE_CACHE_TTL_SECS`, `cache_classifier.rs:4
 `processor_config.json`, `preprocessor_config.json`, ...). The result: loading a seeded model on
 a fresh offline workstation did not finish in 60 s (G7); in an unbounded trial it was still
 retrying after 12 minutes, with each optional file requested 55 times. Gated models show the
-same shape online: the Hub's 401 `GatedRepo` reaches the client as a 502.
+same shape online: the Hub's 401 `GatedRepo` reaches the client as a 502, which
+`huggingface_hub` retries instead of raising `GatedRepoError`
+([artifact-keeper#5323](https://github.com/artifact-keeper/artifact-keeper/issues/5323)).
 
 A cache-only mode that answers a clean 404 for anything not cached is
 [artifact-keeper#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282). Until
@@ -113,7 +116,8 @@ GET /cdn/ba316f07...  200
 ```
 
 A cold `Range` request does fill the cache. For multi-gigabyte weights this doubles the first
-pull's egress. Not filed yet.
+pull's egress. Filed as
+[artifact-keeper#5322](https://github.com/artifact-keeper/artifact-keeper/issues/5322).
 
 ### F6. The cache key is the revision as spelled, and every Hugging Face path is mutable
 
@@ -141,7 +145,8 @@ spelling clients will use; `snapshot_download` uses the commit.
 - **D5. `quarantine_enabled` at creation is ignored.** `POST /api/v1/repositories` accepts
   `quarantine_enabled` and `quarantine_duration_minutes` without an error and stores neither
   (they are fields of `UpdateRepositoryRequest`, `repositories.rs:1326`, not of the create
-  request); `PATCH` sets them.
+  request); `PATCH` sets them
+  ([artifact-keeper#5324](https://github.com/artifact-keeper/artifact-keeper/issues/5324)).
 - **D6. Out-of-group users get 404.** `docs/huggingface.md:58` says to "restrict the
   repository accordingly"; with a group grant, everyone else gets 404, not 403 (G3).
 - **D7. A raised cache-ttl applies from the next revalidation.** The API reference says so;
@@ -160,7 +165,9 @@ spelling clients will use; `snapshot_download` uses the commit.
   fails as documented (model info 404). On a cache that already holds one file of the model,
   `huggingface_hub` falls back to that cache and returns a snapshot with that one file, and no
   error.
-- **O4. The web UI badges a rejected file "Quarantined"** ([Results](results.md)).
+- **O4. The web UI badges a rejected file "Quarantined"**, and a Hugging Face package page shows
+  the version as `vmain` and `0 downloads` ([Results](results.md);
+  [artifact-keeper-web#1085](https://github.com/artifact-keeper/artifact-keeper-web/issues/1085)).
 - **O5. A held file is 409; a rejected or policy-refused file is 403**, on `HEAD` and `GET`
   alike.
 

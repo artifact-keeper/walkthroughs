@@ -3,8 +3,8 @@
 # walkthrough lives here. Compose project name: ak-hf (see ../lib.sh).
 #
 # What changes and why:
-#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (a build of artifact-keeper#5300 on top of
-#     main until it merges; :dev of the web UI, pinned by digest).
+#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (a build of artifact-keeper#5300, now on
+#     main as 6c701cd4, until a :dev image carries it; :dev of the web UI, pinned by digest).
 #   - container_name: every upstream name is prefixed ak-hf- so this stack can run next to
 #     other Artifact Keeper stacks on the same host.
 #   - networks: the default network is ak-hf-net (AK_NET_SUBNET). The workstation container,

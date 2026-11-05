@@ -67,7 +67,7 @@ for each file by name at `main`. The encoding is identical to the one from `hf-l
 [Step 2](2-proxy-the-hub.md), as it should be: same weights. A Local repository has no git
 history, so the commit (`1e18c1cf...`) is derived from the model id and revision.
 
-## snapshot_download (needs artifact-keeper#5300)
+## snapshot_download (needs Artifact Keeper main, 1.12.0)
 
 ```console
 -- snapshot_download (needs the hosted snapshot fix; see the findings):
@@ -76,9 +76,10 @@ history, so the commit (`1e18c1cf...`) is derived from the model id and revision
 ```
 
 All nine files, including the one in `1_Pooling/`, and `siblings` are paths inside the
-repository. This needs the backend from
-[artifact-keeper#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300). On `:dev`
-as it is today, the same call fails:
+repository. This needs the fix from
+[artifact-keeper#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300), on `main`
+since `6c701cd4` and in the next release. On a backend without it (the reference run's earlier
+`main` at `46070a04`, or 1.11.x), the same call fails:
 
 ```text
 {"ok":false,"commit":null,"files":null,"error":"KeyError","msg":"'id'"}
