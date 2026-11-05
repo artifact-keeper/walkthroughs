@@ -1,0 +1,7 @@
+# What the agent image installs from pypi.org (through Artifact Keeper's pypi Virtual).
+# agent/lock.sh resolves this into requirements.lock with every file's SHA-256.
+openai
+mcp
+huggingface_hub
+# The public MCP server, as the official registry lists it (io.github.daedalus/mcp-sqlite3).
+mcp-sqlite3==0.1.3

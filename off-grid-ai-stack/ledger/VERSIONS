@@ -1,0 +1,2 @@
+# The ledger's image (Docker Hub, pulled directly: lab equipment, not served by Artifact Keeper).
+LEDGER_IMAGE=docker.io/library/python:3.12-alpine@sha256:5789aa194f757888f41fa3d48e14b6feaa1b57c0af0b56fcb1372d6474d3bff0

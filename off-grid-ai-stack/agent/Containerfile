@@ -1,0 +1,36 @@
+# The off-grid agent: Python 3.12 with openai, mcp, huggingface_hub, the public MCP server
+# mcp-sqlite3 and Acme's acme-inventory-mcp. Everything comes through Artifact Keeper: the base
+# image from oci-dockerhub, the packages from the pypi Virtual (pypi-local, then pypi-remote),
+# every one checked against a hash in requirements.lock / requirements-internal.txt. The build's
+# RUN steps reach the registry as ak.internal on the host port (agent/build.sh) and read the
+# developer token from a build secret; no credential stays in the image.
+ARG REG=localhost:30450
+ARG PYTHON_IMAGE
+FROM ${REG}/oci-dockerhub/${PYTHON_IMAGE}
+ARG AK=https://ak.internal:30450
+COPY .work/ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN update-ca-certificates >/dev/null
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_ROOT_USER_ACTION=ignore
+COPY requirements.lock requirements-internal.txt /tmp/
+RUN --mount=type=secret,id=ak_token,required=true \
+    set -eu; t=$(cat /run/secrets/ak_token); idx="https://developer:${t}@${AK#https://}/pypi/pypi/simple/"; \
+    pip install --require-hashes --index-url "$idx" -r /tmp/requirements.lock; \
+    pip install --require-hashes --no-deps --index-url "$idx" -r /tmp/requirements-internal.txt; \
+    pip check
+COPY agent.py /opt/agent/agent.py
+RUN useradd --create-home --uid 1000 dev
+# Libraries that call home: huggingface_hub's telemetry and Xet storage, and fastmcp (under
+# mcp-sqlite3), which checks pypi.org for a newer release when it prints its banner. On the
+# site there is no route for them anyway; off, they do not try.
+ENV HOME=/home/dev \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    HF_HUB_DISABLE_PROGRESS_BARS=1 \
+    HF_HUB_DISABLE_XET=1 \
+    FASTMCP_CHECK_FOR_UPDATES=off \
+    FASTMCP_SHOW_SERVER_BANNER=false
+USER dev
+WORKDIR /home/dev

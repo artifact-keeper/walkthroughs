@@ -77,6 +77,17 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-model-hub/index.md)
 
+-   :material-lan-disconnect:{ .lg .middle } __The off-grid AI stack__ `preview: 1.12.0`
+
+    ---
+
+    **The series capstone; needs Artifact Keeper `main`** (1.12.0). A local model, MCP tools,
+    agent plugins and every package under them from one registry: seed it, cut the network,
+    and prove with an egress ledger, the audit log and cache metrics that nothing leaves while
+    an agent on the disconnected site still answers through a tool call.
+
+    [:octicons-arrow-right-24: Start the walkthrough](off-grid-ai-stack/index.md)
+
 </div>
 
 Looking for a specific format, tool or control? [Browse by tag](tags.md).
