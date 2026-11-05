@@ -4,8 +4,9 @@
 
 The reference run was on `grace` (Ubuntu 26.04, 40 cores, rootless podman 5.7) on 2026-11-04,
 from an empty registry: `make clean`, `make all` (2 min 46 s), `make gates` (13 s), `make
-screens`. Backend `localhost/ak-backend:mcp-c89f9cea` (artifact-keeper#5257), web
-`localhost/ak-web:mcp-89313d4` (artifact-keeper-web#1077), Claude Code 2.1.318, mcp-publisher
+screens`. Backend `localhost/ak-backend:mcp-c89f9cea` (artifact-keeper#5257, since merged as
+`4542321b`), web `localhost/ak-web:mcp-89313d4` (artifact-keeper-web#1077, since merged as
+`896a79db`), Claude Code 2.1.318, mcp-publisher
 1.8.7, `@anthropic-ai/mcpb` 2.1.2. The stack images and the two locally built images were
 already in the image store, so the times do not include pulling or building them. Two earlier
 full runs on the same day found the problems recorded in the [lab notes](findings.md).
