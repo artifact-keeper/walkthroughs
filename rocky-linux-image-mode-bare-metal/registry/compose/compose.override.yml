@@ -18,13 +18,14 @@ services:
     image: docker.io/library/caddy:2-alpine
 
   backend:
-    # Pin to the release instead of :latest.
-    image: ghcr.io/artifact-keeper/artifact-keeper-backend:${ARTIFACT_KEEPER_VERSION:-1.10.2}
+    # Pin to the release instead of :latest. BACKEND_IMAGE is set by up.sh only when
+    # AK_BACKEND_IMAGE is in the caller's environment (the e2e contract, CONTRIBUTING.md).
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:${ARTIFACT_KEEPER_VERSION:-1.10.2}}
 
   web:
     # Stock file hardcodes :latest and ignores ARTIFACT_KEEPER_VERSION.
     # There is no 1.10.2 web image on ghcr.io; 1.10.1 is the newest 1.10.x tag.
-    image: ghcr.io/artifact-keeper/artifact-keeper-web:${ARTIFACT_KEEPER_WEB_VERSION:-1.10.1}
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:${ARTIFACT_KEEPER_WEB_VERSION:-1.10.1}}
 
   # Vulnerability / compliance scanners are not needed for the edge demo.
   # Opt back in with:  COMPOSE_PROFILES=scanners ./up.sh

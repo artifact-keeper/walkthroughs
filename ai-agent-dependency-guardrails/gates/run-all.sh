@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The walkthrough's gates G1-G11 (plan.md). Each prints PASS, FAIL or BLOCKED(Fn) with its
-# evidence; results go to out/gates/<gate>.txt and out/gates/summary.txt.
+# evidence; results go to out/gates/<gate>.txt, out/gates/summary.txt and out/gates/results.tsv,
+# and one standard line per gate ("PASS G1 <title>") to stdout.
 # Needs the full pipeline first (make all): the agent transcripts in agent/out are evidence.
 # BLOCKED(Fn) = the check depends on an Artifact Keeper gap listed in plan.md; it is reported,
 # not counted as a failure. Exit status 1 if any gate FAILs.
@@ -16,9 +17,13 @@ fails=0
 "$ROOT/lab-upstream/up.sh" >/dev/null || { echo "gates: lab upstream did not start" >&2; exit 1; }
 
 gate() { # gate ID "title" status evidence...
-  local id=$1 title=$2 status=$3; shift 3
+  local id=$1 title=$2 status=$3 std; shift 3
   printf '%s\n' "$id $title: $status" "$@" > "$G/$id.txt"
-  printf '%-4s %-12s %s\n' "$id" "$status" "$title" | tee -a "$G/summary.txt"
+  printf '%-4s %-12s %s\n' "$id" "$status" "$title" >> "$G/summary.txt"
+  # the standard verdict line and results.tsv (the e2e contract, CONTRIBUTING.md)
+  std=$status; [[ $std == "NOT RUN" ]] && std="BLOCKED(not-run)"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$std" "$id" "$title" "" >> "$G/results.tsv"
+  printf '%-12s %-4s %s\n' "$std" "$id" "$title"
   [[ $status == PASS || $status == BLOCKED* || $status == "NOT RUN" ]] || fails=$((fails + 1))
 }
 step() { jq -r --arg id "$1" '.[] | select(.id==$id) | .pass' "$ROOT/agent/out/summary.json" 2>/dev/null; }

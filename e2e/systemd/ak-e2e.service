@@ -1,0 +1,16 @@
+[Unit]
+Description=Artifact Keeper walkthroughs: nightly end-to-end run
+Documentation=https://github.com/artifact-keeper/walkthroughs/tree/main/e2e
+
+[Service]
+Type=oneshot
+# Non-secret settings (E2E_REPORT, E2E_EXTRA_REFS, ...). Secrets are separate files in the
+# same directory, mode 600, read by the runner itself; never put them here.
+EnvironmentFile=-%h/.config/ak-e2e/config.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/ak-e2e/runner/ak_e2e.py run
+# Four walkthroughs x two versions, sequential; each step has its own hard timeout.
+TimeoutStartSec=16h
+KillMode=mixed
+Nice=5

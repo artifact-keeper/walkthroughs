@@ -97,6 +97,9 @@ all-main: ## the same pipeline on Artifact Keeper main: attestation refusals tol
 	$(MAKE) push scan PROJECT=project-direct
 	-$(MAKE) gates PROJECT=project-direct ATTESTATION_GATE=warn
 
-clean: ## remove local build outputs (not the registry's data, not keys or tokens)
+clean: ## delete the stack with its volumes and networks, the tokens, .env and build outputs (keys and images kept)
 	rm -rf packages/out image/.work client/.work out
 	-podman rm -f ak-conda-fake-upstream ak-conda-gate-sigs ak-conda-g12-mirror
+	-podman volume rm -f ak-conda-pixi-cache
+	if [[ -f registry/.env ]]; then registry/down.sh --volumes; fi
+	rm -rf registry/.env registry/.tokens registry/out

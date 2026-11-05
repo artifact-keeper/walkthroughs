@@ -17,7 +17,7 @@ RELEASES      ?= 3 4
 REL           ?= 3
 
 .PHONY: help registry-up registry-down keys publish-keys base base-rebuild rpm rpm-build rpm-upload \
-        image push unsigned-test sign verify promote all clean
+        image push unsigned-test sign verify promote gates all clean
 
 help: ## list targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -71,13 +71,19 @@ verify: ## check keys, cosign signatures, build-host policy, repodata and RPM si
 promote: ## move rocky-edge:10 to release $(REL) (registry-side copy), e.g. make promote REL=4
 	RELEASES="$(REL)" FLOAT_RELEASE="$(REL)" image/push.sh
 
+gates: ## G6-G8 (verify.sh) and, with KVM, G9 (vm-all): PASS / FAIL / BLOCKED per check, results in out/gates/
+	gates/run-all.sh
+
 # preflight and vm-all live in deploy/deploy.mk:
 #   make preflight   check tools, rootless podman, /dev/kvm, vm.max_map_count, SSH key, ports
 #   make vm-all      vm-install vm-boot vm-verify vm-upgrade-unsigned vm-upgrade vm-verify vm-rollback vm-verify
 
 all: registry-up keys publish-keys base rpm image push unsigned-test sign verify ## everything up to signed, verified edge images
 
-clean: ## remove local build scratch (not images, not registry data)
-	rm -rf base/.work rpms/.work rpms/out image/.work
+clean: ## delete the stack with its volumes, the VM state, build scratch and generated state (not keys, not images)
+	-deploy/vm-clean.sh
+	rm -rf base/.work rpms/.work rpms/out image/.work out
+	if [[ -f registry/.env ]]; then registry/down.sh -v --remove-orphans; fi
+	rm -rf registry/.env registry/.ak-token registry/out signing/keys/docker
 
 -include deploy/deploy.mk

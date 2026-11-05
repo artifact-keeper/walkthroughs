@@ -47,6 +47,46 @@ Run it locally before pushing; do not use "push and see if CI passes" as a workf
   `.gitignore` in each code directory.
 - Images go in the walkthrough's own `images/` folder, with descriptive alt text.
 
+## The e2e contract
+
+Every walkthrough runs nightly against the latest Artifact Keeper release and `:dev`
+([`e2e/`](e2e/README.md)). For the runner to do that, a walkthrough's `<slug>/` must:
+
+1. **Have three make targets**, each runnable from a fresh clone with no prompts:
+   - `make all`: the whole pipeline, from an empty registry; exit non-zero on failure.
+   - `make gates`: every check, after `make all`; exit non-zero if any check fails.
+   - `make clean`: delete everything the walkthrough created: containers, volumes, networks,
+     generated secrets, tokens and outputs. After it, `make all` starts from nothing. Pulled
+     images and slow-to-rebuild build caches may stay.
+2. **Take the Artifact Keeper images from the environment.** `registry/up.sh` uses
+   `AK_BACKEND_IMAGE` and `AK_WEB_IMAGE` (full references, e.g.
+   `ghcr.io/artifact-keeper/artifact-keeper-backend:1.11.11@sha256:...`) when they are set, and
+   the walkthrough's pinned defaults (`.env.example`, `compose/VERSIONS`) when they are not.
+   The pins in the files stay the documented versions; the override is for one run only.
+3. **Print one standard line per check** on `make gates`' standard output:
+
+   ```
+   PASS         G3   <check>
+   FAIL         G3   <check>: <why>
+   BLOCKED(F4)  G3   <check>: <why>
+   ```
+
+   The status is `PASS`, `FAIL` or `BLOCKED(<reason>)`; then the gate (`G` and a number); then
+   the check, and for `FAIL` and `BLOCKED` a colon and the reason. Use `BLOCKED` for a check
+   that cannot run here and says nothing about the walkthrough: an unlanded Artifact Keeper fix,
+   an account or secret that is not configured (`BLOCKED(account)`, `BLOCKED(secret)`), missing
+   hardware (`BLOCKED(kvm)`). Also append each verdict to `out/gates/results.tsv`
+   (UTC time, status, gate, check, why; tab separated), which the runner prefers to the log.
+4. **Take secrets from the environment only**, by name, and never print them. When one is
+   missing, report the checks that need it as `BLOCKED`, not `FAIL`.
+5. **Name everything it creates with its own prefix** (containers, volumes, networks), publish
+   host ports on `127.0.0.1` only, pin network subnets, and register those names, ports and
+   subnets in [`e2e/walkthroughs.toml`](e2e/walkthroughs.toml). The runner checks them before
+   every run and reports `BLOCKED(conflict)` instead of touching a stack that is already there.
+
+Long or hardware-bound steps (a VM install) belong in `make gates` behind a check that reports
+`BLOCKED` when the host cannot run them.
+
 ## Reporting Security Issues
 
 Please do **not** open a public issue for security vulnerabilities in Artifact Keeper. Use
