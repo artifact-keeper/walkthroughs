@@ -9,5 +9,5 @@ Standard layout (`plugin.json` with the agent-plugins.org `$schema`):
   `io.github.daedalus/mcp-sqlite3` approved in `mcp-official`).
 - `skills/inventory-answers/SKILL.md` is the instruction the agent gives the model.
 
-`flows/seed.sh` zips it (fixed timestamps, sorted entries) and publishes
+`seed/seed.sh` zips it (fixed timestamps, sorted entries) and publishes
 `offgrid-ops-1.0.0.zip` to `plugins-central`.

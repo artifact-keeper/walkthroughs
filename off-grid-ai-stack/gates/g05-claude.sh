@@ -13,6 +13,9 @@ if ! podman image exists localhost/ak-offgrid/claude:latest; then
   blocked best-effort $G "Claude Code installs offgrid-ops from the plugins Remote, offline" "no Claude Code image (its build failed while seeding; out/flows/claude-build.log)"
   exit 0
 fi
+cat "$CO/npm-install.txt" 2>/dev/null
+check $G "a clean npm install of Claude Code (and its native package) from npm-remote works on the site" "$(tail -1 "$CO/npm-install.txt" 2>/dev/null)" \
+  grep -q '^claude --version: [0-9]' "$CO/npm-install.txt"
 grep -E '"(id|name|version|success)"' "$CO/plugin.txt" | head -8
 check $G "Claude Code installs offgrid-ops from the plugins Remote, offline" "$(tail -c 300 "$CO/plugin.txt")" \
   bash -c "sed -n '/claude plugin list --json/,\$p' '$CO/plugin.txt' | tail -n +2 | jq -e 'any(.[]; .id == \"offgrid-ops@plugins\")' >/dev/null"

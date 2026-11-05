@@ -113,6 +113,7 @@ ldig=$(jq -r '[.manifests[]? | select(.platform.os == "linux" and .platform.arch
 jq -n --arg u "http://backend:8080" --arg a "Bearer $(tok developer)" --arg r "oci-ghcr/$limg" --arg d "$ldig" \
   '{registry:{url:$u,authorization:$a},artifact:{repository:$r,digest:$d,mime_type:"application/vnd.oci.image.manifest.v1+json"}}' > "$ROOT/out/adapter-scan.json"
 adapter POST /api/v1/scan /out/adapter-scan.json | tee "$FOUT/adapter-scan.txt" | tail -1; echo
+rm -f "$ROOT/out/adapter-scan.json"   # it holds the developer token
 sid=$(tail -1 "$FOUT/adapter-scan.txt" | jq -r .id 2>/dev/null || true)
 if [[ -n $sid && $sid != null ]]; then
   for _ in $(seq 90); do

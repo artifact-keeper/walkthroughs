@@ -15,8 +15,11 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../flows/lib.sh"
 [[ $(phase) == seed ]] || { echo "seed.sh: the stack is on the site network (make reconnect first)" >&2; exit 1; }
+echo "$SMALL_MODEL" > "$ROOT/out/small-model"
+echo "seed: model $MODEL_REPO ($MODEL_GGUF)$([[ $SMALL_MODEL == 1 ]] && echo ', SMALL_MODEL=1')"
 l0=$(ledger_lines); t0=$(date -u +%FT%TZ)
-echo "$t0" > "$ROOT/out/seed-started"
+# the first seed's start: a re-run finds what the first one cached and fetches nothing new
+[[ -s "$ROOT/out/seed-started" ]] || echo "$t0" > "$ROOT/out/seed-started"
 
 say "1. images (podman pull through the registry, from the host)"
 : > "$ROOT/out/seed-images.tsv"   # repo, ref, the digest podman pulled (gate G4 compares the site's pull)
@@ -80,14 +83,15 @@ CAT=/repositories/mcp-official/mcp
 while IFS=$'\t' read -r name ver; do
   api POST "$CAT/seed" -d "$(jq -nc --arg n "$name" --arg v "$ver" '{servers:[{name:$n,version:$v}],reason:"reviewed for the off-grid site: local SQLite only, no network"}')" >/dev/null
   echo "  POST /api/v1$CAT/seed $name@$ver: HTTP $(code) $(jq -c '{jobId, status, total}' "$FOUT/.body" 2>/dev/null)"
-  surl=$(jq -r '.statusUrl // empty' "$FOUT/.body")
+  surl=$(jq -r '.statusUrl // empty' "$FOUT/.body" 2>/dev/null || true)
+  [[ -n $surl ]] || echo "  no seed job: this backend has no POST .../mcp/seed (artifact-keeper#5408, main at <SHA> or later); gates G1 and G4 will report $name missing"
   for _ in $(seq 120); do
     [[ -n $surl ]] || break
     call admin GET "$surl" >/dev/null
     jq -e '.status == "completed" or .status == "failed"' "$FOUT/.body" >/dev/null && break
     sleep 2
   done
-  jq -c '{status, items: [.items[]? | {name, version, state, reason}]}' "$FOUT/.body"
+  jq -c '{status, items: [.items[]? | {name, version, state, reason}]}' "$FOUT/.body" 2>/dev/null || true
   show developer GET "/mcp/mcp-all/v0.1/servers/$(jq -rn --arg n "$name" '$n|@uri')/versions/$ver" | head -c 300; echo
 done < <(manifest '.mcp[] | select(.repo == "mcp-official") | [.name, .version] | @tsv')
 

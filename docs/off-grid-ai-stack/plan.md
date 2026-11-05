@@ -73,3 +73,25 @@ safely, results, next steps, reference (seed manifest, make targets), findings, 
 | G5 Claude Code | Best-effort: the plugin installs offline; one prompt through the local model. |
 | G6 fails safely | Unseeded content is a fast 404 counted as `cache_only_miss`; an unapproved MCP server is not served; a manual MCP sync sends nothing; the agent refuses an unlisted server; no route out from the agent. |
 | G7 zero egress | G7a no route out from every container; G7b the ledger is unchanged; G7c cache-hit metrics; G7d no `UPSTREAM_FETCHED` / MCP sync rows after the disconnect; G7e the inventory diff; plus a control. |
+
+## What the build changed
+
+| Plan | What running it showed |
+|---|---|
+| `bootstrap.sh` creates the Remotes, then sets their egress proxy and offline settings | An MCP Remote starts syncing the moment it is created, before its egress proxy applies ([#5402](https://github.com/artifact-keeper/artifact-keeper/issues/5402)). For now the scheduled upstream jobs are paused while the repositories are created; [#5406](https://github.com/artifact-keeper/artifact-keeper/pull/5406) removes the need ([F1](findings.md#f1-an-mcp-remote-syncs-before-its-settings-apply)). |
+| `mcp-official` is synced from the official registry, then the public server is pinned | The registry is 2,218 pages and 221,769 entries, `io.github.daedalus/mcp-sqlite3` is on page 1,093, a pass reads 200 pages, and a manual pass is cut off at 120 s ([#5404](https://github.com/artifact-keeper/artifact-keeper/issues/5404)). Ten passes never reached the name. The seed uses a targeted seed of one name and version instead ([#5408](https://github.com/artifact-keeper/artifact-keeper/issues/5408), [F2](findings.md#f2-a-manual-mcp-sync-is-cut-off-by-the-request-timeout), [F3](findings.md#f3-a-remote-learns-a-name-only-by-syncing-the-whole-catalog)). |
+| The plugins Remote proxies this instance as `http://backend:8080` | `backend` is on the backend's upstream hostname blocklist; the Remote uses the alias `ak-central` ([B1](findings.md#behaviour-worth-knowing)). |
+| The backend at a low fixed address | `.10` collided with podman's dynamic allocation; the backend is `.250` ([B3](findings.md#behaviour-worth-knowing)). |
+| The disconnect recreates the running containers on `ak-offgrid-site` | With podman they lose their service DNS aliases and the backend cannot find `postgres`; the stack is taken down and brought up again ([B2](findings.md#behaviour-worth-knowing)). |
+| The disconnect: cache-only, then pause the jobs | A sync running at the cut wrote its `MCP_MIRROR_SYNCED` row after the marks. Pause first and wait for the running sync ([B14](findings.md#behaviour-worth-knowing)). |
+| G3: the export records the offline posture | Config export has no `upstream_mode` ([#5407](https://github.com/artifact-keeper/artifact-keeper/issues/5407)); G3 reports it `BLOCKED(ak-gap)` ([F4](findings.md#f4-config-export-does-not-carry-the-upstream-mode)). |
+| G6: a manual MCP sync sends nothing | Kept, plus a targeted MCP seed on the site, which must be refused with `409`; and cold `HEAD`s, which must open no ledger connection because the audit log does not record that probe ([#5347](https://github.com/artifact-keeper/artifact-keeper/issues/5347), [F5](findings.md#f5-the-cold-head-probe-is-not-audited)). |
+| G7c: cache hits only | A cache-only miss is counted both as `miss` and as `cache_only_miss`; the check is `miss <= cache_only_miss` per Remote ([B11](findings.md#behaviour-worth-knowing)). |
+| The ledger logs each tunnel | It logged a tunnel only when it closed; it now writes an `open` line before connecting and a `close` line after ([B12](findings.md#behaviour-worth-knowing)). |
+| `seed/seed.sh` writes `out/inventory/seed.tsv` | `flows/vet.sh` writes it, once the vetted model is in `hf-models`. |
+| Acme's wheel is deterministic | Only stored uncompressed: deflate output differed between zlib builds ([B6](findings.md#behaviour-worth-knowing)). |
+| Acme's server on `mcp`'s `FastMCP` | `mcp` 2.x calls it `MCPServer` (`mcp.server.mcpserver`) and a tool's schema `input_schema` ([B7](findings.md#behaviour-worth-knowing)). |
+| The agent's packages make no outside calls of their own | `fastmcp` checks pypi.org for updates when it shows its banner; the agent image turns that off ([B8](findings.md#behaviour-worth-knowing)). |
+| G5: one prompt through Claude Code's normal session | With its full harness the 1.5B model echoed its prompt after about 300 s; the gated session uses a minimal system prompt and no tools, and answers in 3 s ([B9](findings.md#behaviour-worth-knowing)). |
+| `SMALL_MODEL=1` is SmolLM2-360M-Instruct | It made no tool call and invented a number (1000 units). `SMALL_MODEL=1` is Qwen2.5-0.5B-Instruct (491 MB), which calls the tool and answers 42 but does not quote the tool's ref, so G4 gates on the ref only for the default model ([B10](findings.md#behaviour-worth-knowing)). |
+| The `:dev` images of `main` | The CI `:dev` image was stale (the CI amd64 builds were failing); the run used local builds of `main` at `0bffa44c`. |

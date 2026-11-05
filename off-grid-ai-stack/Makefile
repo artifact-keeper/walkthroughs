@@ -2,7 +2,7 @@
 # package under them from one registry, then the network is cut and an agent still works.
 # Pipeline: registry-up -> bootstrap -> seed -> vet -> disconnect -> agent -> claude
 #           (then: make gates)
-# No sudo; rootless podman only. See README.md. SMALL_MODEL=1 uses SmolLM2-360M instead of
+# No sudo; rootless podman only. See README.md. SMALL_MODEL=1 uses Qwen2.5-0.5B instead of
 # Qwen2.5-1.5B (seed/manifest.toml).
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c

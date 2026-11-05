@@ -139,7 +139,7 @@ ledger forwards what the Remotes ask for.
     make all      # registry, bootstrap, seed, vet, disconnect, agent, claude
     make gates    # the seven gates
     ```
-    `SMALL_MODEL=1 make all` uses SmolLM2-360M (386 MB) instead of Qwen2.5-1.5B (1.1 GB).
+    `SMALL_MODEL=1 make all` uses Qwen2.5-0.5B (491 MB) instead of Qwen2.5-1.5B (1.1 GB).
 
 ## Steps
 

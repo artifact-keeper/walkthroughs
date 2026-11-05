@@ -25,8 +25,30 @@ developer's read token in the path, so no settings file is needed) and installs 
 from it, on `ak-offgrid-site`:
 
 ```console
---8<-- "docs/off-grid-ai-stack/snippets/claude-plugin.txt"
+$ make claude
+flows/claude.sh
+
+== 1. the marketplace and the plugin, from the plugins Remote
+$ claude plugin marketplace add https://ak.internal/agentplugins/t/<token>/plugins/claude-marketplace.json --json
+{"command":"marketplace-add","outcome":"ok","marketplace":"plugins","message":"Downloading marketplace from https://ak.internal/agentplugins/t/<token>/plugins/claude-marketplace.json\nValidating marketplace data\nSaving marketplace to cache\nCleaning up old marketplace cache…\nSuccessfully added marketplace: plugins (declared in user settings)"}
+$ claude plugin install offgrid-ops@plugins --json
+{"command":"install","outcome":"ok","plugin":"offgrid-ops@plugins","pluginId":"offgrid-ops@plugins","scope":"user","message":"Successfully installed plugin: offgrid-ops@plugins (scope: user)"}
+$ claude plugin list --json
+[
+  {
+    "id": "offgrid-ops@plugins",
+    "version": "1.0.0",
+    "scope": "user",
+    "enabled": true,
+    "installPath": "/home/dev/.claude/plugins/cache/plugins/offgrid-ops/1.0.0",
+    "installedAt": "2026-11-05T17:50:58.125Z",
+    "lastUpdated": "2026-11-05T17:50:58.125Z",
+    "projectEnabled": false
+  }
+]
 ```
+
+<!-- REFRESH: debug run (main at 0bffa44c); paste the final run's out/claude/plugin.txt. The token is redacted by flows/claude.sh; keep it so. -->
 
 The marketplace's name is the Remote's key, `plugins`; the archive's SHA-256 is the one the
 central repository published, which Claude Code checks. The plugin's skill loads. Its MCP
@@ -41,12 +63,22 @@ non-empty `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_MODEL=local` (the alias `flows/a
 the model):
 
 ```console
---8<-- "docs/off-grid-ai-stack/snippets/claude-session.txt"
+== 2. best-effort: one prompt through the local model (Anthropic Messages API on llama-server)
+  minimal prompt, no tools, 3 s: {"is_error":false,"result":"OFFGRID","duration_ms":2007}
 ```
+
+<!-- REFRESH: debug run; paste the final run's line from make claude. -->
+
+`out/claude/session.json` has the rest: 262 input tokens, 3 output tokens, `"stop_reason":
+"end_turn"`. Claude Code prints `[claude-code:unrecognized_model] {"model":"local",...}` to
+stderr (`out/claude/session.err`) because it does not know the alias `local`; the session works
+regardless. Its `total_cost_usd` (0.001108) is Claude Code's own estimate from a price table; no
+one is billed.
 
 With its own system prompt and tool definitions (tens of thousands of tokens), the same
 prompt took about 300 s on this host for the model to read, and the 1.5B model then echoed
-part of the system prompt instead of answering. `CLAUDE_FULL=1 make claude` runs that session
+part of the system prompt instead of answering.
+<!-- REFRESH: the 300 s was measured in a debug session before the reference run; rerun with CLAUDE_FULL=1 make claude and put its line here. --> `CLAUDE_FULL=1 make claude` runs that session
 too. With `--system-prompt` and `--tools ''` the wiring answers in seconds. A bigger model, or
 a GPU, is what turns this into something useful; the registry side does not change.
 

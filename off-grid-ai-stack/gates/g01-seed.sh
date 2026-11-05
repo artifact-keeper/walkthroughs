@@ -48,5 +48,13 @@ for r in oci-dockerhub oci-ghcr pypi-remote npm-remote hf-hub mcp-official plugi
   grep -q "\"repository\":\"$r\"" "$GOUT/g1-upstream-fetched.jsonl" || missing+="$r "
 done
 check $G "every Remote's upstream requests are UPSTREAM_FETCHED audit rows (AUDIT_UPSTREAM_FETCHES=all, #5316)" "no rows for: $missing" test -z "$missing"
-fh=$(jq -r '.details.host' "$GOUT/g1-upstream-fetched.jsonl" | sort -u | grep -Ev "$expected" || true)
-check $G "the audit rows name the same upstreams the ledger saw" "audit hosts not expected: $(echo $fh)" test -z "$fh"
+# The two records, cross-checked: every host the audit rows name (the request's host, or the
+# host a redirect ended on) is a host the ledger saw a connection to, and every host the ledger
+# saw is named by an audit row. Two independent records of the same window that agree.
+jq -r --arg t "$t0" 'select(.t >= $t and .event == "open") | .host' "$LEDGER_FILE" | sort -u > "$GOUT/g1-hosts-ledger.txt"
+jq -r '.details.host, (.details.redirected_to_host // empty)' "$GOUT/g1-upstream-fetched.jsonl" | sort -u > "$GOUT/g1-hosts-audit.txt"
+echo "hosts in the ledger only: $(comm -23 "$GOUT/g1-hosts-ledger.txt" "$GOUT/g1-hosts-audit.txt" | xargs)"
+echo "hosts in the audit rows only: $(comm -13 "$GOUT/g1-hosts-ledger.txt" "$GOUT/g1-hosts-audit.txt" | xargs)"
+check $G "the audit rows and the ledger name the same upstream hosts" \
+  "ledger only: $(comm -23 "$GOUT/g1-hosts-ledger.txt" "$GOUT/g1-hosts-audit.txt" | xargs); audit only: $(comm -13 "$GOUT/g1-hosts-ledger.txt" "$GOUT/g1-hosts-audit.txt" | xargs)" \
+  cmp -s "$GOUT/g1-hosts-ledger.txt" "$GOUT/g1-hosts-audit.txt"

@@ -45,6 +45,10 @@ repo_id() { api GET "/repositories/$1" | jq -r .id; }
 manifest() {
   python3 -I -c 'import json, sys, tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], "rb"))))' "$MANIFEST" | jq -r "$@"
 }
+# The model choice is made once, at make seed, and remembered in out/small-model, so the later
+# steps and the gates use the same model without SMALL_MODEL being set again.
+if [[ -z ${SMALL_MODEL:-} && -s $ROOT/out/small-model ]]; then SMALL_MODEL=$(<"$ROOT/out/small-model"); fi
+export SMALL_MODEL=${SMALL_MODEL:-0}
 model_sel() { if [[ ${SMALL_MODEL:-0} == 1 ]]; then echo '.model[] | select(.small)'; else echo '.model[] | select(.default)'; fi; }
 MODEL_REPO=$(manifest "$(model_sel) | .repo_id")
 MODEL_REV=$(manifest "$(model_sel) | .revision")

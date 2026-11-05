@@ -35,7 +35,8 @@ why = "the vulnerability database the offline scanner adapter imports (flows/vet
 # --- the model (hf-hub, then hf-models) -------------------------------------------------
 # Seeded into hf-hub's cache with the cache-seed API (#5333), commit-pinned paths only, then
 # published to hf-models, the vetted Local, where the model-file scanner reads it. The site
-# downloads it from hf-models. SMALL_MODEL=1 uses the second entry instead.
+# downloads it from hf-models. SMALL_MODEL=1 uses the second entry instead (Qwen2.5-0.5B:
+# SmolLM2-360M, the first choice, makes no tool calls, see the findings).
 [[model]]
 name = "qwen2.5-1.5b-instruct"
 repo_id = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
@@ -46,12 +47,12 @@ size_bytes = 1117320736
 default = true
 
 [[model]]
-name = "smollm2-360m-instruct"
-repo_id = "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF"
-revision = "593b5a2e04c8f3e4ee880263f93e0bd2901ad47f"
-files = ["smollm2-360m-instruct-q8_0.gguf", "README.md"]
-gguf = "smollm2-360m-instruct-q8_0.gguf"
-size_bytes = 386404992
+name = "qwen2.5-0.5b-instruct"
+repo_id = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+revision = "9217f5db79a29953eb74d5343926648285ec7e67"
+files = ["qwen2.5-0.5b-instruct-q4_k_m.gguf", "README.md"]
+gguf = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+size_bytes = 491400032
 small = true
 
 # --- Python packages (pypi Virtual: pypi-local, pypi-remote) ----------------------------

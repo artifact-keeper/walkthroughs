@@ -42,7 +42,7 @@ make all             # registry, bootstrap, seed, vet, disconnect, agent, claude
 make gates           # the seven gates; results in out/gates/
 make reconnect       # back to the seed network (to seed something new)
 make clean           # remove everything it created (keeps pulled images)
-SMALL_MODEL=1 make all   # SmolLM2-360M (386 MB) instead of Qwen2.5-1.5B (1.1 GB)
+SMALL_MODEL=1 make all   # Qwen2.5-0.5B (491 MB) instead of Qwen2.5-1.5B (1.1 GB)
 ```
 
 Requirements: rootless podman 5.x with `podman compose`, curl, jq, openssl, python3 (3.11 or

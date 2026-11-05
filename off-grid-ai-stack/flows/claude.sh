@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Step 6 (best-effort): Claude Code on the site network.
+#   0. a clean npm install of Claude Code in a fresh node container, from npm-remote alone;
 #   1. the marketplace and the plugin from Artifact Keeper: claude plugin marketplace add (the
 #      token-in-path URL of the plugins Remote), claude plugin install offgrid-ops@plugins;
 #   2. one prompt answered by the local model through llama-server's Anthropic-compatible
@@ -20,6 +21,18 @@ crun() {
     -e ANTHROPIC_SMALL_FAST_MODEL=local -e API_TIMEOUT_MS=900000 \
     localhost/ak-offgrid/claude:latest "$@"
 }
+
+say "0. a clean install of Claude Code from npm-remote, on the site"
+node_ref=$(manifest '.image[] | select(.name == "node") | .ref')
+cc=$(manifest '.npm[] | select(.name == "@anthropic-ai/claude-code") | .version')
+AK_TOKEN=$(tok developer) podman run --rm -i --network "$NET" -e AK_TOKEN -e CC="$cc" \
+  -v "$CA:/ca.crt:ro,z" "$P/oci-dockerhub/$node_ref" bash -euc '
+  export NODE_EXTRA_CA_CERTS=/ca.crt
+  r=ak.internal/npm/npm-remote/
+  printf "registry=https://%s\n//%s:_authToken=%s\n" "$r" "$r" "$AK_TOKEN" > /tmp/npmrc
+  t=$(date +%s)
+  npm install -g --userconfig /tmp/npmrc --no-fund --no-audit "@anthropic-ai/claude-code@$CC" 2>&1 | tail -1
+  echo "claude --version: $(claude --version) ($(( $(date +%s) - t )) s)"' 2>&1 | tee "$CO/npm-install.txt"
 
 say "1. the marketplace and the plugin, from the plugins Remote"
 crun bash -c '

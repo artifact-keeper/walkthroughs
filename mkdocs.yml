@@ -214,6 +214,7 @@ nav:
       - Reference:
           - Seed manifest and inventory: off-grid-ai-stack/reference/seed-manifest.md
           - Make targets: off-grid-ai-stack/reference/make-targets.md
+          - Troubleshooting: off-grid-ai-stack/reference/troubleshooting.md
       - Lab notes:
           - Findings: off-grid-ai-stack/findings.md
           - Original plan: off-grid-ai-stack/plan.md
