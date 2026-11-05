@@ -104,8 +104,8 @@ adapter GET /api/v1/vulndb | tail -1 | tee "$FOUT/vulndb.json"; echo
 adapter GET /probe/ready | head -1 | sed 's/^/  ready after the import: HTTP /'
 
 say "2b. the adapter scans the llama.cpp image from the registry (no network involved)"
-lref=$(manifest '.image[] | select(.name == "llama-server") | .ref'); limg=${lref%%:*}; ltag=${lref#*:}
-call developer HEAD "/v2/oci-ghcr/$limg/manifests/$ltag" -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' >/dev/null
+lref=$(manifest '.image[] | select(.name == "llama-server") | .ref'); limg=${lref%%:*}
+if [[ $lref == *@* ]]; then ltag=${lref#*@}; else ltag=${lref#*:}; fi   # the digest when the ref pins one
 # The adapter scans one platform's manifest: resolve the index to linux/amd64.
 call developer GET "/v2/oci-ghcr/$limg/manifests/$ltag" -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' >/dev/null
 ldig=$(jq -r '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == "amd64")][0].digest // empty' "$FOUT/.body")

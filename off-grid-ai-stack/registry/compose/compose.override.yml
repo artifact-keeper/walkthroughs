@@ -3,8 +3,9 @@
 # walkthrough lives here and in compose.site.yml. Compose project name: ak-offgrid (../lib.sh).
 #
 # What changes and why:
-#   - images: BACKEND_IMAGE / WEB_IMAGE / SCANNER_ADAPTER_IMAGE come from .env (:dev of main at
-#     173f809e or later, pinned by digest, until 1.12.0 is released).
+#   - images: BACKEND_IMAGE / WEB_IMAGE / SCANNER_ADAPTER_IMAGE come from .env (builds of main
+#     at f0d9b638 or later until 1.12.0 is released). Every other image the stock file names by
+#     tag is pinned here to the multi-arch index digest of the reference run.
 #   - container_name: every upstream name is prefixed ak-offgrid- so this stack can run next
 #     to other Artifact Keeper stacks on the same host.
 #   - networks: the default network is ak-offgrid-seed (AK_SEED_SUBNET), which has a route out.
@@ -24,10 +25,13 @@
 #     offline mode (SCANNER_OFFLINE, #5314) and gets its database imported (flows/vet.sh).
 services:
   pg-certs:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
     container_name: ak-offgrid-pg-certs
   scan-workspace-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
     container_name: ak-offgrid-scan-ws-init
   dtrack-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
     container_name: ak-offgrid-dtrack-init
   dependency-track-apiserver:
     container_name: ak-offgrid-dtrack-api
@@ -37,9 +41,11 @@ services:
     ports: !reset []
 
   postgres:
+    image: docker.io/library/postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     container_name: ak-offgrid-db
     ports: !reset []
   opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6@sha256:be67c71b8d0e5edf1e9825145501c0136c3b8221206e1ce782ce17b04d0280b5
     container_name: ak-offgrid-opensearch
     ports: !reset []
   trivy:
@@ -85,6 +91,7 @@ services:
     restart: unless-stopped
 
   caddy:
+    image: docker.io/library/caddy:2-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
     container_name: ak-offgrid-caddy
     environment:
       SITE_ADDRESS: ak.internal

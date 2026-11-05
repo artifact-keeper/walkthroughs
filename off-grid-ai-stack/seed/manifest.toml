@@ -10,7 +10,7 @@
 [[image]]
 name = "llama-server"
 repo = "oci-ghcr"
-ref = "ggml-org/llama.cpp:server-b12124"
+ref = "ggml-org/llama.cpp:server-b12124@sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85"
 why = "the model server (llama.cpp, CPU build, OpenAI- and Anthropic-compatible API)"
 
 [[image]]
@@ -28,6 +28,8 @@ why = "Claude Code's base image (claude/Containerfile, the best-effort step)"
 [[image]]
 name = "trivy-db"
 repo = "oci-ghcr"
+# Not pinned by digest, deliberately: a vulnerability database is only useful while it is
+# current, and ghcr.io keeps only recent ones. The inventory records the digest that was seeded.
 ref = "aquasecurity/trivy-db:2"
 artifact = true
 why = "the vulnerability database the offline scanner adapter imports (flows/vet.sh)"
