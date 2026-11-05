@@ -9,7 +9,8 @@ files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-p
 # Images (registry/.env.example) of the reference run, 2026-11-04
 localhost/ak-backend:hf-709e3f15  artifact-keeper@709e3f15 (pull request #5300, "fix(huggingface): serve
                                   hosted model info and snapshots in the Hub's shape (#5280)"): main at
-                                  46070a04 plus the fix; docker/Dockerfile.backend; reports 1.11.3;
+                                  46070a04 plus the fix, merged as main 6c701cd4 (identical Hugging Face
+                                  code); docker/Dockerfile.backend; reports 1.11.3;
                                   image id sha256:a6340ce76adce5452faee2267c58a6be9f69d685f3584d75145d38fe9ebc5641
 ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:f60236fb4c46fe6c16befbf0430371f3cd19f62cc4a4443e18f338ed2d6c71f1
     main at 46070a04 (carries the HTTP Range fix, artifact-keeper#5145, PR #5205, 944f34cf);

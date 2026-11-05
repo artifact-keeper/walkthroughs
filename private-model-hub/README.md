@@ -10,10 +10,11 @@
 Code for the walkthrough at [`docs/private-model-hub/`](../docs/private-model-hub/index.md)
 (lab notes in [`findings.md`](../docs/private-model-hub/findings.md)).
 
-**Needs the hosted `snapshot_download` fix**, which is not on `main` yet:
-[artifact-keeper#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300) (issue
-[#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280)). It also needs the
-HTTP Range fix (artifact-keeper#5145), which is on `main`. See [Images](#images).
+**Needs Artifact Keeper `main`** (coming in 1.12.0): the HTTP Range fix (artifact-keeper#5145)
+and the hosted `snapshot_download` fix
+([artifact-keeper#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300), issue
+[#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280), `main` at `6c701cd4`).
+See [Images](#images).
 
 Artifact Keeper runs as compose project `ak-hf` on the podman network `ak-hf-net` and answers
 as `https://ak.internal` (TLS from Caddy's internal CA). A lab Hub at `.200` of that network
@@ -51,20 +52,27 @@ From the host, reach the registry by its real name with
 
 ## Images
 
-Until #5300 is merged, build the backend from its branch into podman's image store, with the tag
-`registry/.env.example` names (the web UI is the `:dev` image, pinned by digest):
+`registry/.env.example` names `localhost/ak-backend:hf-709e3f15`, a build of the #5300 branch
+(its Hugging Face code is identical to `main` at `6c701cd4`), because no `:dev` image built from
+`6c701cd4` or later existed yet. Use one of these:
 
-```console
-git clone -b fix/huggingface-hosted-snapshot https://github.com/artifact-keeper/artifact-keeper
-podman build -f artifact-keeper/docker/Dockerfile.backend -t localhost/ak-backend:hf-709e3f15 artifact-keeper
-```
+- **`:dev` from `6c701cd4` or later** (preferred, once it exists): set `BACKEND_IMAGE` in
+  `registry/.env` to `ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:...`, or pass
+  `AK_BACKEND_IMAGE` for one run (the nightly runner does). Check that the image's
+  `org.opencontainers.image.revision` label is `6c701cd4` or a later `main` commit.
+- **1.12.0 or later**, once released.
+- **A local build of `main`**, with the tag the file names:
 
-The backend is a Rust build: give it a machine with plenty of memory. Once #5300 is merged, set
-`BACKEND_IMAGE` in `registry/.env` to `ghcr.io/artifact-keeper/artifact-keeper-backend:dev` (or
-the first release that carries it), or pass `AK_BACKEND_IMAGE` / `AK_WEB_IMAGE` for one run (the
-nightly runner does). With `:dev` as it is today everything runs, and gate G5 reports the hosted
-`snapshot_download` check `BLOCKED(ak-fix)`. The commits of the reference run are in
-`registry/compose/VERSIONS`; client pins are in `client/VERSIONS`.
+  ```console
+  git clone https://github.com/artifact-keeper/artifact-keeper
+  podman build -f artifact-keeper/docker/Dockerfile.backend -t localhost/ak-backend:hf-709e3f15 artifact-keeper
+  ```
+
+  The backend is a Rust build: give it a machine with plenty of memory.
+
+With an older image everything runs, and gate G5 reports the hosted `snapshot_download` check
+`BLOCKED(ak-fix)`. The commits of the reference run are in `registry/compose/VERSIONS`; client
+pins are in `client/VERSIONS`.
 
 Secrets (never committed): `registry/.env`, `registry/.tokens/` (including the lab Hub's token
 for its gated model). Outputs: `out/`, `registry/out/` (the CA certificate), `client/.work/`.

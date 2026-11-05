@@ -161,7 +161,7 @@ nav:
           - Findings: private-agent-plugin-marketplace/findings.md
           - Original plan: private-agent-plugin-marketplace/plan.md
 
-  - "A private Hugging Face model hub (preview: #5300)":
+  - "A private Hugging Face model hub (preview: 1.12.0)":
       - private-model-hub/index.md
       - 1. Stand up the registry: private-model-hub/1-stand-up-the-registry.md
       - 2. Proxy the Hub: private-model-hub/2-proxy-the-hub.md
