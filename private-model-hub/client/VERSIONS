@@ -1,0 +1,9 @@
+# Workstation image pins (client/build.sh reads this file; KEY=value, no spaces). As of 2026-11-04.
+# Base image, pulled through oci-dockerhub (multi-arch index digest).
+PYTHON_IMAGE=library/python:3.12-slim-trixie@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
+# CPU-only torch from pypi-torch (download.pytorch.org/whl/cpu through Artifact Keeper).
+TORCH_VERSION=2.15.0+cpu
+# The Hugging Face client stack, from pypi-remote (pypi.org through Artifact Keeper).
+HUGGINGFACE_HUB_VERSION=2.4.0
+TRANSFORMERS_VERSION=5.22.1
+SENTENCE_TRANSFORMERS_VERSION=6.2.0

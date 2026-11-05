@@ -1,0 +1,16 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  main
+commit:  46070a04  (fix(agentplugins): scope the archive storage key per repository, 2026-11-04)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example) of the reference run, 2026-11-04
+ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:f60236fb4c46fe6c16befbf0430371f3cd19f62cc4a4443e18f338ed2d6c71f1
+    org.opencontainers.image.revision 46070a04cbc141cbb5243535dc606d08278d7ca7 (main), reports 1.11.3;
+    carries the HTTP Range fix (artifact-keeper#5145, PR #5205, 944f34cf)
+ghcr.io/artifact-keeper/artifact-keeper-web:dev@sha256:ddc8125ba8c5c8403962fabd3b769598004695728753fbdf21e149c0ce3b839d
+# The other images (postgres, opensearch, caddy, dependency-track) are the tags the upstream file names.
+# Lab fixtures: docker.io/library/python:3.12-alpine@sha256:5789aa194f757888f41fa3d48e14b6feaa1b57c0af0b56fcb1372d6474d3bff0
+# (lab-hub), docker.io/library/alpine:3.24 (clean), mcr.microsoft.com/playwright:v1.49.1-noble (screens).

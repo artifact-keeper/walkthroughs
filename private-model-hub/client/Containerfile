@@ -1,0 +1,37 @@
+# The ML workstation: Python 3.12 with huggingface_hub (and its `hf` CLI), transformers,
+# sentence-transformers and CPU-only torch. Everything comes through Artifact Keeper: the base
+# image from oci-dockerhub, torch from pypi-torch, the rest from pypi-remote. The build's RUN
+# steps reach the registry as ak.internal on the host port (client/build.sh) and read the
+# developer token from a build secret; no credential stays in the image. client/run.sh passes HF_TOKEN per run.
+ARG REG=localhost:30449
+ARG PYTHON_IMAGE
+FROM ${REG}/oci-dockerhub/${PYTHON_IMAGE}
+ARG TORCH_VERSION
+ARG HUGGINGFACE_HUB_VERSION
+ARG TRANSFORMERS_VERSION
+ARG SENTENCE_TRANSFORMERS_VERSION
+# https://ak.internal:<HTTPS_PORT> during the build (the RUN steps use the host's network)
+ARG AK=https://ak.internal:30449
+COPY .work/ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN update-ca-certificates >/dev/null
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_ROOT_USER_ACTION=ignore
+RUN --mount=type=secret,id=ak_token,required=true \
+    set -eu; t=$(cat /run/secrets/ak_token); \
+    pip install --index-url "https://developer:${t}@${AK#https://}/pypi/pypi-torch/simple/" \
+        --extra-index-url "https://developer:${t}@${AK#https://}/pypi/pypi-remote/simple/" \
+        "torch==${TORCH_VERSION}"; \
+    pip install --index-url "https://developer:${t}@${AK#https://}/pypi/pypi-remote/simple/" \
+        "huggingface_hub==${HUGGINGFACE_HUB_VERSION}" "transformers==${TRANSFORMERS_VERSION}" \
+        "sentence-transformers==${SENTENCE_TRANSFORMERS_VERSION}"; \
+    pip check
+RUN useradd --create-home --uid 1000 dev
+ENV HOME=/home/dev \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    HF_HUB_DISABLE_PROGRESS_BARS=1 \
+    TOKENIZERS_PARALLELISM=false
+USER dev
+WORKDIR /home/dev

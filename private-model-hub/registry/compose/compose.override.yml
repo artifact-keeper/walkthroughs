@@ -1,0 +1,93 @@
+# Local overrides on top of the stock upstream docker-compose.yml (see VERSIONS).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here. Compose project name: ak-hf (see ../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (:dev of main, pinned by digest).
+#   - container_name: every upstream name is prefixed ak-hf- so this stack can run next to
+#     other Artifact Keeper stacks on the same host.
+#   - networks: the default network is ak-hf-net (AK_NET_SUBNET). The workstation container,
+#     the lab Hub and the screenshot browser join it and reach Caddy by its network alias
+#     ak.internal. Caddy also joins ak-hf-offline (AK_OFFLINE_SUBNET, internal: no route
+#     out), the network the step 7 workstation runs on, with the same alias.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:30449 -> 443. Postgres and OpenSearch publish nothing.
+#   - AK_EXTERNAL_URL is left unset, so the URLs the backend builds (the OCI token realm, for
+#     one) follow the Host header: localhost:30449 for the image build on the host,
+#     ak.internal for the containers.
+#   - AK_SSRF_ALLOW_PRIVATE_CIDRS=<LAB_IP>/32: the lab Hub is at .200 of the stack network, a
+#     private address the SSRF guard refuses by default. Only that one address is allowed
+#     (its CDN alias cdn.lab resolves to the same address); every other private range stays
+#     blocked.
+#   - Trivy is disabled: TRIVY_URL is unset and the trivy service moves to the "scanners"
+#     profile. Grype, bundled in the backend image, scans every upload.
+#   - openscap is disabled (profile "scanners").
+services:
+  pg-certs:
+    container_name: ak-hf-pg-certs
+  scan-workspace-init:
+    container_name: ak-hf-scan-ws-init
+  dtrack-init:
+    container_name: ak-hf-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-hf-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-hf-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    container_name: ak-hf-db
+    ports: !reset []
+  opensearch:
+    container_name: ak-hf-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-hf-trivy
+    profiles: ["scanners"]
+  openscap:
+    container_name: ak-hf-openscap
+    profiles: ["scanners"]
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:dev}
+    container_name: ak-hf-backend
+    environment:
+      TRIVY_URL:
+      AK_SSRF_ALLOW_PRIVATE_CIDRS: ${LAB_IP:-172.31.80.200}/32
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_NET_SUBNET:-172.31.80.0/24},${AK_OFFLINE_SUBNET:-172.31.81.0/24}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:${HTTPS_PORT:-30449},https://localhost:${HTTPS_PORT:-30449}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:dev}
+    container_name: ak-hf-web
+
+  caddy:
+    container_name: ak-hf-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30449}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+      offline:
+        aliases: [ak.internal]
+
+networks:
+  default:
+    name: ak-hf-net
+    ipam:
+      config:
+        - subnet: ${AK_NET_SUBNET:-172.31.80.0/24}
+  offline:
+    name: ak-hf-offline
+    internal: true
+    ipam:
+      config:
+        - subnet: ${AK_OFFLINE_SUBNET:-172.31.81.0/24}
