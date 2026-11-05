@@ -161,7 +161,7 @@ nav:
           - Findings: private-agent-plugin-marketplace/findings.md
           - Original plan: private-agent-plugin-marketplace/plan.md
 
-  - "A private MCP registry (preview: #5257)":
+  - "A private MCP registry (preview: 1.12.0)":
       - private-mcp-registry/index.md
       - 1. Stand up the registry: private-mcp-registry/1-stand-up-the-registry.md
       - 2. A private registry for internal servers: private-mcp-registry/2-a-private-registry.md

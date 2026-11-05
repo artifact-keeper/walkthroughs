@@ -10,10 +10,11 @@ Code for the walkthrough at
 [`docs/private-mcp-registry/`](../docs/private-mcp-registry/index.md) (lab notes in
 [`findings.md`](../docs/private-mcp-registry/findings.md)).
 
-**Needs the MCP Registry repository type**, which is not on `main` yet:
-[artifact-keeper#5257](https://github.com/artifact-keeper/artifact-keeper/pull/5257) (backend)
-and [artifact-keeper-web#1077](https://github.com/artifact-keeper/artifact-keeper-web/pull/1077)
-(web UI). See [Images](#images).
+**Needs Artifact Keeper `main`** (coming in 1.12.0) for the MCP Registry repository type:
+[artifact-keeper#5257](https://github.com/artifact-keeper/artifact-keeper/pull/5257) (backend,
+`main` at `4542321b`) and
+[artifact-keeper-web#1077](https://github.com/artifact-keeper/artifact-keeper-web/pull/1077)
+(web UI, `main` at `896a79db`). See [Images](#images).
 
 Artifact Keeper runs as compose project `ak-mcp` on the podman network `ak-mcp-net` and answers
 as `https://ak.internal` (TLS from Caddy's internal CA). A lab registry at `.200` of that
@@ -50,20 +51,32 @@ name with `curl --resolve ak.internal:30448:127.0.0.1 --cacert registry/out/ak-i
 
 ## Images
 
-Until #5257 and #1077 are merged, build the two images from their branches into podman's image
-store, with the tags `registry/.env.example` names:
+`registry/.env.example` names `localhost/ak-backend:mcp-c89f9cea` and
+`localhost/ak-web:mcp-89313d4`, the builds of the pull request branches the reference run used,
+because no backend `:dev` image built from `4542321b` or later existed yet. The branch gained
+fixes before it merged (some for the [findings](../docs/private-mcp-registry/findings.md)), so
+`main` is not the same code as `c89f9cea`, and the walkthrough has not been rerun on it. Use
+one of these:
 
-```console
-git clone -b feat/mcp-registry-phase1 https://github.com/artifact-keeper/artifact-keeper
-podman build -f artifact-keeper/docker/Dockerfile.backend -t localhost/ak-backend:mcp-c89f9cea artifact-keeper
-git clone -b feat/mcp-registry-ui https://github.com/artifact-keeper/artifact-keeper-web
-podman build -t localhost/ak-web:mcp-89313d4 artifact-keeper-web
-```
+- **`:dev` from `main`** (preferred, once it exists): set `BACKEND_IMAGE` and `WEB_IMAGE` in
+  `registry/.env` to `ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:...` and
+  `ghcr.io/artifact-keeper/artifact-keeper-web:dev@sha256:...`, or pass `AK_BACKEND_IMAGE` /
+  `AK_WEB_IMAGE` for one run. Check that each image's `org.opencontainers.image.revision`
+  label is `4542321b` (backend) or `896a79db` (web), or a later `main` commit.
+- **1.12.0 or later**, once released.
+- **Local builds of `main`**, with the tags the file names:
 
-The backend is a Rust build: give it a machine with plenty of memory. Once #5257 is merged, set
-`BACKEND_IMAGE` and `WEB_IMAGE` in `registry/.env` to the `:dev` (or first release) images, or
-pass `AK_BACKEND_IMAGE` / `AK_WEB_IMAGE` for one run. The commits of the reference run are in
-`registry/compose/VERSIONS`; client pins are in `client/VERSIONS`.
+  ```console
+  git clone https://github.com/artifact-keeper/artifact-keeper
+  podman build -f artifact-keeper/docker/Dockerfile.backend -t localhost/ak-backend:mcp-c89f9cea artifact-keeper
+  git clone https://github.com/artifact-keeper/artifact-keeper-web
+  podman build -t localhost/ak-web:mcp-89313d4 artifact-keeper-web
+  ```
+
+  The backend is a Rust build: give it a machine with plenty of memory.
+
+The commits of the reference run are in `registry/compose/VERSIONS`; client pins are in
+`client/VERSIONS`.
 
 Secrets (never committed): `registry/.env`, `registry/.tokens/`, `registry/.signer/` (the lab
 bundle signer), `out/ci/issuer.key` (the lab OIDC issuer). Outputs: `out/`, `registry/out/`

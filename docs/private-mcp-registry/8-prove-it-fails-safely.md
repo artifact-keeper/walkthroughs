@@ -113,6 +113,7 @@ PASS 63
 - **BLOCKED(ak-fix), G5.** An upstream server whose package is on npm is never served, even
   after the package is pulled through `npm-remote`: an Artifact Keeper bug
   ([lab notes, F1](findings.md#f1-a-remote-never-pins-npm-packages-pulled-through-npm-remote)).
-  The check turns into a `PASS` when the fix lands; nothing in the walkthrough needs to change.
+  The fix (`f09481c6`) is on `main` as part of `4542321b`, so on `main` the check should turn
+  into a `PASS`; nothing in the walkthrough needs to change. Not re-verified here.
 
 Next: [Results](results.md).

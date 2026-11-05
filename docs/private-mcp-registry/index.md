@@ -116,9 +116,9 @@ flowchart LR
 - A Linux host with rootless podman 5.x and `podman compose`, curl, jq, openssl, python3 and
   GNU make. No sudo is needed anywhere.
 - About 6 GB of free RAM for the registry stack and 10 GB of disk for images.
-- The backend and web images built from the pull requests (see the
-  [code README](https://github.com/artifact-keeper/walkthroughs/tree/main/private-mcp-registry#images)),
-  until #5257 is merged.
+- An Artifact Keeper backend from `main` at or after `4542321b` and a web UI at or after
+  `896a79db`, or 1.12.0 once released (see the
+  [code README](https://github.com/artifact-keeper/walkthroughs/tree/main/private-mcp-registry#images)).
 - Internet access: container images from docker.io and mcr.microsoft.com, npm packages from
   npmjs.org and one image from ghcr.io (both pulled through the registry).
 - Loopback port `127.0.0.1:30448` free (change `HTTPS_PORT` in `registry/.env` otherwise).

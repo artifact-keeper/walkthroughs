@@ -4,7 +4,8 @@
 #
 # What changes and why:
 #   - images: BACKEND_IMAGE / WEB_IMAGE come from .env (builds of the MCP Registry branches,
-#     artifact-keeper#5257 and artifact-keeper-web#1077, until they are merged).
+#     artifact-keeper#5257 and artifact-keeper-web#1077, now on main as 4542321b and 896a79db,
+#     until a :dev image carries them).
 #   - container_name: every upstream name is prefixed ak-mcp- so this stack can run next to
 #     other Artifact Keeper stacks on the same host.
 #   - network: the default network is ak-mcp-net (AK_NET_SUBNET). The workstation container,

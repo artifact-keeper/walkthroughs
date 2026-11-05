@@ -13,8 +13,8 @@ run in [Results](results.md).
 |---|---|
 | Host | `grace`: Ubuntu 26.04, x86_64, 40 cores, 108 GB RAM, rootless podman 5.7.0, `podman compose`, no sudo |
 | Neighbours | other Artifact Keeper stacks (`ak-agent-*` on 30445, `ak-gate-*` on 30446, a docker stack on 18580) kept running, untouched |
-| Backend | `localhost/ak-backend:mcp-c89f9cea`, built from artifact-keeper#5257 at `c89f9cea` with `docker/Dockerfile.backend` (reports version 1.11.3) |
-| Web | `localhost/ak-web:mcp-89313d4`, built from artifact-keeper-web#1077 at `89313d4` |
+| Backend | `localhost/ak-backend:mcp-c89f9cea`, built from artifact-keeper#5257 at `c89f9cea` with `docker/Dockerfile.backend` (reports version 1.11.3); #5257 has since merged into `main` as `4542321b` |
+| Web | `localhost/ak-web:mcp-89313d4`, built from artifact-keeper-web#1077 at `89313d4`, since merged into `main` as `896a79db` |
 | Clients | Claude Code 2.1.318, mcp-publisher 1.8.7, `@anthropic-ai/mcpb` 2.1.2 (through the registry), skopeo 1.9.3, Node 22.23.4, npm 10.9.9 |
 
 ## Artifact Keeper bugs
@@ -49,6 +49,10 @@ work, because an OCI pull-through writes manifest rows to `artifacts`:
 public registry, that is most stdio servers. The gate reports this check as
 `BLOCKED(ak-fix)`.
 
+**Status.** Addressed on the #5257 branch before it merged, by `f09481c6` ("Remote ingest pins
+packages pulled through backing Remotes"), so `main` at `4542321b` carries the fix. Not
+re-verified here: the walkthrough has not been rerun on `main`.
+
 ## Documentation gaps
 
 ### D1. The namespace-grant example uses a principal type that is refused
@@ -64,7 +68,8 @@ account `mcp-publisher login github-oidc` becomes. For a CI OIDC mapping's accou
 The mapping creates its account as a `users` row with `is_service_account = false`, and the
 permission check tells the two types apart by that flag. `"principal_type": "user"` works, as
 the backend's own test (`tests/mcp_auth_namespaces_tests.rs`) uses. The CI OIDC docs call it a
-service account throughout. [Step 5](5-publish-from-ci.md) uses `user`.
+service account throughout. [Step 5](5-publish-from-ci.md) uses `user`. The example was changed
+to `user` on the #5257 branch before it merged (`79431d3b`).
 
 ### D2. A bundle-only server cannot rely on the automatic package entry
 
@@ -77,7 +82,8 @@ is refused before that step:
 ```
 
 [Step 7](7-bundles-and-capabilities.md) publishes the upload response's `packageEntry` as
-`packages[0]` instead, which works.
+`packages[0]` instead, which works. The backend was changed to accept a bundle-only server once
+its bundle is uploaded on the #5257 branch before it merged (`f21f9272`; not re-verified here).
 
 ### D3. Read responses carry `Access-Control-Allow-Credentials: true`
 
@@ -85,7 +91,8 @@ The docs say the read routes answer CORS "without credentials". The `OPTIONS` pr
 documented. A `GET` with a token answers both `access-control-allow-origin: *` and
 `access-control-allow-credentials: true`; the global CORS layer adds the second header when
 `CORS_ORIGINS` is set. Browsers ignore the pair for requests without cookies, so VS Code and
-Copilot are not affected, but the answer differs from the docs.
+Copilot are not affected, but the answer differs from the docs. The read answers drop the
+header on the #5257 branch before it merged (`25658442`; not re-verified here).
 
 ## Behaviour worth knowing
 
