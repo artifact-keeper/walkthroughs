@@ -1,0 +1,31 @@
+# .github/workflows/publish-mcp.yml in the server's repository (acme/tickets-mcp).
+# The workflow flows/ci.sh stands in for. NOT machine-verified: the lab has no GitHub runner
+# that can reach ak.internal. Two things must hold for it to work:
+#   - the runner reaches https://ak.internal (a self-hosted runner, or a public name), and
+#     trusts the registry's CA;
+#   - Artifact Keeper has the CI OIDC provider for https://token.actions.githubusercontent.com
+#     with audience https://ak.internal, the mapping (repository_owner=acme,
+#     ref=refs/heads/main) and the namespace grant (docs: "Publish from CI").
+# Unlike the lab, Artifact Keeper can find GitHub's keys itself (key_source: discovery).
+name: publish-mcp
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write   # lets the job request an OIDC ID token; nothing else is stored
+jobs:
+  publish:
+    runs-on: [self-hosted, acme-internal]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSLo p.tgz https://github.com/modelcontextprotocol/registry/releases/download/v1.8.7/mcp-publisher_linux_amd64.tar.gz
+          echo "00b21004149a4ce66f0782508ae4a2bce67d1bea395a8da0bd8028159fb59579  p.tgz" | sha256sum -c -
+          tar -xzf p.tgz mcp-publisher
+      - name: Log in to the registry with the job's OIDC token
+        run: ./mcp-publisher login github-oidc --registry https://ak.internal/mcp/mcp-internal
+      - name: Publish server.json
+        run: ./mcp-publisher publish

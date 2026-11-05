@@ -1,0 +1,35 @@
+# Caddy for the ak-mcp stack: TLS from Caddy's internal CA, no plain-HTTP listener.
+# Derived from the upstream docker/Caddyfile (which already routes /mcp/*), with:
+#   - the site name fixed to ak.internal (plus localhost/127.0.0.1 for the host port
+#     127.0.0.1:30448 used by humans, screenshots and host-side scripts),
+#   - `tls internal` (Caddy's local CA; up.sh exports the root to
+#     registry/out/ak-internal-ca.crt and the workstation image trusts it),
+#   - only the routes this walkthrough uses: the API, the MCP registry surface, npm and
+#     the OCI distribution API (/v2), and the web UI for everything else.
+{
+	# Clients that connect by IP (the host port) send no SNI; give them the
+	# ak.internal certificate.
+	default_sni ak.internal
+	local_certs
+	auto_https disable_redirects
+}
+
+ak.internal, localhost, 127.0.0.1 {
+	tls internal
+	log {
+		output stdout
+		format json
+	}
+	request_body {
+		max_size 512MB
+	}
+	reverse_proxy /api/* backend:8080
+	reverse_proxy /health backend:8080
+	reverse_proxy /livez backend:8080
+	reverse_proxy /readyz backend:8080
+	reverse_proxy /mcp/* backend:8080
+	reverse_proxy /npm/* backend:8080
+	reverse_proxy /v2/* backend:8080
+	reverse_proxy /v2 backend:8080
+	reverse_proxy web:3000
+}

@@ -161,6 +161,24 @@ nav:
           - Findings: private-agent-plugin-marketplace/findings.md
           - Original plan: private-agent-plugin-marketplace/plan.md
 
+  - "A private MCP registry (preview: #5257)":
+      - private-mcp-registry/index.md
+      - 1. Stand up the registry: private-mcp-registry/1-stand-up-the-registry.md
+      - 2. A private registry for internal servers: private-mcp-registry/2-a-private-registry.md
+      - 3. Curate the public registry: private-mcp-registry/3-curate-the-public-registry.md
+      - 4. Supply-chain gates: private-mcp-registry/4-supply-chain-gates.md
+      - 5. Publish from CI: private-mcp-registry/5-publish-from-ci.md
+      - 6. One URL for clients: private-mcp-registry/6-one-url-for-clients.md
+      - 7. Bundles and capabilities: private-mcp-registry/7-bundles-and-capabilities.md
+      - 8. Prove it fails safely: private-mcp-registry/8-prove-it-fails-safely.md
+      - Results: private-mcp-registry/results.md
+      - Next steps: private-mcp-registry/next-steps.md
+      - Reference:
+          - Registry API used: private-mcp-registry/reference/registry-api.md
+          - Make targets: private-mcp-registry/reference/make-targets.md
+      - Lab notes:
+          - Findings: private-mcp-registry/findings.md
+
   - "A private Hugging Face model hub (preview: 1.12.0)":
       - private-model-hub/index.md
       - 1. Stand up the registry: private-model-hub/1-stand-up-the-registry.md

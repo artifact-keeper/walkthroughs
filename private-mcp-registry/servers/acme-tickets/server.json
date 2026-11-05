@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.acme/tickets",
+  "title": "Acme tickets",
+  "description": "Read-only access to Acme's internal ticket queue",
+  "version": "1.0.0",
+  "repository": { "url": "https://git.acme.example/platform/tickets-mcp", "source": "git" },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@acme/tickets-mcp",
+      "version": "1.0.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ak.internal/oci-internal/acme/tickets-mcp:1.0.0",
+      "runtimeHint": "docker",
+      "transport": { "type": "stdio" }
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "com.artifactkeeper/capabilities": {
+        "generatedBy": "servers/acme-tickets/server.json",
+        "tools": [
+          { "name": "list_tickets", "description": "List tickets in the Acme queue, optionally only open or closed ones.",
+            "inputSchema": { "type": "object", "properties": { "status": { "type": "string", "enum": ["open", "closed"] } } },
+            "annotations": { "readOnlyHint": true } },
+          { "name": "get_ticket", "description": "Get one ticket by its number.",
+            "inputSchema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] },
+            "annotations": { "readOnlyHint": true } }
+        ]
+      }
+    }
+  }
+}

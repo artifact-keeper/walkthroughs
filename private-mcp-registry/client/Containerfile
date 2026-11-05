@@ -1,0 +1,32 @@
+# A developer workstation and a CI runner in one container image: Node 22 (npx), Claude Code
+# from npm, mcp-publisher from its GitHub release (SHA-256 checked), skopeo (pushes the server
+# image), curl, jq, openssl, a small MCP client (mcp-call.js) and the internal CA in the system
+# trust store. No credentials are baked in; client/run.sh passes a token per run.
+ARG NODE_IMAGE=docker.io/library/node:22-bookworm-slim
+FROM ${NODE_IMAGE}
+ARG CLAUDE_CODE_VERSION
+ARG MCP_PUBLISHER_VERSION
+ARG MCP_PUBLISHER_SHA256_AMD64
+ARG MCP_PUBLISHER_SHA256_ARM64
+ARG TARGETARCH
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl jq openssl procps skopeo \
+ && rm -rf /var/lib/apt/lists/*
+RUN npm install -g --no-fund --no-audit "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && npm cache clean --force
+RUN set -eux; arch="${TARGETARCH:-amd64}"; \
+    case "$arch" in amd64) sha="$MCP_PUBLISHER_SHA256_AMD64" ;; arm64) sha="$MCP_PUBLISHER_SHA256_ARM64" ;; esac; \
+    cd /tmp; curl -fsSLo p.tgz "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_${arch}.tar.gz"; \
+    echo "$sha  p.tgz" | sha256sum -c -; \
+    tar -xzf p.tgz mcp-publisher; install -m 755 mcp-publisher /usr/local/bin/mcp-publisher; rm -f p.tgz mcp-publisher; \
+    mcp-publisher --version
+COPY mcp-call.js /usr/local/bin/mcp-call
+COPY .work/ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN chmod 755 /usr/local/bin/mcp-call && update-ca-certificates >/dev/null
+# Node (npm, npx, Claude Code) reads NODE_EXTRA_CA_CERTS; Go (mcp-publisher) reads the system
+# store, where the CA now is.
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ak-internal-ca.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    DISABLE_AUTOUPDATER=1 \
+    HOME=/home/dev
+WORKDIR /work
