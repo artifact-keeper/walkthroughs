@@ -161,6 +161,26 @@ nav:
           - Findings: private-agent-plugin-marketplace/findings.md
           - Original plan: private-agent-plugin-marketplace/plan.md
 
+  - "A private Hugging Face model hub (preview: #5300)":
+      - private-model-hub/index.md
+      - 1. Stand up the registry: private-model-hub/1-stand-up-the-registry.md
+      - 2. Proxy the Hub: private-model-hub/2-proxy-the-hub.md
+      - 3. Gated and private models: private-model-hub/3-gated-and-private-models.md
+      - 4. Approve model sources: private-model-hub/4-approve-model-sources.md
+      - 5. Host your own models: private-model-hub/5-host-your-own-models.md
+      - 6. Scan and hold: private-model-hub/6-scan-and-hold.md
+      - 7. Freeze and go offline: private-model-hub/7-freeze-and-go-offline.md
+      - 8. Prove it fails safely: private-model-hub/8-prove-it-fails-safely.md
+      - Results: private-model-hub/results.md
+      - Next steps: private-model-hub/next-steps.md
+      - Reference:
+          - Hub API coverage: private-model-hub/reference/hub-api-coverage.md
+          - Client configuration: private-model-hub/reference/client-config.md
+          - Make targets: private-model-hub/reference/make-targets.md
+      - Lab notes:
+          - Findings: private-model-hub/findings.md
+          - Original plan: private-model-hub/plan.md
+
 validation:
   links:
     anchors: warn

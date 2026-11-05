@@ -55,6 +55,17 @@ public repository you can clone and run with the same commands, so nothing here 
 
     [:octicons-arrow-right-24: Start the walkthrough](private-agent-plugin-marketplace/index.md)
 
+-   :material-brain:{ .lg .middle } __A private Hugging Face model hub__ `preview: #5300`
+
+    ---
+
+    **Needs artifact-keeper#5300** (not merged yet) for hosted `snapshot_download`. Point
+    `HF_ENDPOINT` at Artifact Keeper: proxy huggingface.co, hold the Hub token for gated
+    models, fetch only from approved organizations, host your own models, hold and scan new
+    files, then freeze the cache and load every model from a network with no route out.
+
+    [:octicons-arrow-right-24: Start the walkthrough](private-model-hub/index.md)
+
 </div>
 
 Looking for a specific format, tool or control? [Browse by tag](tags.md).
