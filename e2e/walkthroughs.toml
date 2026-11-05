@@ -59,3 +59,13 @@ subnets = ['172.31.72.0/24']
 ports = [30447]
 min_ak = '1.12.0'
 secrets = ['CLAUDE_CODE_OAUTH_TOKEN']
+
+[walkthrough.private-model-hub]
+containers = ['^ak-hf-']
+volumes = ['^ak-hf_']
+networks = ['ak-hf-net', 'ak-hf-offline']
+subnets = ['172.31.80.0/24', '172.31.81.0/24']
+ports = [30449]
+requires = ['tool:python3']
+# The hosted snapshot_download fix (artifact-keeper#5300) is on main and ships in 1.12.0.
+min_ak = '1.12.0'
