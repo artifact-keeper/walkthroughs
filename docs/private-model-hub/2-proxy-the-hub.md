@@ -30,7 +30,7 @@ stale `~/.cache/huggingface/token` to remove.
 ```console
 == hf-lab: the developer pulls acme-lab/tiny-st (empty cache)
 {"ok":true,"commit":"099a800f5a0de0c030245fa4c02996957602a81e","files":[".gitattributes","README.md","config.json","model.safetensors","modules.json","sentence_bert_config.json","special_tokens_map.json","tokenizer_config.json","vocab.txt"]}
-{"ok": true, "cmd": "encode", "endpoint": "https://ak.internal/huggingface/hf-lab", "shape": [2, 32], "first": [-0.457369, 0.287261, -0.22734, -0.365521], "seconds": 8.4}
+{"ok": true, "cmd": "encode", "endpoint": "https://ak.internal/huggingface/hf-lab", "shape": [2, 32], "first": [-0.457369, 0.287261, -0.22734, -0.365521], "seconds": 7.8}
 cache: 099a800f5a0de0c030245fa4c02996957602a81e <- refs/main
   snapshots/099a800f5a0de0c030245fa4c02996957602a81e
   snapshots/099a800f5a0de0c030245fa4c02996957602a81e/1_Pooling
@@ -71,7 +71,7 @@ A second workstation with an empty cache pulls the same model. Nothing goes upst
 ```console
 == hf-lab: a second workstation pulls the same model; Artifact Keeper serves it from its cache
 {"ok":true,"commit":"099a800f5a0de0c030245fa4c02996957602a81e","files":[...9 files...]}
-{"ok": true, "cmd": "encode", ..., "shape": [2, 32], "first": [-0.457369, 0.287261, -0.22734, -0.365521], "seconds": 8.3}
+{"ok": true, "cmd": "encode", ..., "shape": [2, 32], "first": [-0.457369, 0.287261, -0.22734, -0.365521], "seconds": 7.6}
 ak_proxy_cache_lookups_total{repository="hf-lab",result="hit"}: 6 -> 12
 upstream: the lab Hub logged 0 requests for the second pull
 ```
@@ -89,7 +89,7 @@ also holds ONNX, OpenVINO, TensorFlow and Rust exports:
 ```console
 == hf-hub: huggingface.co through Artifact Keeper
 {"ok":true,"commit":"1110a243fdf4706b3f48f1d95db1a4f5529b4d41","files":["config.json","config_sentence_transformers.json","data_config.json","model.safetensors","modules.json","sentence_bert_config.json","special_tokens_map.json","tokenizer.json","tokenizer_config.json","vocab.txt"]}
-{"ok": true, "cmd": "encode", "endpoint": "https://ak.internal/huggingface/hf-hub", "shape": [2, 384], "first": [-0.003146, -0.047963, 0.010903, -0.01194], "seconds": 9.3}
+{"ok": true, "cmd": "encode", "endpoint": "https://ak.internal/huggingface/hf-hub", "shape": [2, 384], "first": [-0.003146, -0.047963, 0.010903, -0.01194], "seconds": 8.8}
 cache: 1110a243fdf4706b3f48f1d95db1a4f5529b4d41 <- refs/main
 model info sha via hf-hub: 1110a243fdf4706b3f48f1d95db1a4f5529b4d41
   path: /home/dev/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41

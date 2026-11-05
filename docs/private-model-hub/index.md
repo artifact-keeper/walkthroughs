@@ -109,6 +109,9 @@ flowchart LR
 
 - A Linux host with rootless podman 5.x and `podman compose`, curl, jq, openssl, python3 and
   GNU make. No sudo is needed anywhere.
+- The backend image built from artifact-keeper#5300 (see the
+  [code README](https://github.com/artifact-keeper/walkthroughs/tree/main/private-model-hub#images)),
+  until it is merged; with `:dev`, everything but the hosted `snapshot_download` check runs.
 - About 6 GB of free RAM for the registry stack and 15 GB of disk for images, the workstation
   image (CPU torch is most of it) and the cache.
 - Internet access: container images from docker.io, ghcr.io and mcr.microsoft.com, Python

@@ -92,7 +92,7 @@ upload config.json: HTTP 200
   GET config.json: HTTP 409 CONFLICT
 {"new_status":"released"}
   GET config.json: HTTP 403 FORBIDDEN
-{"message":"Scan queued for artifact c3d78502-6e5f-47b4-a090-3a4abe9385ec"}
+{"message":"Scan queued for artifact 85c8a446-cfd0-4f0a-a1f6-d95cc8593f4c"}
   scans: [...,{"scan_type":"grype","status":"completed","findings_count":0},...]
   GET config.json: HTTP 200
 {"scan_on_upload":true}

@@ -67,21 +67,29 @@ for each file by name at `main`. The encoding is identical to the one from `hf-l
 [Step 2](2-proxy-the-hub.md), as it should be: same weights. A Local repository has no git
 history, so the commit (`1e18c1cf...`) is derived from the model id and revision.
 
-## snapshot_download (needs artifact-keeper#5280)
+## snapshot_download (needs artifact-keeper#5300)
 
 ```console
 -- snapshot_download (needs the hosted snapshot fix; see the findings):
+{"ok":true,"commit":"1e18c1cf4ada0b55fdae41dc4eb9071a1dd51732","files":["1_Pooling/config.json","README.md","config.json","config_sentence_transformers.json","model.safetensors","modules.json","sentence_bert_config.json","tokenizer.json","tokenizer_config.json"],"error":null,"msg":null}
+{"sha":"1e18c1cf4ada0b55fdae41dc4eb9071a1dd51732","siblings":["1_Pooling/config.json","README.md","config.json"]}
+```
+
+All nine files, including the one in `1_Pooling/`, and `siblings` are paths inside the
+repository. This needs the backend from
+[artifact-keeper#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300). On `:dev`
+as it is today, the same call fails:
+
+```text
 {"ok":false,"commit":null,"files":null,"error":"KeyError","msg":"'id'"}
 {"sha":"1e18c1cf4ada0b55fdae41dc4eb9071a1dd51732","siblings":["acme/embedder/main/1_Pooling/config.json","acme/embedder/main/README.md","acme/embedder/main/config.json"]}
 ```
 
-The hosted model info has no `id`, which `huggingface_hub` 2.x requires, and its
-`siblings` are stored paths rather than paths in the repository. Past that, the commit it
-reports cannot be used to list or download files
-([findings F1](findings.md#f1-snapshot_download-fails-against-a-local-repository)). The fix is
-[artifact-keeper#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280); until an
-image carries it, gate G5 reports this check `BLOCKED(ak-fix)`. `hf download acme/embedder`
-fails the same way.
+The hosted model info there has no `id`, which `huggingface_hub` 2.x requires, its
+`siblings` are stored paths, and the commit it reports cannot be used to list or download
+files ([findings F1](findings.md#f1-snapshot_download-fails-against-a-local-repository),
+[#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280)). Gate G5 reports the
+check `BLOCKED(ak-fix)` on such an image. `hf download acme/embedder` behaves the same way.
 
 ## Through the Virtual
 

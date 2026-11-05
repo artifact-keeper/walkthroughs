@@ -7,9 +7,13 @@ files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-p
          registry/caddy/Caddyfile replaces it)
 
 # Images (registry/.env.example) of the reference run, 2026-11-04
+localhost/ak-backend:hf-709e3f15  artifact-keeper@709e3f15 (pull request #5300, "fix(huggingface): serve
+                                  hosted model info and snapshots in the Hub's shape (#5280)"): main at
+                                  46070a04 plus the fix; docker/Dockerfile.backend; reports 1.11.3;
+                                  image id sha256:a6340ce76adce5452faee2267c58a6be9f69d685f3584d75145d38fe9ebc5641
 ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:f60236fb4c46fe6c16befbf0430371f3cd19f62cc4a4443e18f338ed2d6c71f1
-    org.opencontainers.image.revision 46070a04cbc141cbb5243535dc606d08278d7ca7 (main), reports 1.11.3;
-    carries the HTTP Range fix (artifact-keeper#5145, PR #5205, 944f34cf)
+    main at 46070a04 (carries the HTTP Range fix, artifact-keeper#5145, PR #5205, 944f34cf);
+    the earlier full runs used it, with the hosted snapshot check BLOCKED(ak-fix)
 ghcr.io/artifact-keeper/artifact-keeper-web:dev@sha256:ddc8125ba8c5c8403962fabd3b769598004695728753fbdf21e149c0ce3b839d
 # The other images (postgres, opensearch, caddy, dependency-track) are the tags the upstream file names.
 # Lab fixtures: docker.io/library/python:3.12-alpine@sha256:5789aa194f757888f41fa3d48e14b6feaa1b57c0af0b56fcb1372d6474d3bff0

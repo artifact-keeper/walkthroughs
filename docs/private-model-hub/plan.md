@@ -67,7 +67,7 @@ e2e registration: prefix `ak-hf`, port 30449, network `ak-hf-net` `172.31.80.0/2
 | The client image is built on `ak-hf-net` | Rootless podman cannot attach a build to a named network; the build uses the host network and `--add-host ak.internal:127.0.0.1`. |
 | G3: an out-of-group user gets 403 | 404: a private repository the user cannot read is not disclosed. |
 | G3: without upstream auth the request is "refused" | 502 "Failed to fetch from upstream": the Hub's 401 (`GatedRepo`) is not passed on. |
-| G5: the hosted `snapshot_download` failure is the commit sha | It fails earlier: model info has no `id`, so `huggingface_hub` 2.x raises `KeyError: 'id'` (artifact-keeper#5280 covers both). |
+| G5: the hosted `snapshot_download` failure is the commit sha | It fails earlier: model info has no `id`, so `huggingface_hub` 2.x raises `KeyError: 'id'` (artifact-keeper#5280 covers both; fixed by #5300, with which G5 passes). |
 | G6: a quarantined file gets 403/404 | 409 while held, 403 once rejected or refused by the scan policy. A clean scan releases an upload hold by itself, within a second here. |
 | G7: an unseeded id fails fast | Artifact Keeper answers in about 3 s, but with 502, which `huggingface_hub` retries; and every optional file a library probes (`adapter_config.json`, ...) behaves the same, so loading a seeded model on a fresh offline workstation takes minutes (artifact-keeper#5282). |
 | G7: set cache-ttl, then go offline | A raised cache-ttl applies to an entry only from its next revalidation, so entries cached before the change still expire on the old 300 s TTL. Freeze when the Remote is created (bootstrap does). |

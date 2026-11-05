@@ -78,13 +78,13 @@ A fresh workstation fills its cache from Artifact Keeper, then loads with
 {"ok":true,"commit":"099a800f5a0de0c030245fa4c02996957602a81e","files":9,"seconds":0.5}
 hf-lab HEAD resolve/099a800f5a0d.../config.json: HTTP 200, X-AK-Stale-Since: absent
 {"ok":true,"seconds":0.3}
-{"ok":true,"shape":[2,32],"first":[-0.457369,0.287261,-0.22734,-0.365521],"seconds":7.7}
-{"ok":true,"model":"BertModel","hidden":[1,4,32],"seconds":6.4}
-{"ok":true,"commit":"1110a243fdf4706b3f48f1d95db1a4f5529b4d41","files":10,"seconds":1.1}
+{"ok":true,"shape":[2,32],"first":[-0.457369,0.287261,-0.22734,-0.365521],"seconds":7.2}
+{"ok":true,"model":"BertModel","hidden":[1,4,32],"seconds":6.1}
+{"ok":true,"commit":"1110a243fdf4706b3f48f1d95db1a4f5529b4d41","files":10,"seconds":1.2}
 hf-hub HEAD resolve/1110a243fdf4.../config.json: HTTP 200, X-AK-Stale-Since: absent
 {"ok":true,"seconds":0.3}
-{"ok":true,"shape":[2,384],"first":[-0.003146,-0.047963,0.010903,-0.01194],"seconds":7.8}
-{"ok":true,"model":"BertModel","hidden":[1,4,384],"seconds":6.3}
+{"ok":true,"shape":[2,384],"first":[-0.003146,-0.047963,0.010903,-0.01194],"seconds":7.6}
+{"ok":true,"model":"BertModel","hidden":[1,4,384],"seconds":6.1}
 ```
 
 The second line of each block is `hf_hub_download(..., "1_Pooling/config.json",
@@ -100,14 +100,14 @@ The same load straight from Artifact Keeper, without `HF_HUB_OFFLINE`, given 60 
 ```console
 == the same load without HF_HUB_OFFLINE, straight from Artifact Keeper (given 60 s)
 {"ok":false,"error":"Timeout","seconds":60.0}
-     66 resolve/<commit>/config_sentence_transformers.json
+     48 resolve/<commit>/config_sentence_transformers.json
       3 resolve/<commit>/modules.json
 ```
 
 `sentence-transformers` asks for files the model does not have (here
 `config_sentence_transformers.json`). Online the Hub answers 404 and the library moves on.
 Offline, Artifact Keeper has no cached answer, tries the upstream, and returns 502;
-`huggingface_hub` retries 5xx with backoff, and the library asks again. That request was made 66
+`huggingface_hub` retries 5xx with backoff, and the library asks again. That request was made 48
 times in 60 s. A cache-only mode that answers a clean 404 is
 [artifact-keeper#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282)
 ([findings F3](findings.md#f3-offline-every-uncached-path-is-a-502-after-an-upstream-attempt-and-clients-retry-it)).

@@ -36,7 +36,7 @@ hf developer hf-local -h "g5-$RUNID" -- encode "$MODEL" > "$GOUT/g5-enc.json"; c
 check $G "SentenceTransformer loads the hosted model" "$(hfwhy "$GOUT/g5-enc.json")" ok "$GOUT/g5-enc.json"
 hf developer hf-local -h "g5-snap-$RUNID" -- snapshot "$MODEL" > "$GOUT/g5-snap.json"; jq -c '{ok, commit, files, error, msg}' "$GOUT/g5-snap.json"
 want=$(cd "$SRC" && find . -type f | sed 's|^\./||' | sort | jq -R . | jq -sc .)
-if jq -e --argjson w "$want" '.ok and .files == $w' "$GOUT/g5-snap.json" >/dev/null; then
+if jq -e --argjson w "$want" '.ok and (.files | sort) == ($w | sort)' "$GOUT/g5-snap.json" >/dev/null; then
   pass $G "snapshot_download of a hosted model returns every file"
 else
   blocked ak-fix $G "snapshot_download of a hosted model returns every file" \

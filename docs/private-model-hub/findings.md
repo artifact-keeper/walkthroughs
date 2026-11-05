@@ -2,7 +2,7 @@
 
 --8<-- "includes/preview-hf.md"
 
-The record of building and running this walkthrough on 2026-11-04 (UTC): what we ran it on,
+The record of building and running this walkthrough on 2026-11-04 and 05 (UTC): what we ran it on,
 the Artifact Keeper bugs and documentation gaps we hit, the behaviour worth knowing, what the
 [plan](plan.md) got wrong, and what was not machine-verified. The step pages are written from
 these notes and from the reference run in [Results](results.md). Line numbers are for
@@ -14,7 +14,7 @@ these notes and from the reference run in [Results](results.md). Line numbers ar
 |---|---|
 | Host | `grace`: Ubuntu 26.04, x86_64, 40 cores, 108 GB RAM, rootless podman 5.7.0, `podman compose`, no sudo |
 | Neighbours | other Artifact Keeper stacks (`ak-agent-*` on 30445, `ak-gate-*` on 30446, `ak-mcp-*` on 30448, `ak-mcpreg-*`) and docker containers kept running, untouched |
-| Backend | `ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:f60236fb...` = `main` at `46070a04` (reports version 1.11.3) |
+| Backend | `localhost/ak-backend:hf-709e3f15`: artifact-keeper#5300 at `709e3f15`, which is `main` at `46070a04` plus the fix (reports version 1.11.3). Earlier runs: `ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:f60236fb...` (`main` at `46070a04`) |
 | Web | `ghcr.io/artifact-keeper/artifact-keeper-web:dev@sha256:ddc8125b...` (reports 1.11.2 dev) |
 | Clients | Python 3.12.16, `huggingface_hub` 2.4.0, `transformers` 5.22.1, `sentence-transformers` 6.2.0, torch 2.15.0+cpu, all through the registry |
 | Real Hub model | `sentence-transformers/all-MiniLM-L6-v2` at `1110a243fdf4706b3f48f1d95db1a4f5529b4d41` (only `*.json`, `*.txt` and `model.safetensors`, about 90 MB) |
@@ -23,8 +23,11 @@ these notes and from the reference run in [Results](results.md). Line numbers ar
 
 ### F1. snapshot_download fails against a Local repository
 
-Reported as [artifact-keeper#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280);
-a fix is in progress. `hf_hub_download` of a named file, `AutoModel.from_pretrained` and
+Reported as [artifact-keeper#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280),
+fixed by pull request [#5300](https://github.com/artifact-keeper/artifact-keeper/pull/5300) (not
+merged yet). The reference run uses a backend built from that branch, and there the G5 check
+passes: `snapshot_download` returns all nine files of `acme/embedder`, the one in `1_Pooling/`
+included. On `main` (`:dev`), `hf_hub_download` of a named file, `AutoModel.from_pretrained` and
 `SentenceTransformer(...)` all work against `hf-local`; `snapshot_download` does not:
 
 ```text
@@ -37,7 +40,7 @@ key, which `huggingface_hub` 2.x's `ModelInfo` requires; its `lastModified` is t
 line 431) and covers every revision. Past that, the `sha` it reports
 (`local_repo_commit_sha`, line 190) is not something the tree or resolve routes accept: in the
 lab, `GET .../tree/<sha>` answered `[]` and `GET .../resolve/<sha>/config.json` 404 while the
-same file at `main` was 200. Gate G5 reports the check `BLOCKED(ak-fix)`.
+same file at `main` was 200. On such an image gate G5 reports the check `BLOCKED(ak-fix)`.
 
 ### F2. The tree listing drops `?recursive=true`, so snapshot_download misses files in subdirectories
 

@@ -39,8 +39,14 @@ $ PUT /api/v1/repositories/hf-curated/upstream-filter
 ```
 
 The organization is followed by `/` in both patterns, so `acme-lab-evil/...` does not match
-`acme-lab`. The Hugging Face documentation does not cover this yet
-([findings D2](findings.md#documentation-gaps)).
+`acme-lab`. Two more things to know: the subject never includes the CDN host a large file
+redirects to (the redirect is followed after the filter has admitted the `resolve/` path), and
+the query string is part of the subject. Today the tree request reaches the filter without one
+([findings F2](findings.md#f2-the-tree-listing-drops-recursivetrue-so-snapshot_download-misses-files-in-subdirectories));
+once `?recursive=true` is passed on, the first pattern's `$` will refuse it, so widen it to
+`(\?.*)?$` then. Artifact Keeper's Hugging Face documentation does not describe either
+shape yet; [artifact-keeper#5290](https://github.com/artifact-keeper/artifact-keeper/issues/5290)
+asks for this pair of patterns to be documented ([findings D2](findings.md#documentation-gaps)).
 
 ## What it admits and what it refuses
 

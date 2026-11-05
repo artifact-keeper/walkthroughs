@@ -76,12 +76,12 @@ same holds for the developer, who can read `hf-lab` but not `hf-lab-gated` (gate
 The lab Hub logs a fingerprint of the bearer token on each request. Grouped:
 
 ```console
-fingerprints: hub token 04a05fa3121645f1, alice 36bc1cf7c1bd856b, bob 048ed288b3f34738
-     28 /acme-lab/gated-llm/resolve/<rev>/<file>  auth=04a05fa3121645f1
-      1 /api/models/acme-lab/gated-llm  auth=04a05fa3121645f1
-      2 /api/models/acme-lab/gated-llm/revision/<rev>  auth=04a05fa3121645f1
+fingerprints: hub token 26d7a93845b5bcc4, alice 87f278211b07215d, bob 105d0dbb28cda035
+     28 /acme-lab/gated-llm/resolve/<rev>/<file>  auth=26d7a93845b5bcc4
+      1 /api/models/acme-lab/gated-llm  auth=26d7a93845b5bcc4
+      2 /api/models/acme-lab/gated-llm/revision/<rev>  auth=26d7a93845b5bcc4
       1 /api/models/acme-lab/gated-llm/revision/<rev>  auth=none
-      2 /api/models/acme-lab/gated-llm/tree/<rev>  auth=04a05fa3121645f1
+      2 /api/models/acme-lab/gated-llm/tree/<rev>  auth=26d7a93845b5bcc4
       2 /cdn/<sha256> (the redirect target)  auth=none
 ```
 

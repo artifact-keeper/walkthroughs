@@ -31,16 +31,17 @@ reconnects them when it ends, even on failure.
 | [G2 Proxy](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g02-proxy.sh) | For the lab Hub and huggingface.co: `snapshot_download` completes, the snapshot directory and `refs/main` are the upstream commit, `SentenceTransformer.encode` works on CPU, a second workstation is served from the cache with no file fetched upstream; whether files in subdirectories are in the snapshot |
 | [G3 Gated](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g03-gated.sh) | Without upstream auth the gated model is refused; `ml-team` downloads and loads it; others get 404; every upstream request carries the repository's Hub token and none a client token; the API never returns the Hub token |
 | [G4 Allowlist](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g04-allowlist.sh) | An approved organization resolves; `evil-org/backdoor`, the lookalike and `acme-lab-evil/...` are refused on both path shapes without an upstream request; the same names pass without the filter |
-| [G5 Hosted](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g05-hosted.sh) | Publishing file by file; 409 on re-publish; 403 without write permission or without `write:artifacts`; 401 anonymous; 405 to a Remote, 400 to a Virtual; downloads return the published bytes; `from_pretrained` and `SentenceTransformer` load it; `snapshot_download` (needs #5280) |
+| [G5 Hosted](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g05-hosted.sh) | Publishing file by file; 409 on re-publish; 403 without write permission or without `write:artifacts`; 401 anonymous; 405 to a Remote, 400 to a Virtual; downloads return the published bytes; `from_pretrained` and `SentenceTransformer` load it; `snapshot_download` (needs #5300) |
 | [G6 Hold](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g06-hold.sh) | Scan on upload runs and a clean scan releases a file; a pickle that runs a command on load is flagged (it is not); a reviewer's hold is 409 on `GET` and `HEAD`; a rejection is 403; with no scan, an upload is held, and after release `block_unscanned` refuses it until its scan completes |
 | [G7 Offline](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g07-offline.sh) | Both Hub Remotes are frozen; the offline workstation has no route out; for each seeded model: `snapshot_download` completes, files are served fresh (no `X-AK-Stale-Since`), the model loads with `HF_HUB_OFFLINE=1`, and whether it loads straight from Artifact Keeper within 60 s; an unseeded file is not served, quickly, and whether as a clean 404 |
 | [G8 Fails safely](https://github.com/artifact-keeper/walkthroughs/blob/main/private-model-hub/gates/g08-fails-safely.sh) | Xet metadata and headers never reach the client and `xet-read-token` is 404; a Virtual's `snapshot_download` fails as documented while `hf_hub_download` works; Range resumes (206), `If-Range` with another ETag (200), a suffix range, 416 past the end; `..%2f` in the file name or model id and `../` in `X-Filename` are 400; datasets and `whoami` are 404 |
 
 ## The reference run
 
-On `grace`, 2026-11-04 22:08-22:12 UTC, right after `make clean` and `make all`
-([Results](results.md)): **75 PASS, 0 FAIL, 7 BLOCKED** of 82 checks, in 240 s (G7 takes 169 s
-of it, mostly the 60 s time limits it puts on the two direct offline loads).
+On `grace`, 2026-11-05 02:07-02:11 UTC, with the backend built from artifact-keeper#5300, after
+`make clean`, `make all` and a first `make gates` ([Results](results.md)): **76 PASS, 0 FAIL,
+6 BLOCKED** of 82 checks, in 239 s (G7 takes 169 s of it, mostly the 60 s limits it puts on the
+two direct offline loads).
 
 ```text
 PASS              G1   anonymous model info on a private repository is 401
@@ -87,7 +88,7 @@ PASS              G5   publishing to a Virtual is 400, even for an admin
 PASS              G5   hf_hub_download returns the published bytes (sha256 of 3 files, one in a subdirectory)
 PASS              G5   AutoModel.from_pretrained loads the hosted model
 PASS              G5   SentenceTransformer loads the hosted model
-BLOCKED(ak-fix)   G5   snapshot_download of a hosted model returns every file: hosted model info has no id, lists stored paths, and its sha cannot be resolved (findings F1, artifact-keeper#5280)
+PASS              G5   snapshot_download of a hosted model returns every file
 PASS              G6   scan on upload runs: grype completes on a model file
 PASS              G6   a model file with a clean scan is released and downloads (status clean, 200)
 BLOCKED(ak-gap)   G6   a pickle checkpoint whose load runs a shell command is flagged by a scan: no scanner reads pickle, safetensors or GGUF; it is released as clean (#3013, #2382; findings F4)
@@ -127,12 +128,15 @@ PASS              G8   datasets are not served (404): models only
 PASS              G8   account calls (whoami) are not served (404)
 ```
 
-The seven `BLOCKED` lines are the findings, not gaps in the walkthrough:
+The six `BLOCKED` lines are findings, not gaps in the walkthrough:
 
 | Check | Why | Tracked in |
 |---|---|---|
-| G2 x2: files in subdirectories are in the snapshot | the tree listing drops `?recursive=true` | [F2](findings.md#f2-the-tree-listing-drops-recursivetrue-so-snapshot_download-misses-files-in-subdirectories) (not filed yet) |
-| G5: hosted `snapshot_download` | model info has no `id`; its commit cannot be resolved | [F1](findings.md#f1-snapshot_download-fails-against-a-local-repository), [#5280](https://github.com/artifact-keeper/artifact-keeper/issues/5280) |
+| G2 x2: files in subdirectories are in the snapshot | the tree listing of a Remote drops `?recursive=true` | [F2](findings.md#f2-the-tree-listing-drops-recursivetrue-so-snapshot_download-misses-files-in-subdirectories) (not filed yet) |
 | G6: a malicious pickle is flagged | no scanner reads model files | [F4](findings.md#f4-a-clean-scan-releases-a-malicious-pickle-from-the-upload-hold), [#5285](https://github.com/artifact-keeper/artifact-keeper/issues/5285) |
 | G7 x2: a fresh offline workstation loads straight from Artifact Keeper in 60 s | uncached optional files are 502s that clients retry | [F3](findings.md#f3-offline-every-uncached-path-is-a-502-after-an-upstream-attempt-and-clients-retry-it), [#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282) |
 | G7: an unseeded file is a clean 404 | no cache-only mode | [#5282](https://github.com/artifact-keeper/artifact-keeper/issues/5282) |
+
+With the `:dev` image (`main` without #5300), G5's hosted `snapshot_download` check is a seventh,
+`BLOCKED(ak-fix)` ([F1](findings.md#f1-snapshot_download-fails-against-a-local-repository)):
+75 PASS, 0 FAIL, 7 BLOCKED in the run of 2026-11-04 22:08 UTC.

@@ -23,7 +23,7 @@ runs.
 | Rocky Linux image mode on bare metal | [site](https://artifact-keeper.github.io/walkthroughs/rocky-linux-image-mode-bare-metal/) | [`rocky-linux-image-mode-bare-metal/`](rocky-linux-image-mode-bare-metal/) |
 | AI coding agents through one registry | [site](https://artifact-keeper.github.io/walkthroughs/ai-agent-dependency-guardrails/) | [`ai-agent-dependency-guardrails/`](ai-agent-dependency-guardrails/) |
 | A private marketplace for agent plugins (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-agent-plugin-marketplace/) | [`private-agent-plugin-marketplace/`](private-agent-plugin-marketplace/) |
-| A private Hugging Face model hub (preview: needs artifact-keeper#5280) | [site](https://artifact-keeper.github.io/walkthroughs/private-model-hub/) | [`private-model-hub/`](private-model-hub/) |
+| A private Hugging Face model hub (preview: needs artifact-keeper#5300) | [site](https://artifact-keeper.github.io/walkthroughs/private-model-hub/) | [`private-model-hub/`](private-model-hub/) |
 
 ## Layout
 
