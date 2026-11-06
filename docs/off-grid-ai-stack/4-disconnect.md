@@ -2,7 +2,11 @@
 
 --8<-- "includes/preview-offgrid.md"
 
-The cut is a handful of documented settings plus a network with no gateway. In this order:
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
+The cut is a handful of documented settings plus a network with no route out. In this order:
 the scheduled upstream jobs pause, every Remote goes cache-only, the configuration is exported
 again, the counters the zero-egress gates start from are written down, and every container of
 the stack is recreated on `ak-offgrid-site`.
@@ -115,14 +119,16 @@ count of `open` lines, and the number of `UPSTREAM_FETCHED` and `MCP_MIRROR_SYNC
 ```
 
 Everything the site will ever have came over 24 connections and 283 upstream requests, and no
-MCP sync ran at all.
+MCP sync ran at all. The request count is stable between runs; the connection count is not
+(21 to 24 in our runs: connections are reused depending on timing), which is why the gates
+compare connections only before and after the cut, never against a fixed number.
 
 ## 5. Move the stack to the site network
 
 `registry/out/phase` becomes `site`, and from then on every compose command adds
 [`compose.site.yml`](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/registry/compose/compose.site.yml),
-which replaces the default network with `ak-offgrid-site` (`internal: true`: podman gives it no
-gateway and no NAT). The stack is taken down with its volumes kept and brought up again; the
+which replaces the default network with `ak-offgrid-site` (`internal: true`: no default route and no NAT; `podman network inspect` still lists the
+subnet's `.1` as its gateway, but on an internal network that address is aardvark-dns only). The stack is taken down with its volumes kept and brought up again; the
 ledger first, because it is not a compose service and compose cannot remove the seed network
 while it is attached. The same database, artifact store and Caddy CA come back, so the
 instance that seeded its caches is the one that serves them. Nothing is pulled

@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 Every claim the earlier steps make is a check in
 [`gates/`](https://github.com/artifact-keeper/walkthroughs/tree/main/off-grid-ai-stack/gates).
 This page has gate G6, which checks that what was not seeded fails fast and clearly, and then

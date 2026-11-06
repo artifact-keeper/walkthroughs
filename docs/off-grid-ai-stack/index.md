@@ -50,7 +50,7 @@ you own, and then the network is cut:
   cache-seed API, then vetted: published to a Local repository where the model-file scanner
   reads it, next to a truncated GGUF and a booby-trapped pickle that do not get through.
 - **The cut.** Every Remote goes cache-only, the scheduled upstream jobs pause, and the whole
-  stack is recreated on a network with no gateway.
+  stack is recreated on a network with no default route and no NAT.
 - **An agent that still works.** On that network, a small Python agent installs its plugin
   from Artifact Keeper, starts only the MCP servers the registry lists, and answers a question
   through a tool call to a local model (Qwen2.5-1.5B on llama.cpp, CPU only).
@@ -82,7 +82,7 @@ keep working? And can we prove, not just believe, that it does not reach out?
 | R3 | Every upstream request during seeding is on record twice: the egress ledger and the audit log | [Step 2](2-seed-the-stack.md) |
 | R4 | The model is vetted before use; a malformed GGUF and a code-executing pickle are flagged and not served | [Step 3](3-vet-what-you-seeded.md) |
 | R5 | Scanners keep working offline, with their database carried in through the registry | [Step 3](3-vet-what-you-seeded.md) |
-| R6 | The cut is a handful of documented settings plus a network with no gateway | [Step 4](4-disconnect.md) |
+| R6 | The cut is a handful of documented settings plus a network with no route out | [Step 4](4-disconnect.md) |
 | R7 | On the disconnected site an agent installs its plugin, starts only registry-listed MCP servers, and answers through a local model's tool call | [Step 5](5-run-the-agent-offline.md) |
 | R8 | Nothing leaves after the cut: no route, no ledger line, no upstream audit row, cache hits only, the same inventory | [Step 7](7-prove-nothing-leaves.md) |
 | R9 | What was not seeded fails fast and clearly; nothing waits on an upstream that is not there | [Step 8](8-prove-it-fails-safely.md) |
@@ -91,7 +91,7 @@ keep working? And can we prove, not just believe, that it does not reach out?
 
 ```mermaid
 flowchart LR
-    subgraph SITE["ak-offgrid-site: internal, no gateway"]
+    subgraph SITE["ak-offgrid-site: internal, no route out"]
         direction TB
         subgraph AK["Artifact Keeper: https://ak.internal"]
             direction TB
@@ -119,15 +119,17 @@ ledger forwards what the Remotes ask for.
 
 ## Before you start
 
-- A Linux host with rootless podman 5.x and `podman compose`, curl, jq, openssl, python3
-  (3.11 or later) and GNU make. No sudo is needed anywhere.
+- A Linux host with rootless podman 5.x and `podman compose` with a compose provider
+  (docker-compose v2 or later, which the reference runs used, or podman-compose), curl, jq,
+  openssl, python3 (3.11 or later) and GNU make. No sudo is needed anywhere.
 - Artifact Keeper from `main` at or after `88f23c51`, or 1.12.0 once released: the defaults are
   the CI images of `main` at `88f23c51`, pinned by digest (see
   [Step 1](1-stand-up-the-registry.md#images) and the
   [code README](https://github.com/artifact-keeper/walkthroughs/tree/main/off-grid-ai-stack#images)).
 - About 8 GB of free RAM (the registry stack, llama-server with a 1.5B model, the agent) and
-  20 GB of disk (the reference run's filesystem grew by 18.95 GB from an empty image store). A
-  CPU with AVX2; no GPU.
+  20 GB of disk (the reference run's filesystem grew by 18.95 GB from an empty image store). An
+  x86-64 CPU (AVX2 recommended: the reference host, a Xeon E5-2680 v2, has none and ran
+  fine); no GPU.
 - Internet access while seeding: container images from docker.io and ghcr.io, packages from
   pypi.org and registry.npmjs.org, the model from huggingface.co and one MCP server entry from
   registry.modelcontextprotocol.io, all through the registry. Without huggingface.co, the
@@ -137,18 +139,21 @@ ledger forwards what the Remotes ask for.
 !!! tip "Run it yourself"
     ```bash
     git clone https://github.com/artifact-keeper/walkthroughs
-    cd walkthroughs/off-grid-ai-stack
+    cd walkthroughs
+    git checkout docs/off-grid-ai-stack   # only while the walkthrough is in review; skip once it is on main
+    cd off-grid-ai-stack
     make all      # registry, bootstrap, seed, vet, disconnect, agent, claude
     make gates    # the seven gates
     ```
     `SMALL_MODEL=1 make all` uses Qwen2.5-0.5B (491 MB) instead of Qwen2.5-1.5B (1.1 GB).
+    If something fails, see [Troubleshooting](reference/troubleshooting.md).
 
 ## Steps
 
 1. [Stand up the registry](1-stand-up-the-registry.md): TLS, every repository, the offline settings set at creation, the egress ledger, users and tokens.
 2. [Seed the stack](2-seed-the-stack.md): the manifest, the cache-seed API for the model, the agent image, the targeted MCP seed, the plugin, the inventory.
 3. [Vet what you seeded](3-vet-what-you-seeded.md): the model-file scanner, the offline scanner adapter, the configuration export.
-4. [Disconnect](4-disconnect.md): cache-only Remotes, paused jobs, the move to a network with no gateway.
+4. [Disconnect](4-disconnect.md): cache-only Remotes, paused jobs, the move to a network with no route out.
 5. [Run the agent offline](5-run-the-agent-offline.md): llama-server, a clean install, the plugin, the MCP registry, a tool call.
 6. [Claude Code (best-effort)](6-claude-code-best-effort.md): the plugin from Artifact Keeper and a local model behind the Anthropic API.
 7. [Prove nothing leaves](7-prove-nothing-leaves.md): the zero-egress gates G7a to G7e, and the control.

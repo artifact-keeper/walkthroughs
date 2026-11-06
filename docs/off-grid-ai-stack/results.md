@@ -28,7 +28,7 @@ disconnected for live capture.
 | Clean npm install of Claude Code on the site | 6 s | 6 s |
 | The agent, end to end | 10.6 s | 7.3 s |
 | Claude Code, minimal prompt, no tools | 3 s, `OFFGRID` | 8 s, echoes its environment prompt |
-| Upstream requests (`UPSTREAM_FETCHED`) and ledger connections up to the cut | 283 over 24 | 282 over 22 |
+| Upstream requests (`UPSTREAM_FETCHED`) and ledger connections up to the cut (connection counts vary run to run; gate G1 checks the host set) | 283 over 24 | 282 over 22 |
 
 `out/` after a full run is 2.5 GB, mostly the copies of the model.
 
@@ -57,7 +57,7 @@ and G7d print raw and filtered counts; in the reference run both are 0 (`opened 
 | R3 | Every upstream request during seeding is on record twice: the egress ledger and the audit log | Met (G1): the ledger's 12 hosts and the audit rows' hosts are the same set. The ledger counts connections (24), the audit log requests (283) |
 | R4 | The model is vetted before use; a malformed GGUF and a code-executing pickle are flagged and not served | Met (G2). The scanner reads file structure; it does not judge model behaviour |
 | R5 | Scanners keep working offline, with their database carried in through the registry | Met (G2): imported, offline, age reported, the llama.cpp image scanned (689 vulnerabilities listed) |
-| R6 | The cut is a handful of documented settings plus a network with no gateway | Met (G3), and the export records every Remote as cache-only |
+| R6 | The cut is a handful of documented settings plus a network with no route out | Met (G3), and the export records every Remote as cache-only |
 | R7 | On the disconnected site an agent installs its plugin, starts only registry-listed MCP servers, and answers through a local model's tool call | Met (G4) with both models; G6 shows an unlisted server is refused |
 | R8 | Nothing leaves after the cut: no route, no ledger line, no upstream audit row, cache hits only, the same inventory | Met for this lab's containers and network (G7a-G7e, the control, G6's cold `HEAD`s and refused MCP calls) |
 | R9 | What was not seeded fails fast and clearly; nothing waits on an upstream that is not there | Met (G6): every unseeded item is a 404 in under 400 ms, and the MCP seed and sync are 409s that say why |

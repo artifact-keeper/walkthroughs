@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 The claim of this walkthrough is that after the cut nothing leaves, while the site does
 everything Steps 5 and 6 and gate G6 do. No single measurement proves that. Gate
 [G7](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/gates/g07-zero-egress.sh)
@@ -46,7 +50,7 @@ PASS              G7a  no route out from any of the 8 running containers (stack,
 
 **Why it would catch a leak.** It tests the network itself, not Artifact Keeper's behaviour:
 any process in these namespaces, whatever its code path or proxy settings, has the same routes
-the probe has. The IP addresses fail with `OSError` (no route: there is no gateway); the names
+the probe has. The IP addresses fail with `OSError` (no route: the internal network has no default route); the names
 fail with `gaierror`, because the internal network's DNS does not resolve outside names. Gate
 G6 runs the same kind of probe in the agent's container.
 

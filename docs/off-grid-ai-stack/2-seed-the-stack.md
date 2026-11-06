@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 Everything the site will need is listed in one file,
 [`seed/manifest.toml`](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/seed/manifest.toml).
 This step pulls all of it through Artifact Keeper while the seed network still has a route
@@ -70,7 +74,9 @@ GET  /api/v1/repositories/hf-hub/cache/seed/<job_id>     (until completed or fai
   cached	7038	7f41c58b8aea1525	api/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF/revision/91cad51170dc346986eccefdc2dd33a9da36ead9
 ```
 
-The job ran 63 s (`started_at` 05:06:51, `finished_at` 05:07:54) for 1.1 GB. The SHA-256 the
+The job ran 63 s for 1.1 GB: its document, `GET /api/v1/repositories/hf-hub/cache/seed/<job_id>`,
+which `seed.sh` saves to `out/flows/seed-hf-hub.json`, has `started_at` 05:06:51 and
+`finished_at` 05:07:54 (`jq '{started_at, finished_at}' out/flows/seed-hf-hub.json`). The SHA-256 the
 job records for each file is what gate G1 compares the vetted copy against.
 `SMALL_MODEL=1 make seed` seeds Qwen2.5-0.5B-Instruct (491 MB) instead
 (`cached_bytes` 491412102 in the small-model run, in 28 s). The choice is written to
@@ -232,8 +238,10 @@ auth services (`auth.docker.io`, `production.cloudfront.docker.com`,
 `pkg-containers.githubusercontent.com`, `files.pythonhosted.org`, `us.aws.cdn.hf.co`), and
 `ak-central` for the plugins Remote. The 1.1 GB model came over one connection to
 `us.aws.cdn.hf.co` (1,119,455,686 bytes down, by its `close` line). 21 connections carried 279
-requests. Gate G1 checks that the ledger's hosts and the audit rows' hosts are the same set,
-and that each is an expected upstream.
+requests. The number of connections varies from run to run (19 to 24 in our runs), because
+how many requests share one kept-alive connection depends on timing; the audit row counts
+matched exactly between runs. Gate G1 therefore checks the set of hosts, not the count: the
+ledger's hosts and the audit rows' hosts must be the same set, and each an expected upstream.
 
 `make all`, from `make registry-up` to `make claude`, took 11 min 12 s in the reference run;
 the seed started at 05:05:44 and the disconnect's marks were written at 05:13:07, with

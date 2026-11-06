@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 On the site network, with no route out, the whole AI stack comes up from Artifact Keeper
 alone: the model server's image, the model, every Python package of the agent, its plugin and
 its MCP servers. Then a small Python agent answers a question through a tool call to the local
@@ -9,12 +13,20 @@ model.
 
 ```bash
 make agent                                   # flows/agent.sh
-QUESTION="How many units of OG-2187 are in the south warehouse?" make agent
 ```
 
 [`flows/agent.sh`](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/flows/agent.sh)
-refuses to run before `make disconnect`. Its results go to `out/agent/`. Gate G4 checks the stock question's
-answer, so run the gates after a `make agent` without `QUESTION`.
+refuses to run before `make disconnect`. Its results go to `out/agent/`.
+
+To ask something else, set `QUESTION`. Gate G4 checks the default question's answer, so if you
+do, run `make agent` again without it before `make gates`:
+
+```console
+$ QUESTION="How many units of OG-2187 are in the south warehouse?" make agent
+...
+"There are 120 units of SKU OG-2187 in the south warehouse. (ref: inv-7f3a9c)"
+$ make agent        # the default question again, for gate G4
+```
 
 ## 1. The images, pulled again
 
@@ -133,8 +145,8 @@ The agent ran 10.6 s, the two MCP servers started in about 4 s, and the model's 
 
 ### How we know the answer came from the tool
 
-The inventory server's data is made up, and every reply carries a `ref`, `inv-7f3a9c`, that the
-model cannot guess. Gate G4 checks that the model called `stock_level` with `OG-1138` and
+The inventory server's data is made up, and every reply carries the same fixed `ref`,
+`inv-7f3a9c` (one value for the whole server, not one per reply), which the model cannot guess. Gate G4 checks that the model called `stock_level` with `OG-1138` and
 `north`, and that the answer gives the tool's number, 42. The plugin's skill also asks the
 model to end with `(ref: <ref>)`. Qwen2.5-1.5B does, and with the default model G4 gates on it.
 With `SMALL_MODEL=1`, Qwen2.5-0.5B makes the right call and gives 42 but does not quote the ref,

@@ -2,12 +2,16 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 This step starts Artifact Keeper with TLS under one name, `https://ak.internal`, starts the
 egress ledger, creates every repository the AI stack will be served from with its offline
 settings already in place, and mints the tokens the later steps use.
 
 ```bash
-cd walkthroughs/off-grid-ai-stack
+cd walkthroughs/off-grid-ai-stack   # while the walkthrough is in review: git checkout docs/off-grid-ai-stack first
 make registry-up   # registry/up.sh, then ledger/up.sh
 make bootstrap     # registry/bootstrap.sh
 ```
@@ -49,7 +53,7 @@ and openscap turned off, and the scanner adapter in offline mode. Two networks:
 | Network | Subnet | When |
 |---|---|---|
 | `ak-offgrid-seed` | `172.31.84.0/24` | Steps 1 to 3: the stack has a route out, through the ledger |
-| `ak-offgrid-site` | `172.31.85.0/24`, `internal: true` | From [Step 4](4-disconnect.md) on: no gateway, no route out ([`compose.site.yml`](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/registry/compose/compose.site.yml)) |
+| `ak-offgrid-site` | `172.31.85.0/24`, `internal: true` | From [Step 4](4-disconnect.md) on: no default route and no NAT (the subnet's `.1`, which `podman network inspect` still lists as the gateway, is aardvark-dns only) ([`compose.site.yml`](https://github.com/artifact-keeper/walkthroughs/blob/main/off-grid-ai-stack/registry/compose/compose.site.yml)) |
 
 On either network the backend has the fixed address `.250` and the egress ledger `.200`.
 `registry/out/phase` says which network the stack is on (`seed` or `site`), and every script

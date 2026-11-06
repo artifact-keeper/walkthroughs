@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 Still connected, the seeded content is checked before the site relies on it: the model goes
 through a door that scans it, the vulnerability scanner gets a database it can use offline, and
 the configuration and the inventory are written down as the records the site is compared

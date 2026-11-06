@@ -2,6 +2,10 @@
 
 --8<-- "includes/preview-offgrid.md"
 
+!!! tip "If something goes wrong"
+    See [Troubleshooting](reference/troubleshooting.md): every failure we hit while building
+    this walkthrough, with its cause and fix.
+
 !!! note "Best-effort, and labelled so"
     This step shows Claude Code wired to the off-grid stack: it installs from `npm-remote` on
     the disconnected network, its plugin comes from Artifact Keeper's marketplace, and its model
