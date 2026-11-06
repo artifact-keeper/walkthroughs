@@ -45,27 +45,18 @@ check $G "an MCP server the curator did not approve is not served by mcp-all" "H
 l0=$(ledger_lines); f0=$(audit_count UPSTREAM_FETCHED "$(jq -r .at "$DISC")")
 api POST /repositories/mcp-official/mcp/seed -d '{"servers":[{"name":"io.github.daedalus/mcp-sympy","version":"0.1.0"}],"reason":"G6: must be refused offline"}' >/dev/null
 seed_code=$(code); echo "POST .../mcp/seed (on the site): HTTP $seed_code $(head -c 200 "$FOUT/.body")"
-check $G "a targeted MCP seed on the site is refused (409: the Remote is cache-only, #5408)" "HTTP $seed_code" test "$seed_code" == 409
-# A manual sync is an operator's explicit request, and it does run on a cache-only Remote
-# (202, in the background, #5405): every page it asks for is refused at the cache-only gate.
-# It writes an MCP_MIRROR_SYNCED row, so its window goes to out/gates/control-windows.tsv,
-# which G7d leaves out.
-ws=$(date -u +%FT%TZ)
-api GET /repositories/mcp-official/mcp/sync >/dev/null; started0=$(jq -r '.lastStartedAt // ""' "$FOUT/.body")
+check $G "a targeted MCP seed on the site is refused (409: upstream jobs paused, the Remote cache-only; #5408)" "HTTP $seed_code" test "$seed_code" == 409
+# A manual sync is refused too: with the scheduled upstream jobs paused instance-wide, no sync
+# starts (409), so nothing is asked of the upstream and no MCP_MIRROR_SYNCED row is written.
 api POST /repositories/mcp-official/mcp/sync >/dev/null; sync_code=$(code)
-echo "POST .../mcp/sync: HTTP $sync_code $(head -c 200 "$FOUT/.body")"
-for _ in $(seq 60); do
-  api GET /repositories/mcp-official/mcp/sync >/dev/null
-  jq -e --arg s "$started0" '(.running | not) and ((.lastStartedAt // "") != $s)' "$FOUT/.body" >/dev/null && break
-  sleep 2
-done
-echo "  sync state: $(jq -c '{running, lastStartedAt, lastFinishedAt, lastError, summary: (.lastSummary | {entries, pages, errors: ((.errors // []) | length)})}' "$FOUT/.body")"
+echo "POST .../mcp/sync (on the site): HTTP $sync_code $(head -c 200 "$FOUT/.body")"
+api GET /repositories/mcp-official/mcp/sync >/dev/null
+echo "  sync state: $(jq -c '{running, lastStartedAt, lastFinishedAt}' "$FOUT/.body")"
+check $G "a manual MCP sync on the site is refused (409: upstream jobs are paused)" "HTTP $sync_code" test "$sync_code" == 409
 sleep 2
-printf '%s\t%s\n' "$ws" "$(date -u +%FT%TZ)" >> "$GOUT/control-windows.tsv"
 l1=$(ledger_lines); f1=$(audit_count UPSTREAM_FETCHED "$(jq -r .at "$DISC")")
-echo "manual MCP seed and sync: ledger $l0 -> $l1; UPSTREAM_FETCHED since the disconnect $f0 -> $f1"
-check $G "a manual MCP sync on the site is accepted (202) and runs" "HTTP $sync_code" test "$sync_code" == 202
-check $G "the refused seed and the manual sync sent nothing upstream" "ledger $l0 -> $l1, UPSTREAM_FETCHED $f0 -> $f1" \
+echo "refused seed and sync: ledger $l0 -> $l1; UPSTREAM_FETCHED since the disconnect $f0 -> $f1"
+check $G "the refused seed and sync sent nothing upstream" "ledger $l0 -> $l1, UPSTREAM_FETCHED $f0 -> $f1" \
   test "$l1" -eq "$l0" -a "$f1" -eq "$f0"
 
 "$RUN" -h g6-agent -e MCP_REPO=mcp-internal -- python /opt/agent/agent.py --max-turns 1 \
