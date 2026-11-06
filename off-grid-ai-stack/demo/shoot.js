@@ -8,6 +8,8 @@ const AK = "https://ak.internal";
   const ctx = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1920, height: 1080 }, colorScheme: "light" });
   const p = await ctx.newPage();
   await p.goto(`${AK}/login`, { waitUntil: "load" });
+  try { await p.waitForSelector("input[name=username]", { timeout: 60000 }); }
+  catch (e) { await p.screenshot({ path: "/out/debug-login.png" }); console.log("login page:", p.url()); throw e; }
   await p.fill("input[name=username]", "admin");
   await p.fill("input[name=password]", process.env.PW);
   await p.keyboard.press("Enter");
@@ -24,14 +26,17 @@ const AK = "https://ak.internal";
     ["s05-mcp-server-tools", async () => { await click("role=tab[name=/tools/i]"); }],
     ["s06-mcp-server-security", async () => { await click("role=tab[name=/security|scan/i]"); }],
     ["s07-security-scans", async () => { await go("/security/scans"); }],
-    ["s08-scan-pickle", async () => { await go("/security/scans"); await click("text=pytorch_model.bin"); }],
+    ["s08-scan-pickle", async () => {
+      await go("/security/scans");
+      const row = p.locator("tr", { hasText: "acme-lab/backdoored" }).filter({ hasText: "model" }).first();
+      await row.getByText("View").click(); await settle();
+    }],
     ["s09-audit-upstream-fetched", async () => {
       await go("/audit");
       await p.fill("#audit-filter-action", "UPSTREAM_FETCHED");
-      await p.keyboard.press("Enter");
-      const apply = p.getByRole("button", { name: /apply|filter|search/i }).first();
-      if (await apply.count()) await apply.click();
+      await p.getByRole("button", { name: "Apply Filters", exact: true }).click();
       await settle();
+      await p.keyboard.press("Escape");
     }],
     ["s10-plugins", async () => { await go("/repositories/plugins"); }],
     ["s11-plugins-central", async () => { await go("/repositories/plugins-central"); }],
