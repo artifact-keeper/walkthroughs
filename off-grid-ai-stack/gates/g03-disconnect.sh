@@ -22,7 +22,7 @@ check $G "the scheduled upstream jobs are paused (upstream_jobs_paused, #5317)" 
 podman logs --since "$(jq -r .at "$DISC")" "$PROJECT-backend" 2>&1 | grep -m1 'upstream_jobs_paused' | cut -c1-240
 
 internal=$(podman network inspect "$SITE_NET" --format '{{.Internal}}' 2>/dev/null)
-check $G "$SITE_NET is internal (no gateway, no route out)" "internal=$internal" test "$internal" == true
+check $G "$SITE_NET is internal (no default route, no NAT; .1 is DNS only)" "internal=$internal" test "$internal" == true
 podman network exists "$SEED_NET" && echo "$SEED_NET still exists; members: $(podman network inspect "$SEED_NET" --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null)"
 off=""
 for c in $(podman ps --format '{{.Names}}' | grep "^$PROJECT-"); do

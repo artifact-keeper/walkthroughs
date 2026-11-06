@@ -19,7 +19,7 @@ adapter's offline mode. See [Images](#images).
 Artifact Keeper runs as compose project `ak-offgrid` and answers as `https://ak.internal` (TLS
 from Caddy's internal CA). It starts on `ak-offgrid-seed` (172.31.84.0/24, a route out) and
 `make disconnect` recreates every container on `ak-offgrid-site` (172.31.85.0/24,
-`internal: true`: no gateway). The egress ledger, a logging forward proxy at `.200`, is every
+`internal: true`: no default route, no NAT). The egress ledger, a logging forward proxy at `.200`, is every
 Remote's egress proxy, on whichever network the stack is on. llama-server, the agent, Claude
 Code and every check run in containers on the same network. Nothing here needs sudo or an
 account anywhere.

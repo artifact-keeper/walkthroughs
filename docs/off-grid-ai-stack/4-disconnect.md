@@ -139,7 +139,7 @@ new network lose their service-name DNS aliases, and the backend could not find 
 (`Device or resource busy (os error 16)`). Created fresh, they keep them.
 
 ```console
-== 5. move the stack to ak-offgrid-site (internal: no gateway)
+== 5. move the stack to ak-offgrid-site (internal: no default route, no NAT (.1 is DNS only))
  Container ak-offgrid-caddy Stopping
  ...
  Network ak-offgrid-seed Removing

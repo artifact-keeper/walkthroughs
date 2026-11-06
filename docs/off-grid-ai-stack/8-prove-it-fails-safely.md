@@ -179,7 +179,7 @@ PASS              G2   config export: no credential in it (the plugins Remote's 
 PASS              G2   config plan: the export planned against this instance changes nothing
 PASS              G3   every Remote is cache-only (effective_upstream_mode, #5315)
 PASS              G3   the scheduled upstream jobs are paused (upstream_jobs_paused, #5317)
-PASS              G3   ak-offgrid-site is internal (no gateway, no route out)
+PASS              G3   ak-offgrid-site is internal (no default route, no NAT; .1 is DNS only)
 PASS              G3   every running container of the stack is on ak-offgrid-site only
 PASS              G3   the exported configuration records every Remote as cache-only
 PASS              G4   the llama image was pulled again on the site, through oci-ghcr, at the seed's digest

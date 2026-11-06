@@ -43,7 +43,7 @@ jq -n --arg t "$(date -u +%FT%TZ)" --argjson l "$(ledger_lines)" --argjson f "$(
   --argjson m "$(audit_count MCP_MIRROR_SYNCED)" \
   '{at: $t, ledger_lines: $l, upstream_fetched: $f, mcp_mirror_synced: $m}' | tee "$ROOT/out/disconnect.json"
 
-say "5. move the stack to ak-offgrid-site (internal: no gateway)"
+say "5. move the stack to ak-offgrid-site (internal: no default route, no NAT (.1 is DNS only))"
 # Take the stack down (volumes kept) and bring it up on the other network. compose can also
 # move running containers by recreating them, but with podman the recreated containers lose
 # their service-name DNS aliases (postgres, opensearch, ...) and the backend cannot find its
