@@ -38,14 +38,24 @@ check G7a "no route out from any of the $n running containers (stack, ledger, ll
 
 # --- G7b ---------------------------------------------------------------------------------
 # leave out the control windows of earlier runs of this gate (out/gates/control-windows.tsv)
-WIN=$(jq -Rsc 'split("\n") | map(select(length > 0) | split("\t"))' "$GOUT/control-windows.tsv" 2>/dev/null || echo '[]')
+# Fail closed: if the windows or a filter cannot be read, the checks below fail, they do not
+# pass on an empty result.
+WIN='[]'
+if [[ -s "$GOUT/control-windows.tsv" ]]; then
+  WIN=$(jq -Rsc 'split("\n") | map(select(length > 0) | split("\t"))' "$GOUT/control-windows.tsv") || WIN=BAD
+fi
+jq -e 'type == "array"' <<<"$WIN" >/dev/null 2>&1 || { echo "control windows unreadable: $WIN"; WIN=BAD; }
+echo "control windows of earlier runs: $([[ $WIN == BAD ]] && echo unreadable || jq -c 'length' <<<"$WIN")"
 # timestamps compared to the second (audit rows carry microseconds, the ledger does not)
 in_control='def inctl: .[0:19] as $t | any($w[]; $t >= .[0][0:19] and $t <= .[1][0:19]);'
-new=$(jq -c --arg t "$at" --argjson w "$WIN" "$in_control"' select(.t >= $t and .event == "open" and (.t | inctl | not))' "$LEDGER_FILE" | wc -l)
+raw=$(jq -c --arg t "$at" 'select(.t >= $t and .event == "open")' "$LEDGER_FILE" | wc -l)
+if [[ $WIN != BAD ]] && sel=$(jq -c --arg t "$at" --argjson w "$WIN" "$in_control"' select(.t >= $t and .event == "open" and (.t | inctl | not))' "$LEDGER_FILE"); then
+  new=$(grep -c . <<<"$sel" || true)
+else new=ERR; fi
 total=$(ledger_lines)
-echo "ledger: $l_at connections at the disconnect, $total now; opened since then, outside control windows: $new"
-jq -c --arg t "$at" --argjson w "$WIN" "$in_control"' select(.t >= $t and .event == "open" and (.t | inctl | not))' "$LEDGER_FILE" | head -5
-check G7b "the egress ledger saw no connection opened since the disconnect" "$new connections" test "$new" -eq 0
+echo "ledger: $l_at connections at the disconnect, $total now; opened since then: $raw, of them outside control windows: $new"
+[[ $new == ERR ]] || head -5 <<<"$sel"
+check G7b "the egress ledger saw no connection opened since the disconnect (outside the control windows)" "$new connections" test "$new" == 0
 
 # --- G7c ---------------------------------------------------------------------------------
 call admin GET /api/v1/admin/metrics > "$GOUT/g7-metrics.txt"
@@ -70,14 +80,19 @@ stale=$(metric ak_proxy_stale_if_error_responses_total "")
 check G7c "nothing was served stale (ak_proxy_stale_if_error_responses_total is 0)" "$stale" test "$stale" -eq 0
 
 # --- G7d ---------------------------------------------------------------------------------
-audit_items UPSTREAM_FETCHED "$at" | jq -c --argjson w "$WIN" "$in_control"' select(.created_at | inctl | not)' > "$GOUT/g7-upstream-fetched.jsonl"
-audit_items MCP_MIRROR_SYNCED "$at" | jq -c --argjson w "$WIN" "$in_control"' select(.created_at | inctl | not)' > "$GOUT/g7-mcp-synced.jsonl"
-echo "since $at: UPSTREAM_FETCHED $(wc -l < "$GOUT/g7-upstream-fetched.jsonl") (outside control windows), MCP_MIRROR_SYNCED $(wc -l < "$GOUT/g7-mcp-synced.jsonl")"
+d_ok=1
+for a in UPSTREAM_FETCHED MCP_MIRROR_SYNCED; do
+  f="$GOUT/g7-$(tr A-Z_ a-z- <<<"$a").jsonl"
+  audit_items "$a" "$at" > "$f.all" || d_ok=0
+  if [[ $WIN == BAD ]] || ! jq -c --argjson w "$WIN" "$in_control"' select(.created_at | inctl | not)' "$f.all" > "$f"; then d_ok=0; fi
+  echo "$a since $at: $(wc -l < "$f.all") rows, $(wc -l < "$f") outside the control windows"
+done
+mv -f "$GOUT/g7-mcp-mirror-synced.jsonl" "$GOUT/g7-mcp-synced.jsonl"
 head -3 "$GOUT/g7-upstream-fetched.jsonl"
 check G7d "no UPSTREAM_FETCHED audit row since the disconnect" "$(wc -l < "$GOUT/g7-upstream-fetched.jsonl") rows" \
-  test ! -s "$GOUT/g7-upstream-fetched.jsonl"
+  bash -c "(( $d_ok )) && [[ ! -s '$GOUT/g7-upstream-fetched.jsonl' ]]"
 check G7d "no scheduled MCP sync since the disconnect: no MCP_MIRROR_SYNCED row outside the recorded windows" "$(wc -l < "$GOUT/g7-mcp-synced.jsonl") rows" \
-  test ! -s "$GOUT/g7-mcp-synced.jsonl"
+  bash -c "(( $d_ok )) && [[ ! -s '$GOUT/g7-mcp-synced.jsonl' ]]"
 
 # --- G7e ---------------------------------------------------------------------------------
 "$ROOT/seed/inventory.sh" site
