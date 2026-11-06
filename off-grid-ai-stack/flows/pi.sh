@@ -82,4 +82,4 @@ calls=$(jq -r 'select(.type == "tool_execution_start") | .toolName' "$PO/coding.
 out=$(prun sh -c 'cd /home/dev/work && if [ -f hello.py ]; then timeout 10 python3 hello.py 2>&1; else echo "no hello.py"; fi' | tail -1)
 said=$(jq -rs '[.[] | select(.type == "message_end" and .message.role == "assistant")] | last | [.message.content[]? | select(.type == "text") | .text] | join("") | gsub("\\s+"; " ") | .[0:200]' "$PO/coding.jsonl" 2>/dev/null || true)
 jq -n --arg calls "$calls" --arg out "$out" --arg said "$said" --argjson s "$((SECONDS - t))" \
-  '{tool_calls: $calls, hello_py_output: $out, ok: ($out == "42"), seconds: $s, answer: $said}' | tee "$PO/coding.json" | jq -c .
+  '{tool_calls: $calls, hello_py_output: $out, ok: ($out == "42" and ($calls | split(",") | index("write") != null and index("bash") != null)), seconds: $s, answer: $said}' | tee "$PO/coding.json" | jq -c .
