@@ -18,9 +18,11 @@ def main():
     ap.add_argument("--idle", type=float, default=1.5)
     ap.add_argument("--cols", type=int, default=120)
     ap.add_argument("--rows", type=int, default=34)
-    ap.add_argument("cmd", nargs=argparse.REMAINDER)
-    a = ap.parse_args()
-    cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
+    argv = sys.argv[1:]
+    if "--" not in argv:
+        ap.error("usage: rec.py OUT.cast [options] -- command [args...]")
+    i = argv.index("--")
+    a, cmd = ap.parse_args(argv[:i]), argv[i + 1:]
     header = {"version": 2, "width": a.cols, "height": a.rows, "timestamp": int(time.time()),
               "title": a.title, "env": {"TERM": "xterm-256color", "SHELL": "/bin/bash"}}
     pid, fd = pty.fork()
