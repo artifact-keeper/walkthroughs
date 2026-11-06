@@ -1,0 +1,116 @@
+# Local overrides on top of the stock upstream docker-compose.yml (see VERSIONS).
+# The stock file in this directory is byte-for-byte upstream; every change for this
+# walkthrough lives here and in compose.site.yml. Compose project name: ak-offgrid (../lib.sh).
+#
+# What changes and why:
+#   - images: BACKEND_IMAGE / WEB_IMAGE / SCANNER_ADAPTER_IMAGE come from .env (the CI images of
+#     main at 88f23c51, by digest, until 1.12.0 is released). Every other image the stock file names by
+#     tag is pinned here to the multi-arch index digest of the reference run.
+#   - container_name: every upstream name is prefixed ak-offgrid- so this stack can run next
+#     to other Artifact Keeper stacks on the same host.
+#   - networks: the default network is ak-offgrid-seed (AK_SEED_SUBNET), which has a route out.
+#     compose.site.yml replaces it with ak-offgrid-site (AK_SITE_SUBNET, internal: true): make
+#     disconnect recreates every container there. Caddy is ak.internal on either network.
+#   - the backend has a fixed address, .250 of whichever network it is on, and the alias
+#     ak-central. The agentplugins Remote `plugins` proxies this instance's own hosted
+#     marketplace as http://ak-central:8080 (bootstrap.sh), so AK_SSRF_ALLOW_PRIVATE_CIDRS
+#     admits that one address on each network and nothing else.
+#   - AUDIT_UPSTREAM_FETCHES=all: every request the proxy sends upstream is an UPSTREAM_FETCHED
+#     audit row (#5316), the record the seed window is listed from and the site's silence is
+#     checked against.
+#   - Caddy answers as ak.internal with TLS from its internal CA, on 443 only (no :80).
+#     The only host port is 127.0.0.1:30450 -> 443. Postgres and OpenSearch publish nothing.
+#   - Trivy (the server) and openscap are disabled (profile "scanners"); grype, bundled in the
+#     backend image with its database baked in, scans uploads. The scanner adapter runs in
+#     offline mode (SCANNER_OFFLINE, #5314) and gets its database imported (flows/vet.sh).
+services:
+  pg-certs:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-offgrid-pg-certs
+  scan-workspace-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-offgrid-scan-ws-init
+  dtrack-init:
+    image: docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+    container_name: ak-offgrid-dtrack-init
+  dependency-track-apiserver:
+    container_name: ak-offgrid-dtrack-api
+    ports: !reset []
+  dependency-track-frontend:
+    container_name: ak-offgrid-dtrack-frontend
+    ports: !reset []
+
+  postgres:
+    image: docker.io/library/postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    container_name: ak-offgrid-db
+    ports: !reset []
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:2.19.6@sha256:be67c71b8d0e5edf1e9825145501c0136c3b8221206e1ce782ce17b04d0280b5
+    container_name: ak-offgrid-opensearch
+    ports: !reset []
+  trivy:
+    container_name: ak-offgrid-trivy
+    profiles: ["scanners"]
+  openscap:
+    container_name: ak-offgrid-openscap
+    profiles: ["scanners"]
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-backend:dev}
+    container_name: ak-offgrid-backend
+    environment:
+      TRIVY_URL:
+      TRIVY_ADAPTER_URL: http://scanner-adapter:8080
+      AK_SSRF_ALLOW_PRIVATE_CIDRS: ${SEED_PREFIX:-172.31.84}.250/32,${SITE_PREFIX:-172.31.85}.250/32
+      AUDIT_UPSTREAM_FETCHES: all
+      RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${AK_SEED_SUBNET:-172.31.84.0/24},${AK_SITE_SUBNET:-172.31.85.0/24}
+      CORS_ORIGINS: https://ak.internal,https://127.0.0.1:${HTTPS_PORT:-30450},https://localhost:${HTTPS_PORT:-30450}
+      RUST_LOG: ${RUST_LOG:-info,artifact_keeper=debug,tower_http=info}
+    networks:
+      default:
+        ipv4_address: ${NET_PREFIX:-172.31.84}.250
+        # The name the plugins Remote uses for its upstream, standing in for a central
+        # instance. `backend` itself is on the backend's own upstream hostname blocklist.
+        aliases: [ak-central]
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-web:dev}
+    container_name: ak-offgrid-web
+
+  scanner-adapter:
+    image: ${SCANNER_ADAPTER_IMAGE:-ghcr.io/artifact-keeper/artifact-keeper-scanner-adapter:dev}
+    container_name: ak-offgrid-scanner-adapter
+    environment:
+      SCANNER_ADAPTER_ADDR: ":8080"
+      SCANNER_TRIVY_INSECURE: "true"
+      SCANNER_OFFLINE: "true"
+      SCANNER_ADAPTER_TOKEN: ${SCANNER_ADAPTER_TOKEN:?run registry/up.sh}
+    volumes:
+      - scanner_adapter_cache:/home/scanner/.cache/trivy
+      - scan_workspace:/scan-workspace:ro
+    restart: unless-stopped
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
+    container_name: ak-offgrid-caddy
+    environment:
+      SITE_ADDRESS: ak.internal
+    ports: !override
+      - "127.0.0.1:${HTTPS_PORT:-30450}:443"
+    volumes: !override
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        aliases: [ak.internal]
+
+volumes:
+  scanner_adapter_cache:
+
+networks:
+  default:
+    name: ak-offgrid-seed
+    ipam:
+      config:
+        - subnet: ${AK_SEED_SUBNET:-172.31.84.0/24}

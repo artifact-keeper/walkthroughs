@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.acme/inventory",
+  "title": "Acme inventory",
+  "description": "Read-only stock levels from Acme's warehouse system",
+  "version": "1.0.0",
+  "repository": { "url": "https://git.acme.example/platform/inventory-mcp", "source": "git" },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "acme-inventory-mcp",
+      "version": "1.0.0",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}

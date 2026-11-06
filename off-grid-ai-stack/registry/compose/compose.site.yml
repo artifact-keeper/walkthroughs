@@ -1,0 +1,15 @@
+# The site: the same stack on a network with no route out. registry/lib.sh adds this file to
+# every compose command once make disconnect has written `site` to registry/out/phase.
+#
+# Only the default network changes. ak-offgrid-site is internal: true, so podman gives it no
+# gateway and no NAT; a container on it reaches the other containers on it and nothing else.
+# Every service is recreated on it with the same volumes (the database, the artifact store,
+# Caddy's CA), so the instance that seeded its caches is the one that serves them. The host
+# port 127.0.0.1:30450 still reaches Caddy: it is the site's LAN, inbound only.
+networks:
+  default:
+    name: ak-offgrid-site
+    internal: true
+    ipam:
+      config:
+        - subnet: ${AK_SITE_SUBNET:-172.31.85.0/24}

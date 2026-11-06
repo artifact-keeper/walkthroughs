@@ -1,0 +1,92 @@
+# Everything the site needs, pulled through Artifact Keeper while the seed network still has a
+# route out. seed/seed.sh reads this file; seed/inventory.sh lists every item with its
+# SHA-256 into out/inventory/<phase>.tsv, once while seeding and once on the site (gate G7e).
+#
+# Anything not listed here is not on the site afterwards. List exact versions and commits,
+# never "latest": the site serves what was seeded and nothing newer.
+
+# --- container images (oci-ghcr, oci-dockerhub) -----------------------------------------
+# Pulled with podman through localhost:30450/<repo>/<image>; recorded by manifest digest.
+[[image]]
+name = "llama-server"
+repo = "oci-ghcr"
+ref = "ggml-org/llama.cpp:server-b12124@sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85"
+why = "the model server (llama.cpp, CPU build, OpenAI- and Anthropic-compatible API)"
+
+[[image]]
+name = "python"
+repo = "oci-dockerhub"
+ref = "library/python:3.12-slim-trixie@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30"
+why = "the agent's base image (agent/Containerfile) and the site's clean-install check"
+
+[[image]]
+name = "node"
+repo = "oci-dockerhub"
+ref = "library/node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d"
+why = "Claude Code's base image (claude/Containerfile, the best-effort step)"
+
+[[image]]
+name = "trivy-db"
+repo = "oci-ghcr"
+# Not pinned by digest, deliberately: a vulnerability database is only useful while it is
+# current, and ghcr.io keeps only recent ones. The inventory records the digest that was seeded.
+ref = "aquasecurity/trivy-db:2"
+artifact = true
+why = "the vulnerability database the offline scanner adapter imports (flows/vet.sh)"
+
+# --- the model (hf-hub, then hf-models) -------------------------------------------------
+# Seeded into hf-hub's cache with the cache-seed API (#5333), commit-pinned paths only, then
+# published to hf-models, the vetted Local, where the model-file scanner reads it. The site
+# downloads it from hf-models. SMALL_MODEL=1 uses the second entry instead (Qwen2.5-0.5B:
+# SmolLM2-360M, the first choice, makes no tool calls, see the findings).
+[[model]]
+name = "qwen2.5-1.5b-instruct"
+repo_id = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+revision = "91cad51170dc346986eccefdc2dd33a9da36ead9"
+files = ["qwen2.5-1.5b-instruct-q4_k_m.gguf", "README.md"]
+gguf = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+size_bytes = 1117320736
+default = true
+
+[[model]]
+name = "qwen2.5-0.5b-instruct"
+repo_id = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+revision = "9217f5db79a29953eb74d5343926648285ec7e67"
+files = ["qwen2.5-0.5b-instruct-q4_k_m.gguf", "README.md"]
+gguf = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+size_bytes = 491400032
+small = true
+
+# --- Python packages (pypi Virtual: pypi-local, pypi-remote) ----------------------------
+# The agent's lock (every file hash-pinned) and Acme's own package. Seeded by building the
+# agent image, which installs both through the registry.
+[python]
+lock = "agent/requirements.lock"
+internal = "agent/requirements-internal.txt"
+
+# --- npm (npm-remote) ------------------------------------------------------------------
+[[npm]]
+name = "@anthropic-ai/claude-code"
+version = "2.1.318"
+why = "Claude Code, for the best-effort step (claude/Containerfile)"
+
+# --- MCP servers (mcp-all: mcp-internal, mcp-official) ----------------------------------
+[[mcp]]
+name = "com.acme/inventory"
+version = "1.0.0"
+repo = "mcp-internal"
+source = "tools/acme-inventory/server.json"
+why = "Acme's internal MCP server; its package acme-inventory-mcp is in pypi-local"
+
+[[mcp]]
+name = "io.github.daedalus/mcp-sqlite3"
+version = "0.1.3"
+repo = "mcp-official"
+why = "a public server from registry.modelcontextprotocol.io, approved by name and version"
+
+# --- agent plugins (plugins: the Remote of plugins-central) -----------------------------
+[[plugin]]
+name = "offgrid-ops"
+version = "1.0.0"
+source = "plugins/offgrid-ops"
+why = "the agent's plugin: which MCP servers to start, and its skill"

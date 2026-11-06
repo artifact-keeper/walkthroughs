@@ -199,6 +199,26 @@ nav:
           - Findings: private-model-hub/findings.md
           - Original plan: private-model-hub/plan.md
 
+  - "The off-grid AI stack (preview: 1.12.0)":
+      - off-grid-ai-stack/index.md
+      - 1. Stand up the registry: off-grid-ai-stack/1-stand-up-the-registry.md
+      - 2. Seed the stack: off-grid-ai-stack/2-seed-the-stack.md
+      - 3. Vet what you seeded: off-grid-ai-stack/3-vet-what-you-seeded.md
+      - 4. Disconnect: off-grid-ai-stack/4-disconnect.md
+      - 5. Run the agent offline: off-grid-ai-stack/5-run-the-agent-offline.md
+      - "6. Claude Code (best-effort)": off-grid-ai-stack/6-claude-code-best-effort.md
+      - 7. Prove nothing leaves: off-grid-ai-stack/7-prove-nothing-leaves.md
+      - 8. Prove it fails safely: off-grid-ai-stack/8-prove-it-fails-safely.md
+      - Results: off-grid-ai-stack/results.md
+      - Next steps: off-grid-ai-stack/next-steps.md
+      - Reference:
+          - Seed manifest and inventory: off-grid-ai-stack/reference/seed-manifest.md
+          - Make targets: off-grid-ai-stack/reference/make-targets.md
+          - Troubleshooting: off-grid-ai-stack/reference/troubleshooting.md
+      - Lab notes:
+          - Findings: off-grid-ai-stack/findings.md
+          - Original plan: off-grid-ai-stack/plan.md
+
 validation:
   links:
     anchors: warn

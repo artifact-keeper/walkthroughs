@@ -25,6 +25,7 @@ runs.
 | A private marketplace for agent plugins (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-agent-plugin-marketplace/) | [`private-agent-plugin-marketplace/`](private-agent-plugin-marketplace/) |
 | A private MCP registry (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-mcp-registry/) | [`private-mcp-registry/`](private-mcp-registry/) |
 | A private Hugging Face model hub (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/private-model-hub/) | [`private-model-hub/`](private-model-hub/) |
+| The off-grid AI stack (preview: Artifact Keeper 1.12.0) | [site](https://artifact-keeper.github.io/walkthroughs/off-grid-ai-stack/) | [`off-grid-ai-stack/`](off-grid-ai-stack/) |
 
 ## Layout
 

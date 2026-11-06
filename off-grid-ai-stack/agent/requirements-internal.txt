@@ -1,0 +1,4 @@
+# Acme's own MCP server, from pypi-local (built by tools/acme-inventory/build_wheel.py, which is
+# deterministic, so the hash is fixed). Installed with --no-deps: its one dependency, mcp, is
+# in requirements.lock.
+acme-inventory-mcp==1.0.0 --hash=sha256:8d5dc07b943ffa736c2c022b9ff823f3f91bf141f81601d9d99a05b5416175a3

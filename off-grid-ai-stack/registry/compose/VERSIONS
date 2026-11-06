@@ -1,0 +1,18 @@
+# Upstream source for docker-compose.yml and docker/*
+repo:    https://github.com/artifact-keeper/artifact-keeper
+branch:  main
+commit:  88f23c51  (feat(mcp): seed a Remote with named server versions without a catalog sync, 2026-11-06; the five files are unchanged since 173f809e)
+files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
+         docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
+         registry/caddy/Caddyfile replaces it)
+
+# Images (registry/.env.example) of the reference runs, 2026-11-06 (CI images of main, by digest)
+ghcr.io/artifact-keeper/artifact-keeper-backend:dev@sha256:1314a083cfecc388e6f4107248817eff50b7c103913849e225c32c781dcd2427
+    main at 88f23c51 (org.opencontainers.image.revision), reports 1.11.3;
+    image id sha256:c3c71ef94e712b2b47f2609601485b7ef21c22cd41d9c8fc7c8e86c44c2cf6c1
+ghcr.io/artifact-keeper/artifact-keeper-scanner-adapter:dev@sha256:d44dacfa01a846b27e247e021eb58df78c3b5c55ccd03a3c1872e25233699cb1
+    main at 88f23c51; image id sha256:00b13b32eb0440c0205257702b95abad3060a87d2f4ac903ec111b2d959bf808
+ghcr.io/artifact-keeper/artifact-keeper-web:dev@sha256:e05124d427420f81fbc2656bbad1cd50a5e3333a5cfae27859a61c6f1812e5ff
+    artifact-keeper-web at b65f9614; image id sha256:ab2c92d43ac8c52df5c1998f7ce5235fc5da5457ba7e96f629b0aac329cd2124
+# The stack's other images are pinned by index digest in compose.override.yml.
+# Lab fixtures: ledger/VERSIONS (the ledger), docker.io/library/alpine:3.24 (clean).

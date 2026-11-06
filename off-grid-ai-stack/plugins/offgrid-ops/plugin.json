@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "offgrid-ops",
+  "version": "1.0.0",
+  "description": "Acme operations for disconnected sites: the inventory MCP server, a SQLite MCP server, and a skill for answering stock questions from the tools",
+  "author": { "name": "Acme Platform Team", "email": "platform@acme.example" },
+  "license": "MIT",
+  "keywords": ["inventory", "mcp", "offline"]
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "acme-inventory": {
+      "command": "acme-inventory-mcp",
+      "args": []
+    },
+    "sqlite": {
+      "command": "python",
+      "args": ["-m", "mcp_sqlite3"]
+    }
+  }
+}
