@@ -71,12 +71,12 @@ check G7c "nothing was served stale (ak_proxy_stale_if_error_responses_total is 
 
 # --- G7d ---------------------------------------------------------------------------------
 audit_items UPSTREAM_FETCHED "$at" | jq -c --argjson w "$WIN" "$in_control"' select(.created_at | inctl | not)' > "$GOUT/g7-upstream-fetched.jsonl"
-audit_items MCP_MIRROR_SYNCED "$at" > "$GOUT/g7-mcp-synced.jsonl"
+audit_items MCP_MIRROR_SYNCED "$at" | jq -c --argjson w "$WIN" "$in_control"' select(.created_at | inctl | not)' > "$GOUT/g7-mcp-synced.jsonl"
 echo "since $at: UPSTREAM_FETCHED $(wc -l < "$GOUT/g7-upstream-fetched.jsonl") (outside control windows), MCP_MIRROR_SYNCED $(wc -l < "$GOUT/g7-mcp-synced.jsonl")"
 head -3 "$GOUT/g7-upstream-fetched.jsonl"
 check G7d "no UPSTREAM_FETCHED audit row since the disconnect" "$(wc -l < "$GOUT/g7-upstream-fetched.jsonl") rows" \
   test ! -s "$GOUT/g7-upstream-fetched.jsonl"
-check G7d "no MCP_MIRROR_SYNCED row since the disconnect (the MCP Remote sync is paused)" "$(wc -l < "$GOUT/g7-mcp-synced.jsonl") rows" \
+check G7d "no scheduled MCP sync since the disconnect: no MCP_MIRROR_SYNCED row outside the recorded windows" "$(wc -l < "$GOUT/g7-mcp-synced.jsonl") rows" \
   test ! -s "$GOUT/g7-mcp-synced.jsonl"
 
 # --- G7e ---------------------------------------------------------------------------------

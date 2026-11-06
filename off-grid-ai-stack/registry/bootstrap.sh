@@ -70,12 +70,6 @@ code_of() { echo "${1##*$'\n'}"; }
 body_of() { echo "${1%$'\n'*}"; }
 die() { echo "bootstrap.sh: $*" >&2; exit 1; }
 
-# Hold the scheduled upstream jobs (#5317) while the repositories are created: an MCP Remote
-# starts its first sync as soon as it exists, before its egress proxy and offline settings
-# below are set, and that sync would go out unrecorded. Resumed at the end.
-r=$(api PATCH /admin/settings/system -d '{"upstream_jobs_paused":true}')
-log "upstream jobs paused while configuring: HTTP $(code_of "$r")"
-
 # --- repositories -------------------------------------------------------------
 create_repo() { # key json
   local key=$1 body=$2 r
@@ -85,17 +79,23 @@ create_repo() { # key json
   [[ $(code_of "$r") =~ ^20 ]] || die "creating $key failed: HTTP $(code_of "$r") $(body_of "$r")"
   log "repo $key created: $(body_of "$r" | jq -c '{format,repo_type,visibility,upstream_url}')"
 }
+# Every Remote is created with its egress proxy in the create body (#5402, #5406): the
+# repository's first upstream request already goes through the ledger.
 remote() { # key format upstream visibility [extra-json]
   create_repo "$1" "$(jq -nc --arg k "$1" --arg f "$2" --arg u "$3" --arg v "$4" --argjson x "${5:-{\}}" \
-    '{key:$k,name:($k+" (Remote of "+$u+")"),format:$f,repo_type:"remote",upstream_url:$u,visibility:$v} + $x')"
+    '{key:$k,name:($k+" (Remote of "+$u+")"),format:$f,repo_type:"remote",upstream_url:$u,visibility:$v,
+      egress_proxy:{mode:"explicit",proxy_url:"http://egress-ledger:3128"}} + $x')"
 }
 remote oci-dockerhub docker https://registry-1.docker.io internal
 remote oci-ghcr      docker https://ghcr.io internal
 remote pypi-remote   pypi   https://pypi.org internal
 remote npm-remote    npm    https://registry.npmjs.org internal
 remote hf-hub        huggingface https://huggingface.co private
+# mcp-official never runs a scheduled sync (mcp_remote_sync_paused, set at create): the site
+# needs two named servers, not the 220,000 entries of the public registry. seed/seed.sh seeds
+# exactly the versions the manifest lists (POST .../mcp/seed, #5408).
 remote mcp-official  mcp    https://registry.modelcontextprotocol.io private \
-  '{"mcp_package_repos":{"pypi":"pypi-remote"}}'
+  '{"mcp_package_repos":{"pypi":"pypi-remote"},"mcp_remote_sync_paused":true}'
 
 create_repo pypi-local '{"key":"pypi-local","name":"Acme internal Python packages","format":"pypi","repo_type":"local","visibility":"internal"}'
 create_repo pypi '{"key":"pypi","name":"pypi: Acme first, then pypi.org","format":"pypi","repo_type":"virtual","visibility":"internal",
@@ -178,7 +178,7 @@ for r in "${REMOTES[@]}"; do
   r1=$(api PUT "/repositories/$r/cache-ttl" -d '{"cache_ttl_seconds":315360000}')
   r2=$(api PUT "/repositories/$r/on-upstream-not-found" -d '{"on_upstream_not_found":"keep"}')
   r3=$(api PUT "/repositories/$r/stale-if-error-grace" -d '{"stale_if_error_grace_seconds":2592000}')
-  r4=$(api PUT "/repositories/$r/egress-proxy" -d '{"mode":"explicit","proxy_url":"http://egress-ledger:3128"}')
+  r4=$(api GET "/repositories/$r/egress-proxy")   # set at create; read back
   for x in "$r1" "$r2" "$r3" "$r4"; do
     [[ $(code_of "$x") == 200 ]] || die "offline settings on $r failed: HTTP $(code_of "$x") $(body_of "$x")"
   done
@@ -200,6 +200,4 @@ podman login --cert-dir "$CERTS" --authfile "$TOKENS/developer-podman.json" -u d
   "localhost:${HTTPS_PORT}" < "$TOKENS/developer.token" >/dev/null || die "podman login failed"
 log "podman auth (developer): $TOKENS/developer-podman.json"
 
-r=$(api PATCH /admin/settings/system -d '{"upstream_jobs_paused":false}')
-log "upstream jobs resumed: HTTP $(code_of "$r")"
 log "done. Tokens in $TOKENS (never commit). CA: $CA"

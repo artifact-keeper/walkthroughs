@@ -84,7 +84,7 @@ while IFS=$'\t' read -r name ver; do
   api POST "$CAT/seed" -d "$(jq -nc --arg n "$name" --arg v "$ver" '{servers:[{name:$n,version:$v}],reason:"reviewed for the off-grid site: local SQLite only, no network"}')" >/dev/null
   echo "  POST /api/v1$CAT/seed $name@$ver: HTTP $(code) $(jq -c '{jobId, status, total}' "$FOUT/.body" 2>/dev/null)"
   surl=$(jq -r '.statusUrl // empty' "$FOUT/.body" 2>/dev/null || true)
-  [[ -n $surl ]] || echo "  no seed job: this backend has no POST .../mcp/seed (artifact-keeper#5408, main at <SHA> or later); gates G1 and G4 will report $name missing"
+  [[ -n $surl ]] || echo "  no seed job: this backend has no POST .../mcp/seed (artifact-keeper#5408, main at 88f23c51 or later); gates G1 and G4 will report $name missing"
   for _ in $(seq 120); do
     [[ -n $surl ]] || break
     call admin GET "$surl" >/dev/null

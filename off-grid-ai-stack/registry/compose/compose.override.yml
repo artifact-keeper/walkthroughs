@@ -3,8 +3,8 @@
 # walkthrough lives here and in compose.site.yml. Compose project name: ak-offgrid (../lib.sh).
 #
 # What changes and why:
-#   - images: BACKEND_IMAGE / WEB_IMAGE / SCANNER_ADAPTER_IMAGE come from .env (builds of main
-#     at f0d9b638 or later until 1.12.0 is released). Every other image the stock file names by
+#   - images: BACKEND_IMAGE / WEB_IMAGE / SCANNER_ADAPTER_IMAGE come from .env (the CI images of
+#     main at 88f23c51, by digest, until 1.12.0 is released). Every other image the stock file names by
 #     tag is pinned here to the multi-arch index digest of the reference run.
 #   - container_name: every upstream name is prefixed ak-offgrid- so this stack can run next
 #     to other Artifact Keeper stacks on the same host.

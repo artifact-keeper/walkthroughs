@@ -1,7 +1,7 @@
 # Upstream source for docker-compose.yml and docker/*
 repo:    https://github.com/artifact-keeper/artifact-keeper
 branch:  main
-commit:  173f809e  (feat(admin): export and plan/apply instance configuration as one document, 2026-11-05)
+commit:  88f23c51  (feat(mcp): seed a Remote with named server versions without a catalog sync, 2026-11-06; the five files are unchanged since 173f809e)
 files:   docker-compose.yml, docker/Caddyfile, docker/init-db.sql, docker/init-pg-ssl.sh,
          docker/init-dtrack.sh  (copied unmodified; docker/Caddyfile is NOT used:
          registry/caddy/Caddyfile replaces it)

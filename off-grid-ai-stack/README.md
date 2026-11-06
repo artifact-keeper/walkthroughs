@@ -10,10 +10,11 @@
 Code for the walkthrough at [`docs/off-grid-ai-stack/`](../docs/off-grid-ai-stack/index.md)
 (lab notes in [`findings.md`](../docs/off-grid-ai-stack/findings.md)).
 
-**Needs Artifact Keeper `main`** (coming in 1.12.0), at or after `f0d9b638`: cache-only Remotes,
+**Needs Artifact Keeper `main`** (coming in 1.12.0), at or after `88f23c51`: cache-only Remotes,
 the `UPSTREAM_FETCHED` audit event, the upstream-jobs switch, cache seeding, the agentplugins
-Remote, config export, the model-file scanner, commit-pinned Hugging Face paths, and the
-scanner adapter's offline mode. See [Images](#images).
+Remote, config export, the model-file scanner, commit-pinned Hugging Face paths, Remotes created
+with their egress proxy, the background MCP sync, the targeted MCP seed, and the scanner
+adapter's offline mode. See [Images](#images).
 
 Artifact Keeper runs as compose project `ak-offgrid` and answers as `https://ak.internal` (TLS
 from Caddy's internal CA). It starts on `ak-offgrid-seed` (172.31.84.0/24, a route out) and
@@ -54,13 +55,16 @@ real name with `curl --resolve ak.internal:30450:127.0.0.1 --cacert registry/out
 
 ## Images
 
-`registry/.env.example` names `:dev` of the backend, web and scanner-adapter images. Pin them
-by digest to a build of `main` at or after `f0d9b638` (check the
-`org.opencontainers.image.revision` label), or use 1.12.0 once it is released. Pass
-`AK_BACKEND_IMAGE` / `AK_WEB_IMAGE` / `AK_SCANNER_ADAPTER_IMAGE` for one run (the nightly
-runner does). The images of the reference run are in `registry/compose/VERSIONS`; the
-client pins are in `agent/VERSIONS`, `agent/requirements.lock`, `ledger/VERSIONS` and
-`seed/manifest.toml`.
+`registry/.env.example` pins the CI images of `main` at `88f23c51` by digest (backend,
+web, scanner adapter); the reference runs used exactly those. To use a later build, set
+`BACKEND_IMAGE`, `WEB_IMAGE` and `SCANNER_ADAPTER_IMAGE` in `registry/.env` (pin a digest and
+check the image's `org.opencontainers.image.revision` label), or pass `AK_BACKEND_IMAGE` /
+`AK_WEB_IMAGE` / `AK_SCANNER_ADAPTER_IMAGE` for one run. Use 1.12.0 or later once released.
+Every other image is pinned by digest too: the stack's in
+`registry/compose/compose.override.yml`, the ledger's in `ledger/VERSIONS`, the clients' in
+`seed/manifest.toml` and `agent/VERSIONS`, the Python packages by hash in
+`agent/requirements.lock`. The one exception is the trivy database (`trivy-db:2`), seeded at
+its current version on purpose; the inventory records its digest.
 
 Secrets (never committed): `registry/.env`, `registry/.tokens/`. Outputs: `out/`,
 `registry/out/` (the CA certificate and the phase), `agent/.work/`, `claude/.work/`.
