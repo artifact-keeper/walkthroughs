@@ -59,18 +59,23 @@ only.
 
 ## G7b: the egress ledger gained no connection
 
-**What it measures.** The ledger's `open` lines with a time at or after the cut, leaving out
-the windows of earlier G7 controls (`out/gates/control-windows.tsv`, compared to the second).
-There must be none.
+**What it measures.** The ledger's `open` lines with a time at or after the cut, twice: all of
+them (raw), and those outside the windows of earlier G7 controls (`out/gates/control-windows.tsv`,
+compared to the second), which must be none. Both numbers are printed, so a reader can see what
+the filter left out.
 
 ```console
-disconnected at 2026-11-05T17:44:23Z (ledger had 47 lines)
-ledger: 47 connections at the disconnect, 48 now; opened since then, outside control windows: 0
-PASS              G7b  the egress ledger saw no connection opened since the disconnect
+disconnected at 2026-11-06T05:13:07Z (ledger had 24 lines)
+...
+control windows of earlier runs: 0
+ledger: 24 connections at the disconnect, 24 now; opened since then: 0, of them outside control windows: 0
+PASS              G7b  the egress ledger saw no connection opened since the disconnect (outside the control windows)
 ```
 
-The one connection since the cut is the control of an earlier run of the gates (17:47:03),
-inside its recorded window.
+The check fails closed: if the window file cannot be read or the filter fails, the count is
+`ERR` and the check fails, instead of passing on an empty result. A first version of this gate
+did pass on an empty result: on a first gate run its window list was not valid JSON, the filter
+stopped with a `jq` error and counted nothing ([findings B16](findings.md#behaviour-worth-knowing)).
 
 **Why it would catch a leak.** Every Remote's egress proxy is the ledger (G1 checks it), and
 cache-only or not, an upstream request from a Remote goes through it. The ledger writes the
@@ -82,7 +87,8 @@ a separate container: a backend that did not log its own request would still sho
 socket directly. Those are what G7a rules out at the network level, and G7d's audit rows cover
 the backend's own upstream client. The ledger counts connections, not requests, so it would
 show that something tried to leave, not how much. A real attempt inside a control window of an
-earlier G7 run would be left out; the windows are a few seconds each and listed in the file.
+earlier G7 run would be left out of the filtered count, but not of the raw one printed next to
+it; the windows are a few seconds each and listed in the file.
 
 ## G7c: the cache answered, and no miss went upstream
 
@@ -93,24 +99,20 @@ Three checks: the Remotes the site used (`oci-ghcr`, `oci-dockerhub`, `pypi-remo
 more than the `cache_only_miss` count; and `ak_proxy_stale_if_error_responses_total` is 0.
 
 ```console
-ak_proxy_cache_lookups_total{repository="hf-hub",result="cache_only_miss"} 3
-ak_proxy_cache_lookups_total{repository="hf-hub",result="hit"} 3
-ak_proxy_cache_lookups_total{repository="hf-hub",result="miss"} 3
-ak_proxy_cache_lookups_total{repository="mcp-official",result="cache_only_miss"} 2
-ak_proxy_cache_lookups_total{repository="npm-remote",result="cache_only_miss"} 2
-ak_proxy_cache_lookups_total{repository="npm-remote",result="hit"} 4
-ak_proxy_cache_lookups_total{repository="oci-ghcr",result="cache_only_miss"} 3
+ak_proxy_cache_lookups_total{repository="hf-hub",result="cache_only_miss"} 2
+ak_proxy_cache_lookups_total{repository="hf-hub",result="miss"} 2
+ak_proxy_cache_lookups_total{repository="npm-remote",result="cache_only_miss"} 1
+ak_proxy_cache_lookups_total{repository="npm-remote",result="hit"} 12
+ak_proxy_cache_lookups_total{repository="oci-dockerhub",result="hit"} 1
+ak_proxy_cache_lookups_total{repository="oci-ghcr",result="cache_only_miss"} 2
 ak_proxy_cache_lookups_total{repository="oci-ghcr",result="hit"} 5
-ak_proxy_cache_lookups_total{repository="plugins",result="hit"} 16
-ak_proxy_cache_lookups_total{repository="pypi-remote",result="cache_only_miss"} 6
-ak_proxy_cache_lookups_total{repository="pypi-remote",result="hit"} 284
-ak_proxy_cache_lookups_total{repository="pypi-remote",result="miss_no_metadata"} 2
-FAIL              G7c  the Remotes the site used answered from the cache (hit > 0: oci-ghcr oci-dockerhub pypi-remote npm-remote plugins): no hits on: oci-dockerhub
+ak_proxy_cache_lookups_total{repository="plugins",result="hit"} 10
+ak_proxy_cache_lookups_total{repository="pypi-remote",result="cache_only_miss"} 3
+ak_proxy_cache_lookups_total{repository="pypi-remote",result="hit"} 142
+PASS              G7c  the Remotes the site used answered from the cache (hit > 0: oci-ghcr oci-dockerhub pypi-remote npm-remote plugins)
 PASS              G7c  every cache miss on a cache-only Remote ended at the cache-only gate (miss <= cache_only_miss)
 PASS              G7c  nothing was served stale (ak_proxy_stale_if_error_responses_total is 0)
 ```
-
-<!-- REFRESH: debug run. The FAIL is the older flows/agent.sh, which did not pull the python image on the site, so oci-dockerhub served nothing there; the current script pulls it. Expect a hit line for oci-dockerhub and three PASS lines. -->
 
 **Why it would catch a leak.** A cache-only miss is counted twice: as a cache lookup `miss`,
 then as `cache_only_miss` at the gate where a cache-only Remote stops instead of going
@@ -126,17 +128,23 @@ not depend on these counters.
 
 ## G7d: no upstream audit row since the cut
 
-**What it measures.** The audit log's `UPSTREAM_FETCHED` rows since the cut (leaving out the
-control windows) and `MCP_MIRROR_SYNCED` rows since the cut. There must be none of either.
+**What it measures.** The audit log's `UPSTREAM_FETCHED` and `MCP_MIRROR_SYNCED` rows since the
+cut, raw and outside the control windows. There must be none outside the windows. Like G7b, it
+fails closed if the rows or the windows cannot be read.
 
 ```console
-since 2026-11-05T17:44:23Z: UPSTREAM_FETCHED 1 (outside control windows), MCP_MIRROR_SYNCED 1
-{"id":"8e4aeac5-...","actor_username":"developer","action":"UPSTREAM_FETCHED",...,"details":{...,"error_type":"connect","host":"pypi.org","method":"GET","path":"/simple/offgrid-control-28876/","port":443,"principal":"developer",...,"repository":"pypi-remote",...,"result":"error","status":null},...,"created_at":"2026-11-05T17:47:03.552778Z"}
-FAIL              G7d  no UPSTREAM_FETCHED audit row since the disconnect: 1 rows
-FAIL              G7d  no MCP_MIRROR_SYNCED row since the disconnect (the MCP Remote sync is paused): 1 rows
+UPSTREAM_FETCHED since 2026-11-06T05:13:07Z: 0 rows, 0 outside the control windows
+MCP_MIRROR_SYNCED since 2026-11-06T05:13:07Z: 0 rows, 0 outside the control windows
+PASS              G7d  no UPSTREAM_FETCHED audit row since the disconnect
+PASS              G7d  no scheduled MCP sync since the disconnect: no MCP_MIRROR_SYNCED row outside the recorded windows
 ```
 
-<!-- REFRESH: debug run, with older code. The UPSTREAM_FETCHED row is the control of the first gates run (its path is /simple/offgrid-control-28876/, at 17:47:03, inside the window 17:47:03-17:47:06 that the current filter leaves out: checked against the debug data). The MCP_MIRROR_SYNCED row (17:44:23.397954, the second of the cut) is a sync that was running when the debug run's older disconnect.sh made the Remotes cache-only before pausing the jobs; it ended with "upstream answered 404 Not Found" on its next page. The current disconnect.sh pauses first and waits for the sync to finish. Expect two PASS lines. -->
+The same check in the web UI, on the stack the screenshots come from (disconnected at
+05:41:03 UTC): the audit log filtered to `UPSTREAM_FETCHED`. The page filters by day only, so
+the rows from before the cut are listed too; the one row after it, 5:46:11, is that stack's G7
+control trying pypi.org.
+
+![The audit log filtered to UPSTREAM_FETCHED: the newest row, 5:46:11, is the G7 control's attempt to reach pypi.org after the cut; the rows under it are from before the disconnect at 05:41:03 UTC](images/s09-audit-upstream-fetched.png)
 
 **Why it would catch a leak.** With `AUDIT_UPSTREAM_FETCHES=all`, every request the backend's
 upstream client sends is a row, whether it succeeds or fails, with the repository, host, path
@@ -144,12 +152,12 @@ and the user it was for. The control below shows a failed attempt on the site be
 (`"result": "error", "error_type": "connect"`). The ledger counts connections; this counts
 requests. An MCP sync that ran would write `MCP_MIRROR_SYNCED`, success or not.
 
-**What it does not cover.** Upstream calls that do not go through the audited client. One is
-known: the cold-HEAD probe (a `HEAD` for something the cache does not hold) calls the plain
-sender and is not audited
-([artifact-keeper#5347](https://github.com/artifact-keeper/artifact-keeper/issues/5347)). On a
-cache-only Remote it should not run at all, and gate G6 checks that three cold `HEAD`s open no
-ledger connection ([Step 8](8-prove-it-fails-safely.md)). The audit log is written by the
+**What it does not cover.** Upstream calls that do not go through the audited client. The one
+known gap, the cold-HEAD probe (a `HEAD` for something the cache does not hold), is audited
+since [#5414](https://github.com/artifact-keeper/artifact-keeper/pull/5414) (`main` at
+`a2f53502`, [#5347](https://github.com/artifact-keeper/artifact-keeper/issues/5347)); on a
+cache-only Remote it must not run at all, and gate G6 checks that three cold `HEAD`s open no
+ledger connection and write no row ([Step 8](8-prove-it-fails-safely.md)). The audit log is written by the
 process it audits: a backend that was itself compromised could leave rows out. G7a and G7b do
 not depend on it.
 
@@ -164,16 +172,13 @@ no item may be missing (`-`).
 inventory: 85 items in out/inventory/site.tsv
   image   4
   mcp     2
-  MISSING 1
   model   4
   npm     2
   plugin  1
   python  72
 inventory diff (kind, name, sha256): 0 lines
-FAIL              G7e  the site serves exactly the seeded inventory (85 items, same SHA-256 each): 0 diff lines (out/gates/g7-inventory.diff)
+PASS              G7e  the site serves exactly the seeded inventory (85 items, same SHA-256 each)
 ```
-
-<!-- REFRESH: debug run. The diff is empty, but mcp-sqlite3 was missing on both sides (never seeded: no #5408), so the no-missing-item half failed. Expect no MISSING line and a PASS. -->
 
 **Why it matters.** It is a completeness check, not an egress check: the site holds, byte for
 byte, everything it was given, and serves it from its own storage while G7a to G7d show it is
@@ -202,13 +207,13 @@ G7b and G7d leave out on later runs.
 
 ```console
 control: pypi-remote upstream-mode online: HTTP 200
-control: GET /pypi/pypi-remote/simple/offgrid-control-28488/ (online) -> HTTP 502 in 76 ms
-{"client":"172.31.85.250","event":"open","host":"pypi.org","kind":"connect","method":"CONNECT","port":443,"t":"2026-11-05T17:52:58Z"}
-{"client":"172.31.85.250","error":"gaierror","event":"close","host":"pypi.org","kind":"connect","method":"CONNECT","ms":0,"port":443,"result":"connect_failed","t":"2026-11-05T17:52:58Z"}
-{"action":"UPSTREAM_FETCHED","details":{"repository":"pypi-remote","host":"pypi.org","path":"/simple/offgrid-control-28488/","result":"error","error_type":"connect","status":null}}
+control: GET /pypi/pypi-remote/simple/offgrid-control-10396/ (online) -> HTTP 502 in 61 ms
+{"client":"172.31.85.250","event":"open","host":"pypi.org","kind":"connect","method":"CONNECT","port":443,"t":"2026-11-06T05:18:12Z"}
+{"client":"172.31.85.250","error":"gaierror","event":"close","host":"pypi.org","kind":"connect","method":"CONNECT","ms":0,"port":443,"result":"connect_failed","t":"2026-11-06T05:18:12Z"}
+{"action":"UPSTREAM_FETCHED","details":{"repository":"pypi-remote","host":"pypi.org","path":"/simple/offgrid-control-10396/","result":"error","error_type":"connect","status":null}}
 control: pypi-remote upstream-mode cache_only again: HTTP 200 {"effective_upstream_mode":"cache_only"}
-control: the same GET (sealed) -> HTTP 404 in 38 ms
-control: ledger connections 48 -> 49 (hole) -> 49 (sealed); UPSTREAM_FETCHED rows: 1 in the hole, 0 after sealing
+control: the same GET (sealed) -> HTTP 404 in 37 ms
+control: ledger connections 24 -> 25 (hole) -> 25 (sealed); UPSTREAM_FETCHED rows: 1 in the hole, 0 after sealing
 PASS              G7   control: with the hole poked, the attempt to leave is in the ledger
 PASS              G7   control: with the hole poked, the attempt is an UPSTREAM_FETCHED row
 PASS              G7   control: sealed again, the same request adds no ledger line and no audit row, and is a 404
@@ -230,7 +235,7 @@ network directly.
 | a Remote's upstream request (online by mistake) | fails for lack of a route | `open` line | miss without `cache_only_miss` | `UPSTREAM_FETCHED` row |
 | a scheduled MCP sync | fails | `open` line | | `MCP_MIRROR_SYNCED` row |
 | a library calling home from a container (telemetry, update checks) | no route | not seen (no proxy) | | not seen |
-| a cold `HEAD` probe ([#5347](https://github.com/artifact-keeper/artifact-keeper/issues/5347)) | no route | an `open` line if it uses the egress proxy (G6 checks there is none) | | not audited yet |
+| a cold `HEAD` probe ([#5347](https://github.com/artifact-keeper/artifact-keeper/issues/5347)) | no route | `open` line (G6 checks there is none) | | `UPSTREAM_FETCHED` row since #5414 (G6 checks there is none) |
 
 Every row has at least one instrument that sees it, and the network column fails it in every
 case. The full list of the reference run's gate lines is on

@@ -53,6 +53,14 @@ registry.modelcontextprotocol.io, all through the registry; the stack's own imag
 The only host port is `127.0.0.1:30450` (Caddy 443). From the host, reach the registry by its
 real name with `curl --resolve ak.internal:30450:127.0.0.1 --cacert registry/out/ak-internal-ca.crt`.
 
+## Demo
+
+[`demo/`](demo/) holds a 2 to 3 minute demo: [`SCRIPT.md`](demo/SCRIPT.md) (beats, assets,
+voiceover, commands), [`HIGHLIGHTS.md`](demo/HIGHLIGHTS.md) (the headline numbers and pull
+quotes, from the reference run), and five terminal recordings in [`demo/casts/`](demo/casts/)
+(asciicast v2). `demo/record.sh` records them again from an empty registry and takes the web UI
+screenshots (`demo/shoot.sh`); it leaves the stack up on the site network.
+
 ## Images
 
 `registry/.env.example` pins the CI images of `main` at `88f23c51` by digest (backend,

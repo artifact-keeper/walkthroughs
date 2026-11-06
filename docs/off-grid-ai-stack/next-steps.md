@@ -18,8 +18,9 @@ but does not run, and where the series goes from here.
   `UPSTREAM_FETCHED` rows, so the setting is free, and a row that does appear is the alarm.
 - **Set the offline settings when you create a Remote**, not when you disconnect: a raised
   cache-ttl applies to an entry only from its next revalidation
-  ([Step 1](1-stand-up-the-registry.md)). Pause the scheduled jobs while you create Remotes,
-  or an MCP Remote syncs before its egress proxy is set.
+  ([Step 1](1-stand-up-the-registry.md#offline-settings-set-at-creation)). Put the egress proxy
+  in the create body, and create an MCP Remote with `mcp_remote_sync_paused` unless you want it
+  to mirror the public catalog.
 - **Seed by commit and by hash.** The model is pinned to a commit, the Python packages to
   hashes, the images to digests. A tag or a branch name that moves upstream after the seed is a
   second, different seed.
@@ -53,8 +54,9 @@ opens a connection out. Two ways to move content across, both in
    (`https://central.example.com/agentplugins/plugins`) and the site serves the central
    plugins with the same SHA-256, without republishing them.
 
-What does not carry over by config export yet: scan policies, the Remote's cache-only mode
-(see [Findings](findings.md)), permissions and groups, curation rules. Set those on the high
+The export carries each Remote's upstream mode, so a high side built from it comes up
+cache-only ([Findings F4](findings.md#f4-config-export-did-not-carry-the-upstream-mode)). What it
+does not carry yet: scan policies, permissions and groups, curation rules. Set those on the high
 side by their own routes.
 
 ## Bundles across a physical gap

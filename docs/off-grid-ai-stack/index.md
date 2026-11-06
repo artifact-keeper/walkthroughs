@@ -121,13 +121,15 @@ ledger forwards what the Remotes ask for.
 
 - A Linux host with rootless podman 5.x and `podman compose`, curl, jq, openssl, python3
   (3.11 or later) and GNU make. No sudo is needed anywhere.
-- An Artifact Keeper backend from `main` at or after `f0d9b638`, or 1.12.0 once released, and a
-  scanner adapter image from the same commit (see the
+- Artifact Keeper from `main` at or after `88f23c51`, or 1.12.0 once released: the defaults are
+  the CI images of `main` at `88f23c51`, pinned by digest (see
+  [Step 1](1-stand-up-the-registry.md#images) and the
   [code README](https://github.com/artifact-keeper/walkthroughs/tree/main/off-grid-ai-stack#images)).
 - About 8 GB of free RAM (the registry stack, llama-server with a 1.5B model, the agent) and
-  20 GB of disk. A CPU with AVX2; no GPU.
+  20 GB of disk (the reference run's filesystem grew by 18.95 GB from an empty image store). A
+  CPU with AVX2; no GPU.
 - Internet access while seeding: container images from docker.io and ghcr.io, packages from
-  pypi.org and registry.npmjs.org, the model from huggingface.co and the MCP catalog from
+  pypi.org and registry.npmjs.org, the model from huggingface.co and one MCP server entry from
   registry.modelcontextprotocol.io, all through the registry. Without huggingface.co, the
   model checks report `BLOCKED(network)`.
 - Loopback port `127.0.0.1:30450` free (change `HTTPS_PORT` in `registry/.env` otherwise).
@@ -144,7 +146,7 @@ ledger forwards what the Remotes ask for.
 ## Steps
 
 1. [Stand up the registry](1-stand-up-the-registry.md): TLS, every repository, the offline settings set at creation, the egress ledger, users and tokens.
-2. [Seed the stack](2-seed-the-stack.md): the manifest, the cache-seed API for the model, the agent image, the MCP catalog, the plugin, the inventory.
+2. [Seed the stack](2-seed-the-stack.md): the manifest, the cache-seed API for the model, the agent image, the targeted MCP seed, the plugin, the inventory.
 3. [Vet what you seeded](3-vet-what-you-seeded.md): the model-file scanner, the offline scanner adapter, the configuration export.
 4. [Disconnect](4-disconnect.md): cache-only Remotes, paused jobs, the move to a network with no gateway.
 5. [Run the agent offline](5-run-the-agent-offline.md): llama-server, a clean install, the plugin, the MCP registry, a tool call.

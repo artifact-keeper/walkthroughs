@@ -7,21 +7,24 @@ cause, the fix and a link to the full record in the [lab notes](../findings.md).
 
 ## Setup
 
+### The :dev image is too old
+
+**Cause.** While this walkthrough was built, the CI amd64 builds of Artifact Keeper were failing,
+so `:dev` was older than the features it needs (cache-only Remotes, `UPSTREAM_FETCHED`, the
+targeted MCP seed, ...). Symptoms are the ones further down: `POST .../mcp/seed` is a `404`, the
+export has no `upstream_mode`, G3, G4 or G6 fail. The debug runs used local builds instead.
+
+**Fix.** Use the images `registry/.env.example` pins (the CI images of `main` at `88f23c51`, by
+digest), or a later build: check the image's `org.opencontainers.image.revision` label, pin its
+digest in `registry/.env`, or pass `AK_BACKEND_IMAGE` and `AK_SCANNER_ADAPTER_IMAGE` for one run
+([Step 1](../1-stand-up-the-registry.md#images)).
+
 ### up.sh: ... is not in podman's image store; build it first
 
-```text
-up.sh: localhost/ak-backend:offgrid-0bffa44c is not in podman's image store; build it first (README.md, "Images")
-```
+**Cause.** `registry/.env` names a local image (`localhost/...`) that does not exist on this
+host; `registry/up.sh` refuses to start rather than try to pull it.
 
-**Cause.** `registry/.env` names a local build of the backend or scanner adapter that does not
-exist on this host. The defaults are local builds because the CI `:dev` images were older than
-the features this walkthrough needs (the CI amd64 builds were failing).
-
-**Fix.** Build them from an `artifact-keeper` checkout
-([Step 1](../1-stand-up-the-registry.md#images)), or set `BACKEND_IMAGE` and
-`SCANNER_ADAPTER_IMAGE` (or `AK_BACKEND_IMAGE`, `AK_SCANNER_ADAPTER_IMAGE` for one run) to a
-`:dev` image built from `main` at or after `f0d9b638`, pinned by digest. Check its
-`org.opencontainers.image.revision` label.
+**Fix.** Build it, or point `registry/.env` back at the pinned CI images.
 
 ### Creating the plugins Remote fails on the upstream host
 
@@ -44,13 +47,15 @@ you change the subnets in `registry/.env`, keep those two addresses free.
 
 ### The ledger saw none of an MCP Remote's first sync
 
-**Cause.** An MCP Remote starts syncing as soon as it is created, before `PUT .../egress-proxy`
-applies ([artifact-keeper#5402](https://github.com/artifact-keeper/artifact-keeper/issues/5402)).
+**Cause.** On `main` before [#5406](https://github.com/artifact-keeper/artifact-keeper/pull/5406)
+(`c2816e4c`), an MCP Remote started syncing as soon as it was created, before `PUT .../egress-proxy`
+could apply ([artifact-keeper#5402](https://github.com/artifact-keeper/artifact-keeper/issues/5402)).
 
-**Fix.** Pause the scheduled upstream jobs while creating Remotes, as `bootstrap.sh` does
-(`PATCH /api/v1/admin/settings/system {"upstream_jobs_paused": true}`, then `false` at the end).
-Once [#5406](https://github.com/artifact-keeper/artifact-keeper/pull/5406) is in your backend, the
-Remote can be created with its settings. [Findings F1](../findings.md#f1-an-mcp-remote-syncs-before-its-settings-apply).
+**Fix.** Use a backend with #5406 and create the Remote with `egress_proxy` (and, for an MCP
+Remote, `mcp_remote_sync_paused`) in the create body, as `bootstrap.sh` does. On an older
+backend, pause the scheduled upstream jobs while creating Remotes
+(`PATCH /api/v1/admin/settings/system {"upstream_jobs_paused": true}`, then `false`).
+[Findings F1](../findings.md#f1-an-mcp-remote-synced-before-its-settings-applied).
 
 ## Seeding
 
@@ -80,13 +85,29 @@ file names are immutable, as on pypi.org.
   sync: HTTP 503 {"entries":null,"ingested":null,"unresolved":null,"reResolved":null,"pages":null,"complete":null}
 ```
 
-**Cause.** A manual MCP sync runs inside the request and is cut off by the 120 s request timeout
-([artifact-keeper#5404](https://github.com/artifact-keeper/artifact-keeper/issues/5404)). The
-instance is not overloaded.
+**Cause.** On `main` before [#5405](https://github.com/artifact-keeper/artifact-keeper/pull/5405)
+(`c09e5d7e`), a manual MCP sync ran inside the request and was cut off by the 120 s request
+timeout ([artifact-keeper#5404](https://github.com/artifact-keeper/artifact-keeper/issues/5404)).
+The message is misleading: the instance was not overloaded, and the sync was stopped mid-pass.
 
-**Fix.** Do not seed the public MCP server by syncing; use the targeted seed
+**Fix.** Use a backend with #5405, where the sync runs in the background and the route answers
+`202`. To seed one public MCP server, do not sync at all; use the targeted seed
 (`POST .../mcp/seed`, [Step 2](../2-seed-the-stack.md#4-mcp-servers)).
-[Findings F2](../findings.md#f2-a-manual-mcp-sync-is-cut-off-by-the-request-timeout).
+[Findings F2](../findings.md#f2-a-manual-mcp-sync-was-cut-off-by-the-request-timeout).
+
+### POST .../mcp/seed or .../mcp/sync: HTTP 409 CONFLICT
+
+```text
+POST .../mcp/seed (on the site): HTTP 409 {"code":"CONFLICT","message":"scheduled upstream jobs are paused on this instance (upstream_jobs_paused); a seed contacts the upstream and waits for the switch too"}
+POST .../mcp/sync (on the site): HTTP 409 {"code":"CONFLICT","message":"scheduled upstream jobs are paused on this instance (upstream_jobs_paused); no sync starts until the switch is off"}
+```
+
+**Cause.** The scheduled upstream jobs are paused (`upstream_jobs_paused`), or the Remote is
+cache-only. On the site that is the point: G6 asserts both `409`s. While seeding it means the
+switch was left on, for example after `make disconnect` without `make reconnect`.
+
+**Fix.** On the seed network, `make reconnect` (it resumes the jobs and puts every Remote back
+online), then seed again. Check with `GET /api/v1/admin/settings/system`.
 
 ### Pinning a public MCP server: 404 MCP server not found in this catalog
 
@@ -94,8 +115,9 @@ instance is not overloaded.
 200 pages a pass. `io.github.daedalus/mcp-sqlite3` is on page 1,093 of 2,218.
 
 **Fix.** The targeted seed fetches one name and version without a catalog sync
-([#5408](https://github.com/artifact-keeper/artifact-keeper/issues/5408)).
-[Findings F3](../findings.md#f3-a-remote-learns-a-name-only-by-syncing-the-whole-catalog).
+([#5408](https://github.com/artifact-keeper/artifact-keeper/issues/5408), fixed by
+[#5409](https://github.com/artifact-keeper/artifact-keeper/pull/5409), `main` at `88f23c51`).
+[Findings F3](../findings.md#f3-a-remote-learned-a-name-only-by-syncing-the-whole-catalog).
 
 ### POST .../mcp/seed: HTTP 404 Repository not found
 
@@ -104,18 +126,16 @@ HTTP 404
 Repository not found
 ```
 
-**Cause.** The backend predates [#5408](https://github.com/artifact-keeper/artifact-keeper/issues/5408):
-the route does not exist (the debug run on `main` at `0bffa44c`). Then `mcp-sqlite3` is not
-served, the inventory has it as missing, and the agent refuses to start it: G1, G4 and G7e fail
-on it, and G6's 409 check fails.
-
+**Cause.** The backend predates [#5409](https://github.com/artifact-keeper/artifact-keeper/pull/5409):
+the route does not exist (seen on `main` at `0bffa44c`). Then `mcp-sqlite3` is not served, the
+inventory has it as missing, and the agent refuses to start it: G1, G4 and G7e fail on it.
 `make seed` says so:
 
 ```text
-  no seed job: this backend has no POST .../mcp/seed (artifact-keeper#5408, main at <SHA> or later); gates G1 and G4 will report io.github.daedalus/mcp-sqlite3 missing
+  no seed job: this backend has no POST .../mcp/seed (artifact-keeper#5408, main at 88f23c51 or later); gates G1 and G4 will report io.github.daedalus/mcp-sqlite3 missing
 ```
 
-**Fix.** Use a backend with #5408. <!-- REFRESH: name the main commit or release that includes #5408 once merged. -->
+**Fix.** Use a backend from `main` at `88f23c51` or later.
 
 ### The adapter is not ready (HTTP 503) before the import
 
@@ -132,14 +152,13 @@ on it, and G6's 409 check fails.
 
 ```text
 jq: parse error: Unfinished JSON term at EOF at line 2, column 0
-FAIL              G2   scanner adapter: a scan of the llama.cpp image from the registry completes offline: rameter of negative size ...
 ```
 
-**Cause.** In the debug run the saved report `out/flows/adapter-report.txt` was not complete
+**Cause.** In a debug run the saved report `out/flows/adapter-report.txt` was not complete
 JSON, although the adapter answered 200 with a Trivy report. The scan itself completed.
 
-**Fix.** Run `make vet` with the current `flows/vet.sh`, which saves the whole response.
-<!-- REFRESH: confirm in the final run that G2's adapter check passes; if not, record the cause here. -->
+**Fix.** Run `make vet` again. In the reference run the report parsed:
+`report: HTTP 200, {"scanner":{"name":"Trivy","version":"0.76.0"},"vulnerabilities":689}`.
 
 ## Disconnecting
 
@@ -155,12 +174,13 @@ service-name DNS aliases (`postgres`, `opensearch`, ...).
 
 ### G3: BLOCKED(ak-gap) the exported configuration records every Remote as cache-only
 
-**Cause.** Config export does not carry `upstream_mode`
+**Cause.** On `main` before [#5415](https://github.com/artifact-keeper/artifact-keeper/pull/5415)
+(`d9a417c8`), config export did not carry `upstream_mode`
 ([artifact-keeper#5407](https://github.com/artifact-keeper/artifact-keeper/issues/5407)).
 
-**Fix.** None on the site; it is a gap, not a fault. On a second instance built from the export,
-set each Remote's upstream mode with `PUT .../upstream-mode`.
-[Findings F4](../findings.md#f4-config-export-does-not-carry-the-upstream-mode).
+**Fix.** Use a backend with #5415. On an older one, set each Remote's upstream mode on a cloned
+instance with `PUT .../upstream-mode`.
+[Findings F4](../findings.md#f4-config-export-did-not-carry-the-upstream-mode).
 
 ### G7d: an MCP_MIRROR_SYNCED row in the second of the cut
 
@@ -186,11 +206,12 @@ last container cannot tear down podman's rootless network namespace.
 FAIL              G4   the llama.cpp image was pulled again on the site, through oci-ghcr, at the seed's digest: seed c0a11067... site c77881bb...
 ```
 
-**Cause.** The debug run's seed took the digest from a `HEAD` of the tag; podman reports a
-different one for the same tag. The two were never comparable.
+**Cause.** In a debug run the image was pulled by tag, and the seed took the digest from a `HEAD`
+of the tag (the multi-arch index) while podman reported another one for the same tag.
 
-**Fix.** The current `seed/seed.sh` writes podman's digest to `out/seed-images.tsv`, and G4
-compares it with podman's digest on the site. Re-run `make seed` (it is idempotent).
+**Fix.** The manifest pins the index digest (`server-b12124@sha256:c0a11067...`), and
+`seed/seed.sh` writes podman's digest to `out/seed-images.tsv` for G4 to compare with podman's
+on the site. Re-run `make seed` (it is idempotent).
 [Findings B15](../findings.md#behaviour-worth-knowing).
 
 ### G7c: no hits on oci-dockerhub
@@ -241,12 +262,24 @@ true/false` in its log and does not gate on it; the tool call and the number are
 
 ### The session takes about 300 s and echoes the prompt
 
-**Cause.** Claude Code's own system prompt and tool definitions are tens of thousands of tokens;
-a 1.5B model on a CPU takes minutes to read them and then does not follow them.
+**Cause.** Claude Code's full harness, its own system prompt and tool definitions, is tens of
+thousands of tokens; a 1.5B model on a CPU took about 300 s to read them in a debug session and
+then echoed part of the prompt instead of answering.
 
-**Fix.** `make claude` uses `--system-prompt` and `--tools ''`, which answers in seconds.
-`CLAUDE_FULL=1 make claude` runs the full session too, for comparison.
+**Fix.** `make claude` uses `--system-prompt` and `--tools ''`, which answered in 3 s in the
+reference run. `CLAUDE_FULL=1 make claude` runs the full session too, for comparison.
 [Findings B9](../findings.md#behaviour-worth-knowing).
+
+### With SMALL_MODEL=1, G5's session is BLOCKED(best-effort): the answer is "# Environment ..."
+
+```text
+BLOCKED(best-effort) G5   best-effort: Claude Code gets the asked-for answer from the local model (...): {"is_error":false,"result":"# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /\n "}
+```
+
+**Cause.** Even with the minimal system prompt, Claude Code adds an environment section, and
+Qwen2.5-0.5B echoes it instead of answering.
+
+**Fix.** None in the registry: it is the model. Use the default model for this step.
 
 ### [claude-code:unrecognized_model] {"model":"local",...}
 
@@ -255,6 +288,23 @@ a 1.5B model on a CPU takes minutes to read them and then does not follow them.
 **Fix.** None needed; it is a warning on stderr and the session works.
 
 ## Reading the gates
+
+### G7: jq: invalid JSON text passed to --argjson, and G7b or G7d still pass
+
+```text
+jq: invalid JSON text passed to --argjson
+ledger: 22 connections at the disconnect, 22 now; opened since then, outside control windows: 0
+```
+
+**Cause.** A first version of `gates/g07-zero-egress.sh`. On the first gate run there was no
+`out/gates/control-windows.tsv`; the command that read it printed `[]` and failed, so
+`|| echo '[]'` appended a second `[]`, the result was not valid JSON, and the G7b and G7d
+filters produced nothing, so those checks passed without counting.
+
+**Fix.** Use the current gate (`de0597c` or later). It prints `control windows of earlier runs:
+N`, the raw and the filtered counts (`opened since then: 0, of them outside control windows: 0`),
+and fails closed with `ERR` when it cannot read them.
+[Findings B16](../findings.md#behaviour-worth-knowing).
 
 ### The ledger has fewer close lines than open lines
 
@@ -271,3 +321,21 @@ it stops.
 
 **Fix.** None. G7c checks `miss <= cache_only_miss` per Remote.
 [Findings B11](../findings.md#behaviour-worth-knowing).
+
+## The web UI
+
+### A Remote does not look cache-only in the UI
+
+**Cause.** The web UI does not show a Remote's upstream mode yet
+([artifact-keeper-web#1094](https://github.com/artifact-keeper/artifact-keeper-web/issues/1094)).
+
+**Fix.** Read it from the API: `GET /api/v1/repositories/<key>/upstream-mode`, or the export.
+[Findings B17](../findings.md#behaviour-worth-knowing).
+
+### The storage panel says Logical size 0 B for a repository with data
+
+**Cause.** Unknown; we did not investigate it. `hf-models` shows "1.04 GB used" in its header and
+0 B in the storage panel.
+
+**Fix.** None known. Use the size in the header and the artifact list.
+[Findings B18](../findings.md#behaviour-worth-knowing).

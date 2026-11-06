@@ -23,11 +23,13 @@ and pulled again through `oci-ghcr` and `oci-dockerhub`, now cache-only. Gate G4
 digests with the ones podman reported while seeding (`out/seed-images.tsv`).
 
 ```console
-== 1. the llama.cpp server image, pulled again through the registry
-  localhost:30450/oci-ghcr/ggml-org/llama.cpp:server-b12124: sha256:c77881bba21e863bc56391995511f361040952f7ed6033cf1589da7f77a04eff (21 s); the seed's index digest sha256:c0a11067c72bb1eb...
-```
+$ make agent
+flows/agent.sh
 
-<!-- REFRESH: debug run, older flows/agent.sh: it pulled only the llama.cpp image and compared it with a digest the seed took from a HEAD of the tag (c0a11067...), which is not the digest podman reports (c77881bb...), so gate G4 failed. The current script also pulls the python image and compares podman's digest on both sides. Paste the final run's block (two lines, "...pulled while seeding: <digest>" and the python image). -->
+== 1. the llama.cpp server image and the python base image, pulled again through the registry
+  localhost:30450/oci-ghcr/ggml-org/llama.cpp:server-b12124@sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85: sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85 (22 s); pulled while seeding: sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85
+  localhost:30450/oci-dockerhub/library/python:3.12-slim-trixie@sha256:b...: sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30 (1 s)
+```
 
 ## 2. The model, with hf download
 
@@ -52,7 +54,7 @@ The SHA-256 is the one the seed job recorded when it fetched the file from huggi
 
 ```bash
 podman run -d --name ak-offgrid-llama --network ak-offgrid-site \
-  -v ./out/models/site:/models:ro,z localhost:30450/oci-ghcr/ggml-org/llama.cpp:server-b12124 \
+  -v ./out/models/site:/models:ro,z localhost:30450/oci-ghcr/ggml-org/llama.cpp:server-b12124@sha256:c0a11067c72bb1eb330b8bddbf9869274c195e596bf4fae55fd527102e644b85 \
   -m /models/qwen2.5-1.5b-instruct-q4_k_m.gguf --alias local --jinja -c 32768 -t 16 --host 0.0.0.0 --port 8080
 ```
 
@@ -80,7 +82,7 @@ pip check
 ```console
 == 4. a clean install of the agent's packages, from the registry alone
 No broken requirements found.
-installed 73 distributions in 66 s
+installed 73 distributions in 73 s
 ```
 
 73 distributions: the 71 of the lock, Acme's package, and pip itself. `pip` found every file it
@@ -107,21 +109,27 @@ is about 200 lines on the `openai` and `mcp` packages. It talks to two hosts, `a
 
 ```console
 == 5. the agent
-  [   0.0s] plugin: {"name": "offgrid-ops", "version": "1.0.0", "url": "https://ak.internal/agentplugins/plugins/offgrid-ops/1.0.0/offgrid-ops-1.0.0.zip", "sha256": "6dbf8b77dcd390c8506e27205265d3f76e7208fe3a45bae2eaff2a2a825eded2", "index_sha256": "6dbf8b77dcd390c8506e27205265d3f76e7208fe3a45bae2eaff2a2a825eded2", "ve
-  [   0.1s] registry: {"repo": "mcp-all", "packages": 1}
-  [   1.1s] mcp-started: {"server": "acme-inventory", "command": "acme-inventory-mcp", "args": [], "distribution": "acme-inventory-mcp", "version": "1.0.0", "registry_name": "com.acme/inventory", "tools": ["list_warehouses", "stock_level"]}
-  [   1.7s] mcp-refused: {"server": "sqlite", "command": "python", "args": ["-m", "mcp_sqlite3"], "distribution": "mcp-sqlite3", "version": "0.1.3", "registry_name": null, "reason": "not listed in the MCP registry at this version"}
-  [   1.7s] llm: {"url": "http://ak-offgrid-llama:8080/v1", "models": ["local"], "tools": ["list_warehouses", "stock_level"]}
-  [   5.7s] llm-turn: {"turn": 0, "seconds": 3.9, "tool_calls": ["stock_level"], "content": ""}
-  [   5.7s] tool-call: {"tool": "stock_level", "arguments": {"sku": "OG-1138", "warehouse": "north"}, "result": "{\n  \"sku\": \"OG-1138\",\n  \"warehouse\": \"north\",\n  \"units\": 42,\n  \"ref\": \"inv-7f3a9c\"\n}"}
-  [   7.4s] llm-turn: {"turn": 1, "seconds": 1.7, "tool_calls": [], "content": "There are 42 units of SKU OG-1138 in the north warehouse. (ref: inv-7f3a9c)"}
-{"ok":true,"error":null,"plugin":{"name":"offgrid-ops","version":"1.0.0","sha256":"6dbf8b77dcd390c8506e27205265d3f76e7208fe3a45bae2eaff2a2a825eded2"},"servers":{"acme-inventory":["list_warehouses","stock_level"]},"tool_calls":[{"tool":"stock_level","arguments":{"sku":"OG-1138","warehouse":"north"},"result":"{\n  \"sku\": \"OG-1138\",\n  \"warehouse\": \"north\",\n  \"units\": 42,\n  \"ref\": \"inv-7f3a9c\"\n}"}],"answer":"There are 42 units of SKU OG-1138 in the north warehouse. (ref: inv-7f3a9c)","model":"local","seconds":7.6}
+  [   0.1s] plugin: {"name": "offgrid-ops", "version": "1.0.0", "url": "https://ak.internal/agentplugins/plugins/offgrid-ops/1.0.0/offgrid-ops-1.0.0.zip", "sha256": "334b543db38221feea0e74695b25a3623ddbef5b51062e5b7f56868caab00ebb", "index_sha256": "334b543db38221feea0e74695b25a3623ddbef5b51062e5b7f56868caab00ebb", "ve
+  [   0.2s] registry: {"repo": "mcp-all", "packages": 2}
+  [   1.5s] mcp-started: {"server": "acme-inventory", "command": "acme-inventory-mcp", "args": [], "distribution": "acme-inventory-mcp", "version": "1.0.0", "registry_name": "com.acme/inventory", "tools": ["list_warehouses", "stock_level"]}
+  [11/06/26 05:15:52] INFO     Starting MCP server 'mcp-sqlite3'  transport.py:241
+                               with transport 'stdio'
+  [   4.0s] mcp-started: {"server": "sqlite", "command": "python", "args": ["-m", "mcp_sqlite3"], "distribution": "mcp-sqlite3", "version": "0.1.3", "registry_name": "io.github.daedalus/mcp-sqlite3", "tools": ["get_sqlite_version", "get_sqlite3_version", "complete_sql_statement", "connect_database", "close_connection", "com
+  [   4.1s] sqlite-check: {"result": "3.46.1"}
+  [   4.2s] llm: {"url": "http://ak-offgrid-llama:8080/v1", "models": ["local"], "tools": ["list_warehouses", "stock_level"]}
+  [   8.4s] llm-turn: {"turn": 0, "seconds": 4.2, "tool_calls": ["stock_level"], "content": ""}
+  [   8.4s] tool-call: {"tool": "stock_level", "arguments": {"sku": "OG-1138", "warehouse": "north"}, "result": "{\n  \"sku\": \"OG-1138\",\n  \"warehouse\": \"north\",\n  \"units\": 42,\n  \"ref\": \"inv-7f3a9c\"\n}"}
+  [  10.3s] llm-turn: {"turn": 1, "seconds": 1.9, "tool_calls": [], "content": "There are 42 units of SKU OG-1138 in the north warehouse. (ref: inv-7f3a9c)"}
+{"ok":true,"error":null,"plugin":{"name":"offgrid-ops","version":"1.0.0","sha256":"334b543db38221feea0e74695b25a3623ddbef5b51062e5b7f56868caab00ebb"},"servers":{"acme-inventory":["list_warehouses","stock_level"],"sqlite":["get_sqlite_version","get_sqlite3_version","complete_sql_statement","connect_database","close_connection","commit","rollback","execute_query","execute_many","execute_script","fetch_results","list_ta...
 ```
 
-<!-- REFRESH: debug run. mcp-sqlite3 was never seeded there (no #5408), so mcp-all listed one package and the agent refused the sqlite server: the registry check doing its job on a server that was not approved. In the final run expect "packages": 2, an mcp-started line for sqlite with "registry_name": "io.github.daedalus/mcp-sqlite3", and a sqlite-check line with the SQLite version. -->
+The final document (`out/agent/run.json`) ends with
+`"answer":"There are 42 units of SKU OG-1138 in the north warehouse. (ref: inv-7f3a9c)","model":"local","seconds":10.6`.
+The `INFO Starting MCP server 'mcp-sqlite3'` line is `fastmcp` logging to stderr as it starts.
 
-The agent ran 7.6 s: the first model turn (reading the skill and the tool definitions, and
-choosing the call) took 3.9 s, the answer 1.7 s, on 16 CPU threads.
+The agent ran 10.6 s, the two MCP servers started in about 4 s, and the model's first turn
+(reading the skill and the tool definitions, and choosing the call) took 4.2 s, the answer
+1.9 s, on 16 CPU threads. The public server answered its direct call with SQLite 3.46.1.
 
 ### How we know the answer came from the tool
 
@@ -130,8 +138,19 @@ model cannot guess. Gate G4 checks that the model called `stock_level` with `OG-
 `north`, and that the answer gives the tool's number, 42. The plugin's skill also asks the
 model to end with `(ref: <ref>)`. Qwen2.5-1.5B does, and with the default model G4 gates on it.
 With `SMALL_MODEL=1`, Qwen2.5-0.5B makes the right call and gives 42 but does not quote the ref,
-even when told to; G4 then reports `answer quotes the tool's ref: true/false` in its log without
-gating on it.
+even when told to:
+
+```console
+  [   6.1s] llm-turn: {"turn": 0, "seconds": 2.4, "tool_calls": ["stock_level"], "content": ""}
+  [   6.1s] tool-call: {"tool": "stock_level", "arguments": {"sku": "OG-1138", "warehouse": "north"}, "result": "{\n  \"sku\": \"OG-1138\",\n  \"warehouse\": \"north\",\n  \"units\": 42,\n  \"ref\": \"inv-7f3a9c\"\n}"}
+  [   7.0s] llm-turn: {"turn": 1, "seconds": 0.9, "tool_calls": [], "content": "There are 42 units of SKU OG-1138 in the north warehouse."}
+```
+
+and G4 reports it in its log without gating on it:
+
+```text
+SMALL_MODEL=1: answer quotes the tool's ref: false (not gated)
+```
 
 !!! note "A model that cannot call tools makes the number up"
     The first choice for `SMALL_MODEL=1` was SmolLM2-360M-Instruct. With the same llama.cpp
@@ -156,4 +175,3 @@ banner; the agent image sets `FASTMCP_CHECK_FOR_UPDATES=off` and `FASTMCP_SHOW_S
 and `huggingface_hub`'s telemetry and Xet are off too. On the site there is no route for any of
 them ([Step 7](7-prove-nothing-leaves.md)); off, they do not try.
 
-<!-- REFRESH: step timings for the final run (pull times, model download time, llama-server start, clean install, agent), and the SMALL_MODEL=1 run's agent block. -->
