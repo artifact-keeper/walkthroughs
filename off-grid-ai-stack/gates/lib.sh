@@ -6,8 +6,8 @@
 #   BLOCKED(reason)  Gn <check>: <why>
 # Reasons: network (huggingface.co or another upstream was not reachable while seeding),
 # ak-fix (an Artifact Keeper bug that is reported, not yet fixed; see the findings), ak-gap (a
-# capability Artifact Keeper does not have; see the findings), best-effort (the Claude Code
-# step's model session, which is shown, not promised). Verdicts are appended to
+# capability Artifact Keeper does not have; see the findings), best-effort (pi's model session
+# with SMALL_MODEL=1, which is shown, not promised). Verdicts are appended to
 # out/gates/results.tsv. Checks assert on HTTP status codes, documents, digests, hashes,
 # counters and audit rows, never on message text.
 GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

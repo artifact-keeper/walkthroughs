@@ -1,0 +1,35 @@
+# pi, the open-source coding agent (github.com/earendil-works/pi, MIT), for step 6. Stage one
+# is Node from oci-dockerhub, where npm installs @earendil-works/pi-coding-agent from
+# npm-remote. Stage two is the agent image (Python and the MCP servers pi starts) with that
+# Node and pi copied in. Everything comes through Artifact Keeper, and no credential stays in
+# the image: the developer token is a build secret here and an environment variable per run.
+ARG REG=localhost:30450
+ARG NODE_IMAGE
+FROM ${REG}/oci-dockerhub/${NODE_IMAGE} AS install
+ARG AK=https://ak.internal:30450
+ARG PI_VERSION
+COPY .work/ak-internal-ca.crt /usr/local/share/ca-certificates/ak-internal-ca.crt
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ak-internal-ca.crt
+RUN --mount=type=secret,id=ak_token,required=true \
+    set -eu; t=$(cat /run/secrets/ak_token); r="${AK#https://}/npm/npm-remote/"; \
+    printf 'registry=https://%s\n//%s:_authToken=%s\n' "$r" "$r" "$t" > /tmp/npmrc; \
+    npm install -g --userconfig /tmp/npmrc --no-fund --no-audit "@earendil-works/pi-coding-agent@${PI_VERSION}"; \
+    rm -f /tmp/npmrc; npm cache clean --force; pi --version
+
+FROM localhost/ak-offgrid/agent:latest
+USER root
+COPY --from=install /usr/local/bin/node /usr/local/bin/node
+COPY --from=install /usr/local/lib/node_modules/@earendil-works /usr/local/lib/node_modules/@earendil-works
+RUN ln -s ../lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js /usr/local/bin/pi
+COPY bridge.py /opt/pi/bridge.py
+# Without these, pi contacts pi.dev (the version check, install telemetry, the model catalog)
+# and github.com (it downloads fd and ripgrep). PI_OFFLINE and PI_SKIP_VERSION_CHECK are
+# tested for presence in places, so they are 1, never 0; PI_TELEMETRY=0 turns telemetry off.
+# fd and ripgrep are not installed: in offline mode pi only warns that they are missing.
+ENV PI_OFFLINE=1 \
+    PI_TELEMETRY=0 \
+    PI_SKIP_VERSION_CHECK=1 \
+    NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ak-internal-ca.crt
+USER dev
+WORKDIR /home/dev
+RUN pi --version

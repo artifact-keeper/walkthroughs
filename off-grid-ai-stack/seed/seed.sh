@@ -9,7 +9,7 @@
 #                  0.1.3 seeded into mcp-official from the official registry (#5408)
 #   5. plugins     offgrid-ops published to plugins-central, then read through the plugins
 #                  Remote (#5334), which caches it
-#   6. npm         the Claude Code image, which installs through npm-remote
+#   6. npm         the pi image, which installs pi through npm-remote
 # Every step is idempotent: what is already published or cached is skipped or served from the
 # cache. The ledger and the UPSTREAM_FETCHED rows record what went out.
 set -euo pipefail
@@ -120,16 +120,15 @@ for _ in $(seq 30); do  # the hosted version is listed once its scan clears it
   call developer GET /agentplugins/plugins-central/offgrid-ops/index.json >/dev/null
   [[ $(code) == 200 ]] && jq -e '.latest == "1.0.0"' "$FOUT/.body" >/dev/null && break; sleep 2
 done
-for doc in marketplace.json claude-marketplace.json offgrid-ops/index.json; do
+for doc in marketplace.json offgrid-ops/index.json; do
   call developer GET "/agentplugins/plugins/$doc" >/dev/null
   echo "  GET plugins/$doc (through the Remote): HTTP $(code)"
 done
 call developer GET /agentplugins/plugins/offgrid-ops/1.0.0/offgrid-ops-1.0.0.zip -o "$FOUT/plugin.zip" >/dev/null
 echo "  GET plugins/offgrid-ops/1.0.0/offgrid-ops-1.0.0.zip: HTTP $(code), sha256 $(sha256sum "$FOUT/plugin.zip" | cut -c1-16) (published $(echo "$psha" | cut -c1-16))"
 
-say "6. Claude Code (best-effort step): its image installs through npm-remote"
-"$ROOT/claude/build.sh" 2>&1 | grep -vE '^(STEP|COPY|--> |Getting image|Copying|Writing manifest|Storing signatures)' | tail -6 || \
-  echo "  the Claude Code image did not build (best-effort; see out/flows/claude-build.log)"
+say "6. pi (step 6): its image installs pi through npm-remote"
+"$ROOT/pi/build.sh" 2>&1 | grep -vE '^(STEP|COPY|--> |Getting image|Copying|Writing manifest|Storing signatures)' | tail -6
 
 
 say "what went out while seeding"

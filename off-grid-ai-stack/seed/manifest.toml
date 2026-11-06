@@ -23,7 +23,7 @@ why = "the agent's base image (agent/Containerfile) and the site's clean-install
 name = "node"
 repo = "oci-dockerhub"
 ref = "library/node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d"
-why = "Claude Code's base image (claude/Containerfile, the best-effort step)"
+why = "the Node runtime for pi (pi/Containerfile) and the site's clean npm install"
 
 [[image]]
 name = "trivy-db"
@@ -66,9 +66,11 @@ internal = "agent/requirements-internal.txt"
 
 # --- npm (npm-remote) ------------------------------------------------------------------
 [[npm]]
-name = "@anthropic-ai/claude-code"
-version = "2.1.318"
-why = "Claude Code, for the best-effort step (claude/Containerfile)"
+# pi installs 123 packages (176 MB), all through npm-remote; none has an install script that
+# downloads anything. It needs node >= 22.19.
+name = "@earendil-works/pi-coding-agent"
+version = "1.5.0"
+why = "pi, the open-source coding agent of step 6 (pi/Containerfile; MIT, github.com/earendil-works/pi)"
 
 # --- MCP servers (mcp-all: mcp-internal, mcp-official) ----------------------------------
 [[mcp]]

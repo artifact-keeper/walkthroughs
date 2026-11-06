@@ -20,8 +20,8 @@ Artifact Keeper runs as compose project `ak-offgrid` and answers as `https://ak.
 from Caddy's internal CA). It starts on `ak-offgrid-seed` (172.31.84.0/24, a route out) and
 `make disconnect` recreates every container on `ak-offgrid-site` (172.31.85.0/24,
 `internal: true`: no default route, no NAT). The egress ledger, a logging forward proxy at `.200`, is every
-Remote's egress proxy, on whichever network the stack is on. llama-server, the agent, Claude
-Code and every check run in containers on the same network. Nothing here needs sudo or an
+Remote's egress proxy, on whichever network the stack is on. llama-server, the agent, pi
+(an open-source coding agent) and every check run in containers on the same network. Nothing here needs sudo or an
 account anywhere.
 
 | Directory | What |
@@ -32,14 +32,14 @@ account anywhere.
 | `tools/acme-inventory/` | Acme's internal MCP server, its deterministic wheel builder and its `server.json` |
 | `plugins/offgrid-ops/` | the agent's plugin: which MCP servers to start, and its skill |
 | `agent/` | the agent (`agent.py`), its image (`Containerfile`, hash-pinned `requirements.lock`), `run.sh` |
-| `claude/` | the Claude Code image for the best-effort step |
-| `flows/` | `vet`, `disconnect`, `agent`, `claude`, `reconnect` |
+| `pi/` | the image of [pi](https://github.com/earendil-works/pi), the open-source coding agent of step 6 (MIT), `run.sh`, and `bridge.py`, the lab's step from the plugins Remote to pi's `mcp.json` (pi has no marketplace client) |
+| `flows/` | `vet`, `disconnect`, `agent`, `pi`, `reconnect` |
 | `gates/` | G1-G7 as runnable checks: PASS / FAIL / BLOCKED |
 
 ## Run it
 
 ```console
-make all             # registry, bootstrap, seed, vet, disconnect, agent, claude
+make all             # registry, bootstrap, seed, vet, disconnect, agent, pi
 make gates           # the seven gates; results in out/gates/
 make reconnect       # back to the seed network (to seed something new)
 make clean           # remove everything it created (keeps pulled images)
@@ -57,7 +57,7 @@ real name with `curl --resolve ak.internal:30450:127.0.0.1 --cacert registry/out
 
 [`demo/`](demo/) holds a 2 to 3 minute demo: [`SCRIPT.md`](demo/SCRIPT.md) (beats, assets,
 voiceover, commands), [`HIGHLIGHTS.md`](demo/HIGHLIGHTS.md) (the headline numbers and pull
-quotes, from the reference run), and five terminal recordings in [`demo/casts/`](demo/casts/)
+quotes, from the reference run), and six terminal recordings in [`demo/casts/`](demo/casts/)
 (asciicast v2). `demo/record.sh` records them again from an empty registry and takes the web UI
 screenshots (`demo/shoot.sh`); it leaves the stack up on the site network.
 
@@ -75,4 +75,4 @@ Every other image is pinned by digest too: the stack's in
 its current version on purpose; the inventory records its digest.
 
 Secrets (never committed): `registry/.env`, `registry/.tokens/`. Outputs: `out/`,
-`registry/out/` (the CA certificate and the phase), `agent/.work/`, `claude/.work/`.
+`registry/out/` (the CA certificate and the phase), `agent/.work/`, `pi/.work/`.

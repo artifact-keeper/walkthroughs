@@ -8,7 +8,7 @@
 #   oci-dockerhub  docker        https://registry-1.docker.io   base images (python, node)
 #   oci-ghcr       docker        https://ghcr.io                the llama.cpp server image, the trivy DB
 #   pypi-remote    pypi          https://pypi.org               openai, mcp, huggingface_hub, the public MCP server
-#   npm-remote     npm           https://registry.npmjs.org     Claude Code (the best-effort step)
+#   npm-remote     npm           https://registry.npmjs.org     pi (step 6)
 #   hf-hub         huggingface   https://huggingface.co         the model, pinned to a commit
 #   mcp-official   mcp           https://registry.modelcontextprotocol.io   approval required
 #   plugins        agentplugins  http://ak-central:8080/agentplugins/plugins-central

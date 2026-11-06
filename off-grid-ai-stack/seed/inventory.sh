@@ -9,7 +9,7 @@
 #           GET /huggingface/hf-models/<id>/resolve/main/<file> (the vetted copy)
 #   python  pip download of the lock, --require-hashes --no-deps, in a fresh python container on
 #           the stack's network: every wheel and its hash
-#   npm     the packument's tarball for each listed version, and its linux-x64 binary package
+#   npm     the packument's tarball for each listed version
 #   mcp     GET /mcp/mcp-all/v0.1/servers/<name>/versions/<version>: the entry's document
 #   plugin  GET /agentplugins/plugins/<name>/<version>/<name>-<version>.zip
 #     inventory.sh LABEL
@@ -52,7 +52,7 @@ AK_TOKEN=$(tok developer) podman run --rm -i --network "$NET" --userns keep-id:u
 for w in "$wd"/*; do [[ -f $w ]] && row python "$(basename "$w")" "$(sha_of "$w")" "$(size_of "$w")" "pypi"; done
 
 while IFS=$'\t' read -r name ver; do
-  for pkg in "$name" "$name-linux-x64"; do
+  for pkg in "$name"; do
     call developer GET "/npm/npm-remote/$(jq -rn --arg n "$pkg" '$n | sub("/"; "%2f")')" >/dev/null
     tb=$(jq -r --arg v "$ver" '.versions[$v].dist.tarball // empty' "$FOUT/.body" 2>/dev/null)
     if [[ -n $tb ]]; then

@@ -1,5 +1,5 @@
 # shellcheck shell=bash disable=SC2034  # sourced: the variables are used by the callers
-# Helpers for the flow scripts (make seed, vet, disconnect, agent, claude) and the gates.
+# Helpers for the flow scripts (make seed, vet, disconnect, agent, pi) and the gates.
 FLOWS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../registry/lib.sh
 source "$FLOWS_DIR/../registry/lib.sh"

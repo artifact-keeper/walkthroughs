@@ -40,5 +40,5 @@ imgs=$(podman images --format '{{.ID}} {{.Repository}}' | awk -v p="^localhost:$
 if [[ -d "$ROOT/out" ]]; then
   podman run --rm -v "$ROOT/out:/out:z" docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a rm -rf /out/homes /out/models /out/agent >/dev/null 2>&1 || true
 fi
-rm -rf "$ENV_FILE" "$TOKENS" "$OUT" "$ROOT/out" "$ROOT/agent/.work" "$ROOT/claude/.work"
+rm -rf "$ENV_FILE" "$TOKENS" "$OUT" "$ROOT/out" "$ROOT/agent/.work" "$ROOT/pi/.work"
 echo "clean: removed containers, volumes, both networks, the images and local state"

@@ -1,4 +1,4 @@
 out/
 agent/.work/
-claude/.work/
+pi/.work/
 agent/requirements.lock.new
