@@ -12,5 +12,5 @@ source "$HERE/../registry/lib.sh"
 load_env
 H="$ROOT/out/homes/pi"; mkdir -p "$H"
 AK_TOKEN="$(tok developer)"; export AK_TOKEN
-exec podman run --rm -i --network "$NET" --userns keep-id:uid=1000,gid=1000 \
+exec podman run --rm --network "$NET" --userns keep-id:uid=1000,gid=1000 \
   -e AK_TOKEN -e AK_URL="$AK_URL" -v "$H:/home/dev:z" -w /home/dev localhost/ak-offgrid/pi:latest "$@"
